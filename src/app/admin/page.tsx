@@ -47,21 +47,20 @@ export default function AdminPage() {
     setResult(null)
     try {
       const ts = Date.now()
-      const assetPath = 'assets/' + ts + '-' + assetFile.name
+      const assetPath = ts + '-' + assetFile.name
       const { error: assetErr } = await supabase.storage
         .from('assets')
         .upload(assetPath, assetFile, { upsert: true })
       if (assetErr) throw assetErr
-      const { data: assetUrlData } = supabase.storage.from('assets').getPublicUrl(assetPath)
-      const fileUrl = assetUrlData.publicUrl
+      const fileUrl = assetPath
       let thumbnailUrl = ''
       if (thumbFile) {
-        const thumbPath = 'thumbnails/' + ts + '-' + thumbFile.name
+        const thumbPath = ts + '-' + thumbFile.name
         const { error: thumbErr } = await supabase.storage
-          .from('assets')
+          .from('thumbnails')
           .upload(thumbPath, thumbFile, { upsert: true })
         if (thumbErr) throw thumbErr
-        const { data: thumbUrlData } = supabase.storage.from('assets').getPublicUrl(thumbPath)
+        const { data: thumbUrlData } = supabase.storage.from('thumbnails').getPublicUrl(thumbPath)
         thumbnailUrl = thumbUrlData.publicUrl
       }
       const tagsArray = tags.split(',').map((t: string) => t.trim()).filter(Boolean)
