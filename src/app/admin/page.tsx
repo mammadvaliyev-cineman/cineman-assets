@@ -30,6 +30,13 @@ export default function AdminPage() {
   const assetInputRef = useRef<HTMLInputElement>(null)
   const thumbInputRef = useRef<HTMLInputElement>(null)
 
+  function tabClass(tab: string) {
+    if (activeTab === tab) {
+      return 'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px border-[#E8B84B] text-[#E8B84B]'
+    }
+    return 'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px border-transparent text-gray-400 hover:text-white'
+  }
+
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault()
     if (!title || !assetFile) {
@@ -39,8 +46,8 @@ export default function AdminPage() {
     setUploading(true)
     setResult(null)
     try {
-      const timestamp = Date.now()
-      const assetPath = \`assets/\${timestamp}-\${assetFile.name}\`
+      const ts = Date.now()
+      const assetPath = 'assets/' + ts + '-' + assetFile.name
       const { error: assetErr } = await supabase.storage
         .from('assets')
         .upload(assetPath, assetFile, { upsert: true })
@@ -49,7 +56,7 @@ export default function AdminPage() {
       const fileUrl = assetUrlData.publicUrl
       let thumbnailUrl = ''
       if (thumbFile) {
-        const thumbPath = \`thumbnails/\${timestamp}-\${thumbFile.name}\`
+        const thumbPath = 'thumbnails/' + ts + '-' + thumbFile.name
         const { error: thumbErr } = await supabase.storage
           .from('assets')
           .upload(thumbPath, thumbFile, { upsert: true })
@@ -57,7 +64,7 @@ export default function AdminPage() {
         const { data: thumbUrlData } = supabase.storage.from('assets').getPublicUrl(thumbPath)
         thumbnailUrl = thumbUrlData.publicUrl
       }
-      const tagsArray = tags.split(',').map(t => t.trim()).filter(Boolean)
+      const tagsArray = tags.split(',').map((t: string) => t.trim()).filter(Boolean)
       const { error: dbErr } = await supabase.from('assets').insert({
         title, type, category, plan,
         file_url: fileUrl,
@@ -65,8 +72,11 @@ export default function AdminPage() {
         tags: tagsArray,
       })
       if (dbErr) throw dbErr
-      setResult({ ok: true, message: \`"\${title}" uploaded successfully!\` })
-      setTitle(''); setTags(''); setAssetFile(null); setThumbFile(null)
+      setResult({ ok: true, message: '"' + title + '" uploaded successfully!' })
+      setTitle('')
+      setTags('')
+      setAssetFile(null)
+      setThumbFile(null)
       if (assetInputRef.current) assetInputRef.current.value = ''
       if (thumbInputRef.current) thumbInputRef.current.value = ''
     } catch (err: unknown) {
@@ -75,6 +85,10 @@ export default function AdminPage() {
       setUploading(false)
     }
   }
+
+  const resultCls = !result ? '' : result.ok
+    ? 'p-4 rounded-lg bg-green-900/30 text-green-400 border border-green-800'
+    : 'p-4 rounded-lg bg-red-900/30 text-red-400 border border-red-800'
 
   return (
     <div className="py-12 px-6">
@@ -85,10 +99,7 @@ export default function AdminPage() {
         </div>
         <div className="flex gap-2 mb-8 border-b border-[#222222]">
           {tabs.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={\`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px \${
-                activeTab === tab ? 'border-[#E8B84B] text-[#E8B84B]' : 'border-transparent text-gray-400 hover:text-white'
-              }\`}>
+            <button key={tab} onClick={() => setActiveTab(tab)} className={tabClass(tab)}>
               {tab}
             </button>
           ))}
@@ -156,11 +167,7 @@ export default function AdminPage() {
                   {thumbFile && <p className="text-xs text-gray-500 mt-1">{thumbFile.name}</p>}
                 </div>
               </div>
-              {result && (
-                <div className={\`p-4 rounded-lg \${result.ok ? 'bg-green-900/30 text-green-400 border border-green-800' : 'bg-red-900/30 text-red-400 border border-red-800'}\`}>
-                  {result.message}
-                </div>
-              )}
+              {result && <div className={resultCls}>{result.message}</div>}
               <button type="submit" disabled={uploading}
                 className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
                 {uploading ? 'Uploading...' : 'Upload Asset'}
