@@ -5,6 +5,7 @@ export interface Asset {
   category: string
   plan: 'starter' | 'pro' | 'enterprise'
   thumbnailUrl: string
+  fileUrl?: string
   tags: string[]
 }
 
