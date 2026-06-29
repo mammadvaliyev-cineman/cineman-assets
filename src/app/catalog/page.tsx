@@ -1,85 +1,138 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import AssetGrid from '@/components/AssetGrid'
 import { supabase } from '@/lib/supabase'
 import { Asset } from '@/lib/mock-data'
 
-const categories = ['All', 'Aerial', 'Street', 'Nature', 'Abstract', 'Architecture', 'Action']
-const types = ['All', 'Video Clip', 'LUT', 'Sound Design', 'Motion Graphics']
-const plans = ['All', 'Starter', 'Pro', 'Enterprise']
+function SearchIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--fg-subtle)' }}>
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  )
+}
+
+function toAsset(a: Record<string, unknown>): Asset {
+  return {
+    id: String(a.id),
+    title: String(a.title ?? ''),
+    type: (a.type as Asset['type']) ?? 'photo',
+    category: String(a.category ?? ''),
+    url: String(a.file_url ?? ''),
+    thumbnail: String(a.thumbnail_url ?? ''),
+    plan: (a.plan as Asset['plan']) ?? 'starter',
+    tags: Array.isArray(a.tags) ? a.tags : [],
+    fileUrl: String(a.file_url ?? ''),
+  }
+}
 
 export default function CatalogPage() {
-  const [assets, setAssets] = useState<Asset[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [category, setCategory] = useState('All')
-  const [type, setType] = useState('All')
-  const [plan, setPlan] = useState('All')
+  const [assets, setAssets]     = useState<Asset[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [search, setSearch]     = useState('')
+  const [activeType, setActiveType]   = useState('All')
+  const [activeCat, setActiveCat]     = useState('All')
+  const [activePlan, setActivePlan]   = useState('All')
 
   useEffect(() => {
     async function load() {
+      setLoading(true)
       const { data, error } = await supabase
-        .from('assets')
-        .select('*')
-        .order('created_at', { ascending: false })
-      if (data && !error) {
-        setAssets(data.map((a: Record<string, unknown>) => ({
-          id: String(a.id),
-          title: String(a.title),
-          type: a.type as Asset['type'],
-          category: String(a.category),
-          plan: a.plan as Asset['plan'],
-          thumbnailUrl: String(a.thumbnail_url || ''),
-          fileUrl: String(a.file_url || ''),
-          tags: Array.isArray(a.tags) ? a.tags : [],
-        })))
-      }
+        .from('assets').select('*').order('created_at', { ascending: false })
+      if (data && !error) setAssets(data.map(toAsset))
       setLoading(false)
     }
     load()
   }, [])
 
-  const filtered = assets.filter(asset => {
-    const matchSearch = asset.title.toLowerCase().includes(search.toLowerCase())
-    const matchCategory = category === 'All' || asset.category === category
-    const matchType = type === 'All' || asset.type === type
-    const matchPlan = plan === 'All' || asset.plan === plan.toLowerCase()
-    return matchSearch && matchCategory && matchType && matchPlan
-  })
+  // Derive filters from real data
+  const types      = useMemo(() => ['All', ...Array.from(new Set(assets.map(a => a.type))).filter(Boolean).sort()], [assets])
+  const categories = useMemo(() => ['All', ...Array.from(new Set(assets.map(a => a.category))).filter(Boolean).sort()], [assets])
+  const plans      = ['All', 'starter', 'pro', 'enterprise']
+
+  const filtered = useMemo(() => assets.filter(a => {
+    const q = search.toLowerCase()
+    return (
+      (!q || a.title.toLowerCase().includes(q) || a.category.toLowerCase().includes(q) || a.tags.some(t => t.toLowerCase().includes(q))) &&
+      (activeType === 'All' || a.type === activeType) &&
+      (activeCat  === 'All' || a.category === activeCat) &&
+      (activePlan === 'All' || a.plan === activePlan)
+    )
+  }), [assets, search, activeType, activeCat, activePlan])
+
+  function FilterRow({ label, options, active, onChange }: { label: string; options: string[]; active: string; onChange: (v: string) => void }) {
+    if (options.length <= 1) return null
+    return (
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: 'var(--fg-subtle)', minWidth: 64 }}>{label}</span>
+        <div className="flex gap-2 flex-wrap">
+          {options.map(opt => (
+            <button key={opt} onClick={() => onChange(opt)} className={`filter-btn ${active === opt ? 'active' : ''}`}>{opt}</button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  const hasFilters = activeType !== 'All' || activeCat !== 'All' || activePlan !== 'All' || search
 
   return (
-    <div className="py-12 px-6">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-4xl font-bold mb-2">Asset Catalog</h1>
-        <p className="text-gray-400 mb-8">Browse premium AI-generated cinematic assets</p>
-        <div className="flex flex-wrap gap-4 mb-8">
-          <input
-            type="text"
-            placeholder="Search assets..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="input flex-1 min-w-[200px]"
-          />
-          <select value={category} onChange={e => setCategory(e.target.value)} className="input">
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <select value={type} onChange={e => setType(e.target.value)} className="input">
-            {types.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
-          <select value={plan} onChange={e => setPlan(e.target.value)} className="input">
-            {plans.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
-        {loading ? (
-          <p className="text-gray-400">Loading assets...</p>
-        ) : (
-          <>
-            <p className="text-sm text-gray-500 mb-6">{filtered.length} assets found</p>
-            <AssetGrid assets={filtered} />
-          </>
-        )}
+    <div className="max-w-7xl mx-auto px-6 py-12">
+      <div className="mb-10">
+        <h1 className="text-4xl font-bold mb-2" style={{ color: 'var(--fg)' }}>
+          Asset{' '}
+          <span style={{ background: 'linear-gradient(135deg, #9765E0, #00C2BA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            Catalog
+          </span>
+        </h1>
+        <p style={{ color: 'var(--fg-muted)' }}>
+          {loading ? 'Loading assets…' : `${assets.length} AI-generated cinematic assets`}
+        </p>
       </div>
+
+      <div className="relative mb-6">
+        <SearchIcon />
+        <input type="text" placeholder="Search by title, category, tag…" value={search}
+          onChange={e => setSearch(e.target.value)} className="input-field pl-10" />
+      </div>
+
+      {!loading && assets.length > 0 && (
+        <div className="flex flex-col gap-3 mb-8 p-4 rounded-xl" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+          <FilterRow label="Type"     options={types}      active={activeType}  onChange={v => { setActiveType(v); setActiveCat('All') }} />
+          <FilterRow label="Category" options={categories} active={activeCat}   onChange={setActiveCat} />
+          <FilterRow label="Plan"     options={plans}      active={activePlan}  onChange={setActivePlan} />
+        </div>
+      )}
+
+      {!loading && (
+        <p className="text-sm mb-6" style={{ color: 'var(--fg-subtle)' }}>
+          {filtered.length} {filtered.length === 1 ? 'asset' : 'assets'} found
+          {hasFilters && (
+            <button onClick={() => { setActiveType('All'); setActiveCat('All'); setActivePlan('All'); setSearch('') }}
+              className="ml-3 text-xs underline" style={{ color: '#9765E0' }}>
+              Clear filters
+            </button>
+          )}
+        </p>
+      )}
+
+      {loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-xl overflow-hidden animate-pulse" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+              <div className="aspect-video" style={{ backgroundColor: 'var(--bg-subtle)' }} />
+              <div className="p-4 space-y-2">
+                <div className="h-4 rounded" style={{ backgroundColor: 'var(--bg-subtle)', width: '70%' }} />
+                <div className="h-3 rounded" style={{ backgroundColor: 'var(--bg-subtle)', width: '45%' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!loading && <AssetGrid assets={filtered} />}
     </div>
   )
 }
