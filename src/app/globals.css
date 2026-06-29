@@ -2,33 +2,111 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Futuristic Brand Palette ───────────────────────────────── */
+/* #9765E0 violet  |  #CE95FB lavender  |  #00C2BA teal        */
+/* #534FA5 indigo  |  #36009C deep-purple                       */
+
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --brand:         #9765E0;
+  --brand-light:   #CE95FB;
+  --brand-teal:    #00C2BA;
+  --brand-indigo:  #534FA5;
+  --brand-deep:    #36009C;
+
+  /* Light mode (default) */
+  --bg:        #F5F3EF;
+  --bg-card:   rgba(151, 101, 224, 0.06);
+  --bg-subtle: rgba(0, 0, 0, 0.05);
+  --fg:        #1A1A2E;
+  --fg-muted:  rgba(26, 26, 46, 0.55);
+  --fg-subtle: rgba(26, 26, 46, 0.35);
+  --border:    rgba(151, 101, 224, 0.18);
+  --nav-bg:    rgba(245, 243, 239, 0.88);
 }
 
+html.dark {
+  --bg:        #08050F;
+  --bg-card:   rgba(151, 101, 224, 0.08);
+  --bg-subtle: rgba(255, 255, 255, 0.06);
+  --fg:        #EEE8FF;
+  --fg-muted:  rgba(238, 232, 255, 0.55);
+  --fg-subtle: rgba(238, 232, 255, 0.35);
+  --border:    rgba(151, 101, 224, 0.22);
+  --nav-bg:    rgba(8, 5, 15, 0.88);
+}
+
+/* ── Base ───────────────────────────────────────────────────── */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-inter), sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: 'Inter', system-ui, sans-serif;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
-.btn-primary {
-  @apply bg-[#E8B84B] text-black font-semibold px-6 py-3 rounded-lg hover:bg-[#d4a43d] transition-colors;
-}
+/* ── Components ─────────────────────────────────────────────── */
+@layer components {
+  .btn-primary {
+    @apply font-semibold px-6 py-3 rounded-lg transition-all duration-200 text-white;
+    background: linear-gradient(135deg, #9765E0 0%, #534FA5 100%);
+    box-shadow: 0 0 20px rgba(151, 101, 224, 0.35);
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #CE95FB 0%, #9765E0 100%);
+    box-shadow: 0 0 28px rgba(151, 101, 224, 0.55);
+    transform: translateY(-1px);
+  }
 
-.btn-secondary {
-  @apply border border-[#E8B84B] text-[#E8B84B] font-semibold px-6 py-3 rounded-lg hover:bg-[#E8B84B] hover:text-black transition-colors;
-}
+  .btn-secondary {
+    @apply font-medium px-6 py-3 rounded-lg transition-all duration-200;
+    border: 1px solid var(--border);
+    color: var(--fg);
+  }
+  .btn-secondary:hover {
+    background-color: var(--bg-card);
+    border-color: var(--brand);
+  }
 
-.card {
-  @apply bg-[#111111] border border-[#222222] rounded-xl overflow-hidden;
-}
+  .card {
+    @apply rounded-xl overflow-hidden transition-all duration-200;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+  }
+  .card:hover {
+    border-color: #9765E0;
+    box-shadow: 0 0 16px rgba(151, 101, 224, 0.2);
+  }
 
-.badge {
-  @apply text-xs font-semibold px-2 py-1 rounded-full uppercase tracking-wide;
-}
+  .badge {
+    @apply text-xs font-medium px-2 py-1 rounded-full;
+  }
 
-.input {
-  @apply bg-[#111111] border border-[#333333] text-white rounded-lg px-4 py-2 focus:outline-none focus:border-[#E8B84B] transition-colors;
+  .input-field {
+    @apply w-full rounded-xl px-5 py-3 focus:outline-none transition-all;
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border);
+    color: var(--fg);
+  }
+  .input-field::placeholder {
+    color: var(--fg-subtle);
+  }
+  .input-field:focus {
+    border-color: #9765E0;
+    box-shadow: 0 0 0 2px rgba(151, 101, 224, 0.15);
+  }
+
+  .filter-btn {
+    @apply px-4 py-2 rounded-full text-sm font-medium transition-all;
+    background-color: var(--bg-subtle);
+    color: var(--fg-muted);
+    border: 1px solid transparent;
+  }
+  .filter-btn:hover {
+    color: var(--fg);
+    border-color: var(--border);
+  }
+  .filter-btn.active {
+    background: linear-gradient(135deg, #9765E0, #534FA5);
+    color: white;
+    box-shadow: 0 0 12px rgba(151, 101, 224, 0.4);
+  }
 }
