@@ -1,40 +1,41 @@
-import Link from 'next/link'
-
-const plans = [
+const PLANS = [
   {
     name: 'Starter',
-    price: '$9.99',
-    period: '/month',
+    price: 9.99,
     description: 'Perfect for independent creators',
+    accent: '#CE95FB',
+    badge: null,
+    popular: false,
     features: [
       'Access to 50+ starter assets',
       '720p video quality',
       'Personal use license',
       'Standard support',
     ],
-    cta: 'Get Starter',
-    highlight: false,
   },
   {
     name: 'Pro',
-    price: '$24.99',
-    period: '/month',
+    price: 24.99,
     description: 'For professional filmmakers',
+    accent: '#9765E0',
+    badge: 'Most Popular',
+    popular: true,
     features: [
       'Access to 200+ pro assets',
       '4K video quality',
       'Commercial use license',
       'Priority support',
       'Early access to new assets',
+      'Bulk download',
     ],
-    cta: 'Get Pro',
-    highlight: true,
   },
   {
     name: 'Enterprise',
-    price: '$79.99',
-    period: '/month',
+    price: 79.99,
     description: 'For studios and agencies',
+    accent: '#00C2BA',
+    badge: 'Best Value',
+    popular: false,
     features: [
       'Unlimited asset access',
       '8K video quality',
@@ -43,84 +44,141 @@ const plans = [
       'Custom asset requests',
       'Team collaboration',
     ],
-    cta: 'Get Enterprise',
-    highlight: false,
   },
 ]
 
-const faqs = [
+const FAQ = [
   {
     q: 'Can I cancel anytime?',
-    a: 'Yes, you can cancel your subscription at any time. Your access continues until the end of your billing period.',
+    a: 'Yes. Cancel anytime from your account dashboard. No lock-in, no hidden fees.',
   },
   {
-    q: 'What license do I get?',
-    a: 'Starter includes personal use. Pro and Enterprise include commercial licensing for client work and monetized content.',
+    q: 'What file formats are included?',
+    a: 'Photos: JPG, PNG, TIFF. Videos: MP4 (H.264/H.265), ProRes. Motion: MOV, GIF.',
   },
   {
-    q: 'Are assets truly AI-generated?',
-    a: 'Yes, all assets are generated using cutting-edge AI video and image models, curated for cinematic quality.',
+    q: 'Is commercial use allowed?',
+    a: 'Pro and Enterprise plans include a full commercial license. Starter is for personal use only.',
+  },
+  {
+    q: 'How do I upgrade my plan?',
+    a: 'Go to Account → Subscription → Upgrade. Your billing is prorated automatically.',
   },
 ]
 
 export default function PricingPage() {
   return (
-    <div className="py-16 px-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-14">
-          <h1 className="text-5xl font-bold mb-4">Simple Pricing</h1>
-          <p className="text-xl text-gray-400">Unlock premium AI cinematic assets for any budget</p>
-        </div>
+    <div className="max-w-6xl mx-auto px-6 py-16">
+      {/* Header */}
+      <div className="text-center mb-16">
+        <span
+          className="inline-block text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full mb-5"
+          style={{
+            backgroundColor: 'rgba(151,101,224,0.12)',
+            color: '#9765E0',
+            border: '1px solid rgba(151,101,224,0.25)',
+          }}
+        >
+          Simple Pricing
+        </span>
+        <h1
+          className="text-5xl font-bold mb-4"
+          style={{ color: 'var(--fg)' }}
+        >
+          Choose Your Plan
+        </h1>
+        <p className="text-lg max-w-xl mx-auto" style={{ color: 'var(--fg-muted)' }}>
+          Start free for 7 days. No credit card required. Upgrade or cancel anytime.
+        </p>
+      </div>
 
-        {/* Plans */}
-        <div className="grid md:grid-cols-3 gap-6 mb-20">
-          {plans.map(plan => (
-            <div
-              key={plan.name}
-              className={`card p-8 flex flex-col ${plan.highlight ? 'border-[#E8B84B] ring-1 ring-[#E8B84B]' : ''}`}
-            >
-              {plan.highlight && (
-                <span className="badge bg-[#E8B84B] text-black mb-4 self-start">Most Popular</span>
-              )}
-              <h2 className="text-2xl font-bold mb-1">{plan.name}</h2>
-              <p className="text-gray-400 text-sm mb-4">{plan.description}</p>
-              <div className="mb-6">
-                <span className="text-4xl font-bold text-[#E8B84B]">{plan.price}</span>
-                <span className="text-gray-400">{plan.period}</span>
-              </div>
-              <ul className="space-y-2 mb-8 flex-1">
-                {plan.features.map(f => (
-                  <li key={f} className="flex items-start gap-2 text-sm text-gray-300">
-                    <span className="text-[#E8B84B] mt-0.5">✓</span>
-                    {f}
-                  </li>
-                ))}
-              </ul>
-              <Link
-                href="#"
-                className={`text-center py-3 px-6 rounded-lg font-semibold transition-colors ${
-                  plan.highlight
-                    ? 'bg-[#E8B84B] text-black hover:bg-[#d4a43d]'
-                    : 'border border-[#E8B84B] text-[#E8B84B] hover:bg-[#E8B84B] hover:text-black'
-                }`}
+      {/* Plans */}
+      <div className="grid md:grid-cols-3 gap-6 mb-20">
+        {PLANS.map(plan => (
+          <div
+            key={plan.name}
+            className="relative card p-8 flex flex-col"
+            style={{
+              borderColor: plan.popular ? plan.accent : 'var(--border)',
+              borderWidth: plan.popular ? 2 : 1,
+              boxShadow: plan.popular ? `0 0 32px ${plan.accent}30` : undefined,
+            }}
+          >
+            {/* Badge */}
+            {plan.badge && (
+              <span
+                className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-4 py-1 rounded-full"
+                style={{
+                  background: `linear-gradient(135deg, ${plan.accent}, #534FA5)`,
+                  color: 'white',
+                  whiteSpace: 'nowrap',
+                }}
               >
-                {plan.cta}
-              </Link>
+                {plan.badge}
+              </span>
+            )}
+
+            {/* Plan name + desc */}
+            <div className="mb-6">
+              <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--fg)' }}>
+                {plan.name}
+              </h2>
+              <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+                {plan.description}
+              </p>
+            </div>
+
+            {/* Price */}
+            <div className="mb-8">
+              <span className="text-5xl font-bold" style={{ color: plan.accent }}>
+                ${plan.price}
+              </span>
+              <span className="ml-2 text-sm" style={{ color: 'var(--fg-muted)' }}>
+                /month
+              </span>
+            </div>
+
+            {/* Features */}
+            <ul className="space-y-3 mb-8 flex-1">
+              {plan.features.map(f => (
+                <li key={f} className="flex items-start gap-2 text-sm">
+                  <span style={{ color: plan.accent, marginTop: 2 }}>✓</span>
+                  <span style={{ color: 'var(--fg-muted)' }}>{f}</span>
+                </li>
+              ))}
+            </ul>
+
+            {/* CTA */}
+            <button
+              className={plan.popular ? 'btn-primary w-full' : 'btn-secondary w-full'}
+              style={
+                !plan.popular
+                  ? { borderColor: plan.accent, color: plan.accent }
+                  : undefined
+              }
+            >
+              Get {plan.name}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* FAQ */}
+      <div className="max-w-2xl mx-auto">
+        <h2 className="text-2xl font-bold text-center mb-8" style={{ color: 'var(--fg)' }}>
+          Frequently Asked Questions
+        </h2>
+        <div className="space-y-4">
+          {FAQ.map(({ q, a }) => (
+            <div key={q} className="card p-6">
+              <h3 className="font-semibold mb-2" style={{ color: 'var(--fg)' }}>
+                {q}
+              </h3>
+              <p className="text-sm leading-relaxed" style={{ color: 'var(--fg-muted)' }}>
+                {a}
+              </p>
             </div>
           ))}
-        </div>
-
-        {/* FAQ */}
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-8">FAQ</h2>
-          <div className="space-y-4">
-            {faqs.map(faq => (
-              <div key={faq.q} className="card p-6">
-                <h3 className="font-semibold mb-2">{faq.q}</h3>
-                <p className="text-gray-400 text-sm">{faq.a}</p>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
