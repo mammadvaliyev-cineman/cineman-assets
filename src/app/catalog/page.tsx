@@ -1,20 +1,46 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import AssetGrid from '@/components/AssetGrid'
-import { allAssets } from '@/lib/mock-data'
+import { supabase } from '@/lib/supabase'
+import { Asset } from '@/lib/mock-data'
 
 const categories = ['All', 'Aerial', 'Street', 'Nature', 'Abstract', 'Architecture', 'Action']
 const types = ['All', 'Video Clip', 'LUT', 'Sound Design', 'Motion Graphics']
 const plans = ['All', 'Starter', 'Pro', 'Enterprise']
 
 export default function CatalogPage() {
+  const [assets, setAssets] = useState<Asset[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('All')
   const [type, setType] = useState('All')
   const [plan, setPlan] = useState('All')
 
-  const filtered = allAssets.filter(asset => {
+  useEffect(() => {
+    async function load() {
+      const { data, error } = await supabase
+        .from('assets')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (data && !error) {
+        setAssets(data.map((a: Record<string, unknown>) => ({
+          id: String(a.id),
+          title: String(a.title),
+          type: a.type as Asset['type'],
+          category: String(a.category),
+          plan: a.plan as Asset['plan'],
+          thumbnailUrl: String(a.thumbnail_url || ''),
+          fileUrl: String(a.file_url || ''),
+          tags: Array.isArray(a.tags) ? a.tags : [],
+        })))
+      }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  const filtered = assets.filter(asset => {
     const matchSearch = asset.title.toLowerCase().includes(search.toLowerCase())
     const matchCategory = category === 'All' || asset.category === category
     const matchType = type === 'All' || asset.type === type
@@ -26,8 +52,7 @@ export default function CatalogPage() {
     <div className="py-12 px-6">
       <div className="max-w-7xl mx-auto">
         <h1 className="text-4xl font-bold mb-2">Asset Catalog</h1>
-        <p className="text-gray-400 mb-8">Browse {allAssets.length} premium AI-generated assets</p>
-
+        <p className="text-gray-400 mb-8">Browse premium AI-generated cinematic assets</p>
         <div className="flex flex-wrap gap-4 mb-8">
           <input
             type="text"
@@ -46,9 +71,14 @@ export default function CatalogPage() {
             {plans.map(p => <option key={p} value={p}>{p}</option>)}
           </select>
         </div>
-
-        <p className="text-sm text-gray-500 mb-6">{filtered.length} assets found</p>
-        <AssetGrid assets={filtered} />
+        {loading ? (
+          <p className="text-gray-400">Loading assets...</p>
+        ) : (
+          <>
+            <p className="text-sm text-gray-500 mb-6">{filtered.length} assets found</p>
+            <AssetGrid assets={filtered} />
+          </>
+        )}
       </div>
     </div>
   )
