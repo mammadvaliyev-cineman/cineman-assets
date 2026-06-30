@@ -46,8 +46,8 @@ export default function HomePage() {
             className="text-xl mb-10 max-w-2xl mx-auto"
             style={{ color: "var(--fg-muted)" }}
           >
-            High-quality AI assets for your generation workflow.
-            Locations, characters — ready to use.
+            AI-generated locations and characters for film, advertising, and creative production.
+            Commercial license included.
           </p>
 
           <div className="flex flex-wrap gap-4 justify-center">
@@ -104,7 +104,7 @@ export default function HomePage() {
             {
               icon: "🧍",
               title: "AI Characters",
-              desc: "Photorealistic AI-generated characters for storyboards, lookbooks, and creative reference.",
+              desc: "Photorealistic AI-generated characters for storyboards, lookbooks, and reference.",
               accent: "#CE95FB",
             },
             {
