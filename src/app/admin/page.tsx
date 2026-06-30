@@ -3,6 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
+// ── Admin password (change here to update) ──────────────────
+const ADMIN_PASSWORD = 'cineman2026'
+
 type AssetRow = {
   id: string; title: string; type: string; category: string; plan: string
   tags: string[]; file_url: string; thumbnail_url: string; created_at: string
@@ -32,7 +35,66 @@ const TYPE_COLOR: Record<string, string> = {
   LUT: '#00C2BA', 'Sound Design': '#534FA5', 'Motion Graphics': '#CE95FB',
 }
 
+// ── Password Gate ────────────────────────────────────────────
+function PasswordGate({ onUnlock }: { onUnlock: () => void }) {
+  const [value, setValue] = useState('')
+  const [error, setError] = useState(false)
+  const [shake, setShake] = useState(false)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (value === ADMIN_PASSWORD) {
+      sessionStorage.setItem('admin_unlocked', '1')
+      onUnlock()
+    } else {
+      setError(true)
+      setShake(true)
+      setValue('')
+      setTimeout(() => setShake(false), 500)
+    }
+  }
+
+  return (
+    <div className="min-h-[70vh] flex items-center justify-center px-6">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-8">
+          <div className="text-5xl mb-4">🔒</div>
+          <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Admin Access</h1>
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>Enter password to continue</p>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div style={{ animation: shake ? 'shake 0.4s ease' : undefined }}>
+            <input
+              type="password"
+              className="input-field text-center text-lg tracking-widest"
+              placeholder="••••••••"
+              value={value}
+              onChange={e => { setValue(e.target.value); setError(false) }}
+              autoFocus
+              style={error ? { borderColor: '#ff5f5f', boxShadow: '0 0 0 2px rgba(255,95,95,0.2)' } : undefined}
+            />
+            {error && (
+              <p className="text-center text-xs mt-2" style={{ color: '#ff5f5f' }}>Wrong password</p>
+            )}
+          </div>
+          <button type="submit" className="btn-primary w-full">Enter</button>
+        </form>
+        <style>{`
+          @keyframes shake {
+            0%,100% { transform: translateX(0) }
+            20% { transform: translateX(-8px) }
+            40% { transform: translateX(8px) }
+            60% { transform: translateX(-6px) }
+            80% { transform: translateX(6px) }
+          }
+        `}</style>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminPage() {
+  const [unlocked, setUnlocked] = useState(false)
   const [activeTab, setActiveTab] = useState<'overview'|'assets'|'upload'>('overview')
   const [stats, setStats] = useState<Stats>({ total: 0, byType: {}, byPlan: {} })
   const [assets, setAssets] = useState<AssetRow[]>([])
@@ -48,7 +110,12 @@ export default function AdminPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResult, setUploadResult] = useState<{ok:boolean;msg:string}|null>(null)
 
-  useEffect(() => { loadStats() }, [])
+  useEffect(() => {
+    if (sessionStorage.getItem('admin_unlocked') === '1') setUnlocked(true)
+  }, [])
+
+  useEffect(() => { if (unlocked) loadStats() }, [unlocked])
+
   async function loadStats() {
     setLoadingStats(true)
     const { data } = await supabase.from('assets').select('type, plan')
@@ -63,13 +130,15 @@ export default function AdminPage() {
     }
     setLoadingStats(false)
   }
+
   async function loadAssets() {
     setLoadingAssets(true)
     const { data } = await supabase.from('assets').select('*').order('created_at', { ascending: false })
     if (data) setAssets(data as AssetRow[])
     setLoadingAssets(false)
   }
-  useEffect(() => { if (activeTab === 'assets') loadAssets() }, [activeTab])
+
+  useEffect(() => { if (activeTab === 'assets' && unlocked) loadAssets() }, [activeTab, unlocked])
 
   async function deleteAsset(asset: AssetRow) {
     if (!confirm(`Delete "${asset.title}"? This cannot be undone.`)) return
@@ -136,19 +205,26 @@ export default function AdminPage() {
     }
   }
 
+  if (!unlocked) return <PasswordGate onUnlock={() => setUnlocked(true)} />
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: 'var(--fg)' }}>
             Admin{' '}
-            <span style={{ background: 'linear-gradient(135deg, #9765E0, #00C2BA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Dashboard
-            </span>
+            <span style={{ background: 'linear-gradient(135deg, #9765E0, #00C2BA)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Dashboard</span>
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>Cineman Assets Management</p>
         </div>
-        <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: 'rgba(0,194,186,0.15)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}>● Live</span>
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: 'rgba(0,194,186,0.15)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}>● Live</span>
+          <button onClick={() => { sessionStorage.removeItem('admin_unlocked'); setUnlocked(false) }}
+            className="text-xs px-3 py-1 rounded-lg transition-all"
+            style={{ color: 'var(--fg-muted)', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+            Lock
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-1 rounded-xl p-1 mb-8 w-fit" style={{ backgroundColor: 'var(--bg-subtle)' }}>
@@ -246,17 +322,14 @@ export default function AdminPage() {
                         <td className="px-4 py-3 font-medium max-w-[180px] truncate" style={{ color: 'var(--fg)' }}>{asset.title}</td>
                         <td className="px-4 py-3"><span className="text-xs font-medium" style={{ color: tc }}>{asset.type}</span></td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{asset.category}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: ps.bg, color: ps.color }}>{asset.plan}</span>
-                        </td>
+                        <td className="px-4 py-3"><span className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: ps.bg, color: ps.color }}>{asset.plan}</span></td>
                         <td className="px-4 py-3 text-xs max-w-[140px] truncate" style={{ color: 'var(--fg-subtle)' }}>{Array.isArray(asset.tags) ? asset.tags.join(', ') : '—'}</td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-subtle)' }}>{new Date(asset.created_at).toLocaleDateString()}</td>
                         <td className="px-4 py-3">
                           <button onClick={() => deleteAsset(asset)} disabled={isDeleting}
                             className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all"
                             style={{ color: isDeleting ? 'var(--fg-subtle)' : '#ff5f5f', backgroundColor: 'rgba(255,95,95,0.08)' }}>
-                            {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
-                            {isDeleting ? 'Deleting…' : 'Delete'}
+                            {isDeleting ? <SpinnerIcon /> : <TrashIcon />}{isDeleting ? 'Deleting…' : 'Delete'}
                           </button>
                         </td>
                       </tr>
@@ -272,7 +345,7 @@ export default function AdminPage() {
       {activeTab === 'upload' && (
         <div className="max-w-xl">
           <form onSubmit={handleUpload} className="space-y-5">
-            <div className="card p-8 text-center cursor-pointer transition-all"
+            <div className="card p-8 text-center cursor-pointer"
               style={{ border: `2px dashed ${selectedFile ? '#9765E0' : 'var(--border)'}`, backgroundColor: selectedFile ? 'rgba(151,101,224,0.06)' : 'var(--bg-card)' }}
               onClick={() => fileRef.current?.click()}>
               <div className="text-4xl mb-3">{selectedFile ? '✅' : '📁'}</div>
@@ -326,7 +399,7 @@ export default function AdminPage() {
             {uploadResult && (
               <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
                 style={{ backgroundColor: uploadResult.ok ? 'rgba(0,194,186,0.12)' : 'rgba(255,95,95,0.12)', color: uploadResult.ok ? '#00C2BA' : '#ff5f5f', border: `1px solid ${uploadResult.ok ? 'rgba(0,194,186,0.3)' : 'rgba(255,95,95,0.3)'}` }}>
-                {uploadResult.ok ? <CheckIcon /> : '⚠️'}{uploadResult.msg}
+                {uploadResult.ok ? <CheckIcon /> : '⚠️'} {uploadResult.msg}
               </div>
             )}
             <button type="submit" disabled={uploading} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all"
