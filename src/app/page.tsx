@@ -46,7 +46,7 @@ export default function HomePage() {
             className="text-xl mb-10 max-w-2xl mx-auto"
             style={{ color: "var(--fg-muted)" }}
           >
-            Stunning AI-generated photos and videos for your cinematic projects.
+            AI-generated locations and characters for film, advertising, and creative production.
             Commercial license included.
           </p>
 
@@ -62,8 +62,8 @@ export default function HomePage() {
           {/* Stats */}
           <div className="mt-16 grid grid-cols-3 gap-8 max-w-lg mx-auto">
             {[
-              ["500+", "Assets"],
-              ["4K", "Resolution"],
+              ["2", "Asset Types"],
+              ["∞", "Inspiration"],
               ["3", "Plans"],
             ].map(([val, label]) => (
               <div key={label}>
@@ -96,15 +96,15 @@ export default function HomePage() {
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
-              icon: "🎥",
-              title: "Cinematic Video",
-              desc: "AI-generated footage in 4K and 8K — golden hour, aerials, moody atmospheres.",
+              icon: "🏛️",
+              title: "AI Locations",
+              desc: "Cinematic AI-generated environments — interiors, exteriors, urban, nature. Ready for production.",
               accent: "#9765E0",
             },
             {
-              icon: "🖼️",
-              title: "Stills & Textures",
-              desc: "High-resolution photos and textures for compositing, color grading reference, and set design.",
+              icon: "🧍",
+              title: "AI Characters",
+              desc: "Photorealistic AI-generated characters for storyboards, lookbooks, and creative reference.",
               accent: "#CE95FB",
             },
             {
