@@ -46,8 +46,8 @@ export default function HomePage() {
             className="text-xl mb-10 max-w-2xl mx-auto"
             style={{ color: "var(--fg-muted)" }}
           >
-            AI-generated locations and characters for film, advertising, and creative production.
-            Commercial license included.
+            High-quality AI assets for your generation workflow.
+            Locations, characters — ready to use.
           </p>
 
           <div className="flex flex-wrap gap-4 justify-center">
