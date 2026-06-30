@@ -2,6 +2,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import {
+  ASSET_TYPES,
+  TYPE_COLOR_MAP,
+  detectAssetTypeFromFilename,
+} from '@/config/asset-types'
 
 // ── Types ───────────────────────────────────────────────────
 type AssetRow = {
@@ -60,16 +65,11 @@ function CheckIcon() {
   )
 }
 
-// ── Plan / Type badges ──────────────────────────────────────
+// ── Plan badges ─────────────────────────────────────────────
 const PLAN_COLOR: Record<string, { bg: string; color: string }> = {
   starter:    { bg: 'rgba(83,79,165,0.25)',  color: '#CE95FB' },
   pro:        { bg: 'rgba(0,194,186,0.20)',  color: '#00C2BA' },
   enterprise: { bg: 'rgba(151,101,224,0.25)', color: '#9765E0' },
-}
-
-const TYPE_COLOR: Record<string, string> = {
-  Location:  '#9765E0',
-  Character: '#CE95FB',
 }
 
 // ── AI auto-naming from filename ─────────────────────────────
@@ -87,23 +87,17 @@ function autoNameFromFile(file: File): { title: string; tags: string; type: stri
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ')
 
-  const lower = cleaned.toLowerCase()
-  const characterKeywords = ['character', 'char', 'person', 'portrait', 'face', 'model', 'actor', 'human', 'woman', 'man', 'girl', 'boy', 'hero', 'villain']
-  const isCharacter = characterKeywords.some(k => lower.includes(k))
-  const detectedType = isCharacter ? 'Character' : 'Location'
+  const detectedType = detectAssetTypeFromFilename(file.name)
 
   const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are', 'was', 'has'])
-  const words = lower
+  const words = cleaned.toLowerCase()
     .split(' ')
     .filter(w => w.length > 2 && !/^\d+$/.test(w) && !stopWords.has(w))
 
-  const extraTags = detectedType === 'Character'
-    ? ['ai character', 'cinematic']
-    : ['ai location', 'cinematic', 'environment']
+  // Use Array.from instead of spread to avoid TS downlevelIteration issue
+  const allTags = Array.from(new Set(words.concat(detectedType.autoTags))).slice(0, 8)
 
-  const allTags = [...new Set([...words, ...extraTags])].slice(0, 8)
-
-  return { title, tags: allTags.join(', '), type: detectedType }
+  return { title, tags: allTags.join(', '), type: detectedType.label }
 }
 
 // ── Main Component ──────────────────────────────────────────
@@ -115,12 +109,11 @@ export default function AdminPage() {
   const [loadingAssets, setLoadingAssets] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // ── Upload form state ───────────────────────────────────
   const fileRef = useRef<HTMLInputElement>(null)
   const thumbRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
     title: '',
-    type: 'Location',
+    type: ASSET_TYPES[0].label,
     category: '',
     plan: 'starter',
     tags: '',
@@ -132,10 +125,7 @@ export default function AdminPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResult, setUploadResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
-  // ── Load stats ──────────────────────────────────────────
-  useEffect(() => {
-    loadStats()
-  }, [])
+  useEffect(() => { loadStats() }, [])
 
   async function loadStats() {
     setLoadingStats(true)
@@ -154,19 +144,13 @@ export default function AdminPage() {
 
   async function loadAssets() {
     setLoadingAssets(true)
-    const { data } = await supabase
-      .from('assets')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const { data } = await supabase.from('assets').select('*').order('created_at', { ascending: false })
     if (data) setAssets(data as AssetRow[])
     setLoadingAssets(false)
   }
 
-  useEffect(() => {
-    if (activeTab === 'assets') loadAssets()
-  }, [activeTab])
+  useEffect(() => { if (activeTab === 'assets') loadAssets() }, [activeTab])
 
-  // ── Delete asset ────────────────────────────────────────
   async function deleteAsset(asset: AssetRow) {
     if (!confirm(`Delete "${asset.title}"? This cannot be undone.`)) return
     setDeletingId(asset.id)
@@ -184,7 +168,6 @@ export default function AdminPage() {
     setDeletingId(null)
   }
 
-  // ── AI auto-naming on file select ────────────────────────
   function handleFileSelect(file: File | null) {
     setSelectedFile(file)
     if (!file) return
@@ -201,7 +184,6 @@ export default function AdminPage() {
     }, 600)
   }
 
-  // ── Upload asset ────────────────────────────────────────
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedFile) { setUploadResult({ ok: false, msg: 'Please select a file.' }); return }
@@ -215,23 +197,18 @@ export default function AdminPage() {
       const ts = Date.now()
       const safeTitle = form.title.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
       const ext = selectedFile.name.split('.').pop()
-      const filePath = `${form.type.toLowerCase().replace(/\s+/g, '-')}/${ts}-${safeTitle}.${ext}`
+      const filePath = `${form.type.toLowerCase()}/${ts}-${safeTitle}.${ext}`
 
-      const { error: fileErr } = await supabase.storage
-        .from('assets')
-        .upload(filePath, selectedFile, { cacheControl: '3600', upsert: false })
+      const { error: fileErr } = await supabase.storage.from('assets').upload(filePath, selectedFile, { cacheControl: '3600', upsert: false })
       if (fileErr) throw fileErr
       setUploadProgress(60)
 
       let thumbPath = ''
       const isImage = selectedFile.type.startsWith('image/')
-
       if (selectedThumb) {
         const tExt = selectedThumb.name.split('.').pop()
         thumbPath = `thumbnails/${ts}-${safeTitle}-thumb.${tExt}`
-        const { error: tErr } = await supabase.storage
-          .from('assets')
-          .upload(thumbPath, selectedThumb, { cacheControl: '3600', upsert: false })
+        const { error: tErr } = await supabase.storage.from('assets').upload(thumbPath, selectedThumb, { cacheControl: '3600', upsert: false })
         if (tErr) throw tErr
       } else if (isImage) {
         thumbPath = filePath
@@ -257,7 +234,7 @@ export default function AdminPage() {
 
       setUploadProgress(100)
       setUploadResult({ ok: true, msg: `"${form.title}" uploaded successfully!` })
-      setForm({ title: '', type: 'Location', category: '', plan: 'starter', tags: '' })
+      setForm({ title: '', type: ASSET_TYPES[0].label, category: '', plan: 'starter', tags: '' })
       setSelectedFile(null)
       setSelectedThumb(null)
       if (fileRef.current) fileRef.current.value = ''
@@ -272,7 +249,6 @@ export default function AdminPage() {
     }
   }
 
-  // ── Render ──────────────────────────────────────────────
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
       {/* Header */}
@@ -286,19 +262,13 @@ export default function AdminPage() {
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>Cineman Assets Management</p>
         </div>
-        <span
-          className="badge text-xs font-semibold px-3 py-1 rounded-full"
-          style={{ backgroundColor: 'rgba(0,194,186,0.15)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}
-        >
+        <span className="badge text-xs font-semibold px-3 py-1 rounded-full" style={{ backgroundColor: 'rgba(0,194,186,0.15)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}>
           ● Live
         </span>
       </div>
 
       {/* Tabs */}
-      <div
-        className="flex gap-1 rounded-xl p-1 mb-8 w-fit"
-        style={{ backgroundColor: 'var(--bg-subtle)' }}
-      >
+      <div className="flex gap-1 rounded-xl p-1 mb-8 w-fit" style={{ backgroundColor: 'var(--bg-subtle)' }}>
         {(['overview', 'assets', 'upload'] as const).map(tab => (
           <button
             key={tab}
@@ -315,7 +285,7 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* Overview Tab */}
+      {/* Overview */}
       {activeTab === 'overview' && (
         <div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -339,7 +309,7 @@ export default function AdminPage() {
                 <div className="space-y-3">
                   {Object.entries(stats.byType).map(([type, count]) => (
                     <div key={type} className="flex items-center justify-between">
-                      <span className="text-sm" style={{ color: TYPE_COLOR[type] ?? '#CE95FB' }}>{type}</span>
+                      <span className="text-sm" style={{ color: TYPE_COLOR_MAP[type] ?? '#CE95FB' }}>{type}</span>
                       <span className="text-sm font-bold" style={{ color: 'var(--fg)' }}>{count}</span>
                     </div>
                   ))}
@@ -349,12 +319,10 @@ export default function AdminPage() {
                 <h3 className="font-semibold mb-4 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Assets by Plan</h3>
                 <div className="space-y-3">
                   {Object.entries(stats.byPlan).map(([plan, count]) => {
-                    const style = PLAN_COLOR[plan] ?? PLAN_COLOR.starter
+                    const s = PLAN_COLOR[plan] ?? PLAN_COLOR.starter
                     return (
                       <div key={plan} className="flex items-center justify-between">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: style.bg, color: style.color }}>
-                          {plan}
-                        </span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: s.bg, color: s.color }}>{plan}</span>
                         <span className="text-sm font-bold" style={{ color: 'var(--fg)' }}>{count}</span>
                       </div>
                     )
@@ -363,6 +331,17 @@ export default function AdminPage() {
               </div>
             </div>
           )}
+
+          <div className="card p-6 mt-4">
+            <h3 className="font-semibold mb-4 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Asset Types</h3>
+            <div className="flex gap-3 flex-wrap">
+              {ASSET_TYPES.map(t => (
+                <span key={t.id} className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium" style={{ backgroundColor: `${t.color}18`, color: t.color, border: `1px solid ${t.color}40` }}>
+                  {t.emoji} {t.label}
+                </span>
+              ))}
+            </div>
+          </div>
 
           <div className="card p-6 mt-4">
             <h3 className="font-semibold mb-4 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Pricing Reference</h3>
@@ -382,13 +361,11 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Assets Tab */}
+      {/* Assets */}
       {activeTab === 'assets' && (
         <div>
           {loadingAssets ? (
-            <div className="flex items-center gap-3 py-12 justify-center" style={{ color: 'var(--fg-muted)' }}>
-              <SpinnerIcon /> Loading assets…
-            </div>
+            <div className="flex items-center gap-3 py-12 justify-center" style={{ color: 'var(--fg-muted)' }}><SpinnerIcon /> Loading assets…</div>
           ) : assets.length === 0 ? (
             <div className="text-center py-16">
               <div className="text-5xl mb-4">📭</div>
@@ -400,16 +377,14 @@ export default function AdminPage() {
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
                     {['Title', 'Type', 'Category', 'Plan', 'Tags', 'Date', ''].map(h => (
-                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)' }}>
-                        {h}
-                      </th>
+                      <th key={h} className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {assets.map(asset => {
                     const planStyle = PLAN_COLOR[asset.plan] ?? PLAN_COLOR.starter
-                    const typeColor = TYPE_COLOR[asset.type] ?? '#CE95FB'
+                    const typeColor = TYPE_COLOR_MAP[asset.type] ?? '#CE95FB'
                     const isDeleting = deletingId === asset.id
                     return (
                       <tr key={asset.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -417,16 +392,12 @@ export default function AdminPage() {
                         <td className="px-4 py-3"><span className="text-xs font-medium" style={{ color: typeColor }}>{asset.type}</span></td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{asset.category}</td>
                         <td className="px-4 py-3">
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: planStyle.bg, color: planStyle.color }}>
-                            {asset.plan}
-                          </span>
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize" style={{ backgroundColor: planStyle.bg, color: planStyle.color }}>{asset.plan}</span>
                         </td>
                         <td className="px-4 py-3 text-xs max-w-[140px] truncate" style={{ color: 'var(--fg-subtle)' }}>
                           {Array.isArray(asset.tags) ? asset.tags.join(', ') : '—'}
                         </td>
-                        <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-subtle)' }}>
-                          {new Date(asset.created_at).toLocaleDateString()}
-                        </td>
+                        <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-subtle)' }}>{new Date(asset.created_at).toLocaleDateString()}</td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => deleteAsset(asset)}
@@ -448,32 +419,22 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Upload Tab */}
+      {/* Upload */}
       {activeTab === 'upload' && (
         <div className="max-w-xl">
           <form onSubmit={handleUpload} className="space-y-5">
-            {/* File drop zone */}
             <div
               className="card p-8 text-center cursor-pointer transition-all"
-              style={{
-                border: `2px dashed ${selectedFile ? '#9765E0' : 'var(--border)'}`,
-                backgroundColor: selectedFile ? 'rgba(151,101,224,0.06)' : 'var(--bg-card)',
-              }}
+              style={{ border: `2px dashed ${selectedFile ? '#9765E0' : 'var(--border)'}`, backgroundColor: selectedFile ? 'rgba(151,101,224,0.06)' : 'var(--bg-card)' }}
               onClick={() => fileRef.current?.click()}
             >
-              <div className="text-4xl mb-3">
-                {aiNaming ? '🤖' : selectedFile ? '✅' : '📁'}
-              </div>
+              <div className="text-4xl mb-3">{aiNaming ? '🤖' : selectedFile ? '✅' : '📁'}</div>
               {aiNaming ? (
-                <p className="font-semibold text-sm animate-pulse" style={{ color: '#9765E0' }}>
-                  AI is naming your file…
-                </p>
+                <p className="font-semibold text-sm animate-pulse" style={{ color: '#9765E0' }}>AI is naming your file…</p>
               ) : selectedFile ? (
                 <>
                   <p className="font-semibold text-sm" style={{ color: '#9765E0' }}>{selectedFile.name}</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--fg-muted)' }}>
-                    {(selectedFile.size / 1024 / 1024).toFixed(1)} MB
-                  </p>
+                  <p className="text-xs mt-1" style={{ color: 'var(--fg-muted)' }}>{(selectedFile.size / 1024 / 1024).toFixed(1)} MB</p>
                 </>
               ) : (
                 <>
@@ -481,59 +442,37 @@ export default function AdminPage() {
                   <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>JPG, PNG, MP4, MOV — up to 500 MB</p>
                 </>
               )}
-              <input
-                ref={fileRef}
-                type="file"
-                className="hidden"
-                accept="image/*,video/*"
-                onChange={e => handleFileSelect(e.target.files?.[0] ?? null)}
-              />
+              <input ref={fileRef} type="file" className="hidden" accept="image/*,video/*" onChange={e => handleFileSelect(e.target.files?.[0] ?? null)} />
             </div>
 
-            {/* Thumbnail */}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
-                Thumbnail Image <span style={{ color: 'var(--fg-subtle)' }}>(optional — for videos)</span>
+                Thumbnail <span style={{ color: 'var(--fg-subtle)' }}>(optional — for videos)</span>
               </label>
-              <div
-                className="card p-4 flex items-center gap-3 cursor-pointer transition-all"
-                style={{ border: `1px dashed ${selectedThumb ? '#00C2BA' : 'var(--border)'}` }}
-                onClick={() => thumbRef.current?.click()}
-              >
+              <div className="card p-4 flex items-center gap-3 cursor-pointer" style={{ border: `1px dashed ${selectedThumb ? '#00C2BA' : 'var(--border)'}` }} onClick={() => thumbRef.current?.click()}>
                 <span className="text-xl">{selectedThumb ? '🖼️' : '➕'}</span>
-                <span className="text-sm" style={{ color: selectedThumb ? '#00C2BA' : 'var(--fg-muted)' }}>
-                  {selectedThumb ? selectedThumb.name : 'Add thumbnail…'}
-                </span>
+                <span className="text-sm" style={{ color: selectedThumb ? '#00C2BA' : 'var(--fg-muted)' }}>{selectedThumb ? selectedThumb.name : 'Add thumbnail…'}</span>
                 <input ref={thumbRef} type="file" className="hidden" accept="image/*" onChange={e => setSelectedThumb(e.target.files?.[0] ?? null)} />
               </div>
             </div>
 
-            {/* Title */}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider flex items-center gap-2 mb-2" style={{ color: 'var(--fg-muted)' }}>
                 Title *
                 {form.title && !aiNaming && (
-                  <span className="text-xs normal-case font-normal px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(151,101,224,0.12)', color: '#9765E0' }}>
-                    ✨ AI named
-                  </span>
+                  <span className="text-xs normal-case font-normal px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(151,101,224,0.12)', color: '#9765E0' }}>✨ AI named</span>
                 )}
               </label>
-              <input
-                className="input-field"
-                placeholder="e.g. Desert Canyon at Sunset"
-                value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                required
-              />
+              <input className="input-field" placeholder="e.g. Desert Canyon at Sunset" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} required />
             </div>
 
-            {/* Type + Plan */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Type</label>
                 <select className="input-field" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-                  <option value="Location">📍 Location</option>
-                  <option value="Character">🧍 Character</option>
+                  {ASSET_TYPES.map(t => (
+                    <option key={t.id} value={t.label}>{t.emoji} {t.label}</option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -546,56 +485,35 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Category */}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Category</label>
-              <input
-                className="input-field"
-                placeholder="e.g. Aerial, Urban, Nature, Cinematic…"
-                value={form.category}
-                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-              />
+              <input className="input-field" placeholder="e.g. Aerial, Urban, Nature…" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} />
             </div>
 
-            {/* Tags */}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
                 Tags <span style={{ color: 'var(--fg-subtle)' }}>(comma separated)</span>
               </label>
-              <input
-                className="input-field"
-                placeholder="cinematic, desert, aerial, sunset"
-                value={form.tags}
-                onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
-              />
+              <input className="input-field" placeholder="cinematic, desert, aerial" value={form.tags} onChange={e => setForm(f => ({ ...f, tags: e.target.value }))} />
             </div>
 
-            {/* Progress bar */}
             {uploading && (
               <div className="rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-subtle)', height: 4 }}>
-                <div
-                  className="h-full transition-all duration-500 rounded-full"
-                  style={{ width: `${uploadProgress}%`, background: 'linear-gradient(90deg, #9765E0, #00C2BA)' }}
-                />
+                <div className="h-full transition-all duration-500 rounded-full" style={{ width: `${uploadProgress}%`, background: 'linear-gradient(90deg, #9765E0, #00C2BA)' }} />
               </div>
             )}
 
-            {/* Result */}
             {uploadResult && (
-              <div
-                className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
-                style={{
-                  backgroundColor: uploadResult.ok ? 'rgba(0,194,186,0.12)' : 'rgba(255,95,95,0.12)',
-                  color: uploadResult.ok ? '#00C2BA' : '#ff5f5f',
-                  border: `1px solid ${uploadResult.ok ? 'rgba(0,194,186,0.3)' : 'rgba(255,95,95,0.3)'}`,
-                }}
-              >
+              <div className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm" style={{
+                backgroundColor: uploadResult.ok ? 'rgba(0,194,186,0.12)' : 'rgba(255,95,95,0.12)',
+                color: uploadResult.ok ? '#00C2BA' : '#ff5f5f',
+                border: `1px solid ${uploadResult.ok ? 'rgba(0,194,186,0.3)' : 'rgba(255,95,95,0.3)'}`,
+              }}>
                 {uploadResult.ok ? <CheckIcon /> : '⚠️'}
                 {uploadResult.msg}
               </div>
             )}
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={uploading}
