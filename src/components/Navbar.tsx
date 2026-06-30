@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
 
-// ── Cineman Logo Icon (matches brand logo exactly) ───────────
+// ── Cineman Logo Icon ─────────────────────────────────────────
 function CinemanLogoIcon({ size = 36 }: { size?: number }) {
   return (
     <svg
@@ -19,67 +19,34 @@ function CinemanLogoIcon({ size = 36 }: { size?: number }) {
           <stop offset="100%" stopColor="#36009C" />
         </linearGradient>
       </defs>
-      {/* Rounded square background */}
       <rect width="40" height="40" rx="9" ry="9" fill="url(#cl-grad)" />
-      {/* Outer ring — 16 dots, r≈12 */}
       {Array.from({ length: 16 }, (_, i) => (
-        <rect
-          key={`o${i}`}
-          x="19"
-          y="6.5"
-          width="2"
-          height="3"
-          rx="0.6"
-          fill="white"
-          fillOpacity="0.92"
-          transform={`rotate(${i * 22.5}, 20, 20)`}
-        />
+        <rect key={`o${i}`} x="19" y="6.5" width="2" height="3" rx="0.6"
+          fill="white" fillOpacity="0.92"
+          transform={`rotate(${i * 22.5}, 20, 20)`} />
       ))}
-      {/* Middle ring — 12 dots, r≈8 */}
       {Array.from({ length: 12 }, (_, i) => (
-        <rect
-          key={`m${i}`}
-          x="19.1"
-          y="11.2"
-          width="1.8"
-          height="2.4"
-          rx="0.4"
-          fill="white"
-          fillOpacity="0.72"
-          transform={`rotate(${i * 30}, 20, 20)`}
-        />
+        <rect key={`m${i}`} x="19.1" y="11.2" width="1.8" height="2.4" rx="0.4"
+          fill="white" fillOpacity="0.72"
+          transform={`rotate(${i * 30}, 20, 20)`} />
       ))}
-      {/* Inner ring — 8 dots, r≈5 */}
       {Array.from({ length: 8 }, (_, i) => (
-        <rect
-          key={`i${i}`}
-          x="19.3"
-          y="14.8"
-          width="1.4"
-          height="1.8"
-          rx="0.35"
-          fill="white"
-          fillOpacity="0.52"
-          transform={`rotate(${i * 45}, 20, 20)`}
-        />
+        <rect key={`i${i}`} x="19.3" y="14.8" width="1.4" height="1.8" rx="0.35"
+          fill="white" fillOpacity="0.52"
+          transform={`rotate(${i * 45}, 20, 20)`} />
       ))}
     </svg>
   )
 }
 
-// ── Theme icons ──────────────────────────────────────────────
 function SunIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="5" />
-      <line x1="12" y1="1" x2="12" y2="3" />
-      <line x1="12" y1="21" x2="12" y2="23" />
-      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-      <line x1="1" y1="12" x2="3" y2="12" />
-      <line x1="21" y1="12" x2="23" y2="12" />
-      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+      <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
     </svg>
   )
 }
@@ -95,9 +62,7 @@ function MoonIcon() {
 function MenuIcon() {
   return (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="3" y1="12" x2="21" y2="12" />
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <line x1="3" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
     </svg>
   )
 }
@@ -139,7 +104,6 @@ export default function Navbar() {
           {[
             { href: '/catalog', label: 'Catalog' },
             { href: '/pricing', label: 'Pricing' },
-            { href: '/admin', label: 'Admin' },
           ].map(({ href, label }) => (
             <Link
               key={href}
@@ -156,7 +120,6 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-3">
-          {/* Theme toggle */}
           <button
             onClick={toggle}
             aria-label="Toggle theme"
@@ -171,12 +134,10 @@ export default function Navbar() {
             {isDark ? <SunIcon /> : <MoonIcon />}
           </button>
 
-          {/* CTA */}
           <Link href="/pricing" className="btn-primary text-sm px-4 py-2">
             Get Started
           </Link>
 
-          {/* Mobile menu */}
           <button
             className="md:hidden p-2 rounded-lg"
             style={{ color: 'var(--fg-muted)' }}
