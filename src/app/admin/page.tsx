@@ -81,9 +81,9 @@ function autoNameFromFile(file: File): { title: string; tags: string; type: stri
   const uuidLike = /^[0-9a-f]{6,}[-_][0-9a-f]/i.test(base)   // e.g. 5ef40f48-8629-...
   const hashLike = /^[0-9a-f]{20,}$/i.test(base)               // pure hex hash
   const deviceId = /^(img|dsc|dji|vid|vlc|hf|mov|photo|screenshot|snap)[-_\s]?\d/i.test(base) // IMG_1234, DSC09, HF_...
-  const chatgptFile = /^chatgpt[\s_-]/i.test(base)              // ChatGPT Image 10 мая 2026...
+  const chatgptFile = /^chatgpt[\s_-]/i.test(base)              // ChatGPT Image filenames
   const hasTimestamp = /\b\d{1,2}[\s._-]\d{1,2}[\s._-]\d{2,4}\b/.test(base) // 10_05_2026, 2026-05-10...
-  const hasCyrillic = /[\u0430-\u044f\u0451\u0410-\u042f\u0401]/.test(base) // Russian/Cyrillic date text
+    const hasCyrillic = /[\u0430-\u044f\u0451\u0410-\u042f\u0401]/.test(base) // Russian/Cyrillic date text
   if (uuidLike || hashLike || deviceId || chatgptFile || (hasTimestamp && hasCyrillic)) {
     // Detect type hint from any readable prefix only
     const lower = base.toLowerCase()
@@ -568,12 +568,20 @@ export default function AdminPage() {
             <div className="grid grid-cols-3 gap-6 text-center">
               {[
                 { plan: 'Starter', price: '$9.99', color: '#CE95FB' },
-                { plan: 'Tro',     price: '$24.99', color: '#00C2BA' },
+                { plan: 'Pro',     price: '$24.99', color: '#00C2BA' },
                 { plan: 'Enterprise', price: '$79.99', color: '#9765E0' },
               ].map(p => (
                 <div key={p.plan}>
-                  <div className="text-rxl font-bold" style={{ color: p.color }}>{p.price}</div>
-                  <div className="text-sm mt-]-"!��屔��쁍����耝a�Ȋ���fr��WFVB�r������������F�c���F�c���Т��F�c���F�c���F�c�_B��;/* ── Assets Tab ──────────────────────────────────── */}
+                  <div className="text-2xl font-bold" style={{ color: p.color }}>{p.price}</div>
+                  <div className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>{p.plan} /mo</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Assets Tab ────────────────────────────────────────── */}
       {activeTab === 'assets' && (
         <div>
           {loadingAssets ? (
@@ -581,7 +589,7 @@ export default function AdminPage() {
               <SpinnerIcon /> Loading assets…
             </div>
           ) : assets.length === 0 ? (
-            <div className="text-center py-12">
+            <div className="text-center py-16">
               <div className="text-5xl mb-4">🚫</div>
               <p style={{ color: 'var(--fg-muted)' }}>No assets yet. Upload your first one!</p>
             </div>
@@ -611,13 +619,12 @@ export default function AdminPage() {
                         key={asset.id}
                         style={{ borderBottom: '1px solid var(--border)' }}
                       >
-                        <td className="px-4 py-3 font-medium max-w-[!0px] tqUncate" style={{ color: 'var(--fg)' }}>
+                        <td className="px-4 py-3 font-medium max-w[180px] truncate" style={{ color: 'var(--fg)' }}>
                           {asset.title}
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs font-medium" style={{ color: typeColor }}>{asset.type}</span>
                         </td>
-             >
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{asset.category}</td>
                         <td className="px-4 py-3">
                           <span
@@ -627,7 +634,7 @@ export default function AdminPage() {
                             {asset.plan}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-xs max-w-[140px] truncate" style={{ color: 'var(--fg-subtle)' }}>
+                        <td className="px-4 py-3 text-xs max-w[140px] truncate" style={{ color: 'var(--fg-subtle)' }}>
                           {Array.isArray(asset.tags) ? asset.tags.join(', ') : '—'}
                         </td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-subtle)' }}>
@@ -643,13 +650,13 @@ export default function AdminPage() {
                               backgroundColor: 'rgba(255,95,95,0.08)',
                             }}
                           >
-                            {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
+                            {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
                             {isDeleting ? 'Deleting…' : 'Delete'}
                           </button>
                         </td>
                       </tr>
                     )
-                  })}
+                  })}
                 </tbody>
               </table>
             </div>
@@ -661,7 +668,7 @@ export default function AdminPage() {
       {activeTab === 'batch' && (
         <div>
           {/* Drop zone */}
-          <div
+          <div
             className="card p-10 text-center cursor-pointer mb-6 transition-all"
             style={{
               border: `2px dashed ${batchItems.length ? '#9765E0' : 'var(--border)'}`,
@@ -671,12 +678,12 @@ export default function AdminPage() {
             onDragOver={e => e.preventDefault()}
             onDrop={e => { e.preventDefault(); handleBatchSelect(e.dataTransfer.files) }}
           >
-            <div className="text-4xl mb-3">📂</div>
-            <p className="font-semibold text-sm mb-1" style={{ color: 'var(--fg)' }}>
+            <div className="text-4xl mb-3">📂</div>
+            <p className="font-semibold text-sm mb-1" style={{ color: 'var(--fg)' }}>
               Drop multiple files here, or click to select
             </p>
-            <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
-              JPG, PNG, MP4 — AI will auto-name each file
+            <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>
+              JPG, PNG, MP4 — AI will auto-name each file
             </p>
             <input
               ref={batchRef}
@@ -684,14 +691,14 @@ export default function AdminPage() {
               className="hidden"
               accept="image/*,video/*"
               multiple
-              onChange={e => handleBatchSelect(e.target.files)}
+              onChange={e => handleBatchSelect(e.target.files)}
             />
           </div>
 
           {/* Global settings for batch */}
           {batchItems.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div>
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              <div>
                 <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
                   Plan for all
                 </label>
