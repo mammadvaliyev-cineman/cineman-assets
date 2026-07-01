@@ -75,7 +75,20 @@ const TYPE_COLOR: Record<string, string> = {
 // ── AI auto-naming from filename ─────────────────────────────
 function autoNameFromFile(file: File): { title: string; tags: string; type: string } {
   const base = file.name.replace(/\.[^.]+$/, '')
-  // strip timestamps / UUIDs / pure number tokens
+
+  // If filename looks like UUID / hash / device-generated ID — return empty
+  // so Gemini result is the only source of truth (no garbage fallback)
+  const uuidLike = /^[0-9a-f]{6,}[-_][0-9a-f]/i.test(base)   // e.g. 5ef40f48-8629-...
+  const hashLike = /^[0-9a-f]{20,}$/i.test(base)               // pure hex hash
+  const deviceId = /^(img|dsc|dji|vid|vlc|hf|mov)[-_\s]?\d/i.test(base) // IMG_1234, DSC09, HF_...
+  if (uuidLike || hashLike || deviceId) {
+    // Detect type hint from any readable prefix only
+    const lower = base.toLowerCase()
+    const isCharacter = ['char','person','portrait','face','model','actor','human'].some(k => lower.startsWith(k))
+    return { title: '', tags: '', type: isCharacter ? 'Character' : 'Location' }
+  }
+
+  // strip remaining timestamps / pure number tokens
   const cleaned = base
     .replace(/[-_.]+/g, ' ')
     .replace(/\b\d{5,}\b/g, '')
@@ -95,7 +108,7 @@ function autoNameFromFile(file: File): { title: string; tags: string; type: stri
   const isCharacter = characterKeywords.some(k => lower.includes(k))
   const detectedType = isCharacter ? 'Character' : 'Location'
 
-  // Generate tags from meaningful words
+  // Generate tags from meaningful words only
   const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are', 'was', 'has'])
   const words = lower
     .split(' ')
@@ -110,6 +123,26 @@ function autoNameFromFile(file: File): { title: string; tags: string; type: stri
   return { title, tags: allTags.join(', '), type: detectedType }
 }
 
+// ── Convert any image to clean JPEG via canvas (strips EXIF/metadata) ──
+async function toCleanJpeg(file: File): Promise<File> {
+  return new Promise(resolve => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = img.naturalWidth
+      canvas.height = img.naturalHeight
+      canvas.getContext('2d')!.drawImage(img, 0, 0)
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url)
+        resolve(new File([blob!], 'image.jpg', { type: 'image/jpeg' }))
+      }, 'image/jpeg', 0.92)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
+}
+
 // ── Batch queue item ─────────────────────────────────────────
 type BatchItem = {
   id: string
@@ -117,6 +150,7 @@ type BatchItem = {
   title: string
   tags: string
   type: string
+  description: string
   status: 'pending' | 'uploading' | 'done' | 'error'
   errorMsg?: string
   aiLoading?: boolean
@@ -220,6 +254,7 @@ export default function AdminPage() {
         title,
         tags,
         type,
+        description: '',
         status: 'pending' as const,
         aiLoading: true,
       }
@@ -239,15 +274,26 @@ export default function AdminPage() {
             return
           }
           try {
+            // Convert to clean JPEG — strips EXIF/metadata so Gemini
+            // analyses pixels only, not UUID filenames or device metadata
+            const cleanFile = await toCleanJpeg(item.file)
             const fd = new FormData()
-            fd.append('file', item.file)
+            fd.append('file', cleanFile)
             const res = await fetch('/api/ai-name', { method: 'POST', body: fd })
             if (res.ok) {
               const ai = await res.json()
               setBatchItems(prev =>
                 prev.map(it =>
                   it.id === item.id
-                    ? { ...it, title: ai.title || it.title, tags: ai.tags || it.tags, type: ai.type || it.type, aiLoading: false }
+                    ? {
+                        ...it,
+                        // Never fall back to UUID garbage — prefer empty string
+                        title: ai.title || '',
+                        tags:  ai.tags  || '',
+                        type:  ai.type  || it.type,
+                        description: ai.description || '',
+                        aiLoading: false,
+                      }
                     : it
                 )
               )
@@ -303,6 +349,7 @@ export default function AdminPage() {
           category: batchCategory.trim() || item.type,
           plan: batchPlan,
           tags,
+          description: item.description || '',
           file_url: fileUrlData.publicUrl,
           thumbnail_url: thumbUrl,
         })
@@ -336,7 +383,7 @@ export default function AdminPage() {
     }, 600)
   }
 
-  // ── Upload asset ────────────────────────────────────────
+  // ── Upload asset ─────────────────────────────────────
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedFile) { setUploadResult({ ok: false, msg: 'Please select a file.' }); return }
@@ -686,7 +733,13 @@ export default function AdminPage() {
               </div>
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                 {batchItems.map(item => (
-                  <div key={item.id} className="px-4 py-3 grid grid-cols-[1fr_1fr_auto_auto] gap-3 items-center">
+                  <div key={item.id} className="px-4 py-3 flex flex-col gap-2">
+                    {item.description && !item.aiLoading && (
+                      <p className="text-xs leading-relaxed" style={{ color: 'var(--fg-muted)', borderLeft: '2px solid #9765E0', paddingLeft: '8px' }}>
+                        {item.description}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-3 items-center">
                     {/* Title (editable) */}
                     <div className="relative">
                       <input
@@ -728,6 +781,7 @@ export default function AdminPage() {
                         <span title={item.errorMsg}>❌</span>
                       )}
                     </span>
+                    </div>{/* end inner grid */}
                   </div>
                 ))}
               </div>
