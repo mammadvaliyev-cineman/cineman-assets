@@ -75,23 +75,27 @@ const TYPE_COLOR: Record<string, string> = {
 // ── AI auto-naming from filename ─────────────────────────────
 function autoNameFromFile(file: File): { title: string; tags: string; type: string } {
   const base = file.name.replace(/\.[^.]+$/, '')
+  // strip timestamps / UUIDs / pure number tokens
   const cleaned = base
     .replace(/[-_.]+/g, ' ')
     .replace(/\b\d{5,}\b/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 
+  // Title case
   const title = cleaned
     .split(' ')
     .filter(Boolean)
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ')
 
+  // Detect type
   const lower = cleaned.toLowerCase()
   const characterKeywords = ['character', 'char', 'person', 'portrait', 'face', 'model', 'actor', 'human', 'woman', 'man', 'girl', 'boy', 'hero', 'villain']
   const isCharacter = characterKeywords.some(k => lower.includes(k))
   const detectedType = isCharacter ? 'Character' : 'Location'
 
+  // Generate tags from meaningful words
   const stopWords = new Set(['the', 'and', 'for', 'with', 'from', 'that', 'this', 'are', 'was', 'has'])
   const words = lower
     .split(' ')
@@ -115,6 +119,7 @@ type BatchItem = {
   type: string
   status: 'pending' | 'uploading' | 'done' | 'error'
   errorMsg?: string
+  aiLoading?: boolean
 }
 
 // ── Main Component ──────────────────────────────────────────
@@ -126,6 +131,7 @@ export default function AdminPage() {
   const [loadingAssets, setLoadingAssets] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
+  // ── Upload form state ───────────────────────────────────
   const fileRef = useRef<HTMLInputElement>(null)
   const thumbRef = useRef<HTMLInputElement>(null)
   const [form, setForm] = useState({
@@ -142,12 +148,14 @@ export default function AdminPage() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadResult, setUploadResult] = useState<{ ok: boolean; msg: string } | null>(null)
 
+  // ── Batch upload state ──────────────────────────────────
   const batchRef = useRef<HTMLInputElement>(null)
   const [batchItems, setBatchItems] = useState<BatchItem[]>([])
   const [batchRunning, setBatchRunning] = useState(false)
   const [batchPlan, setBatchPlan] = useState('starter')
   const [batchCategory, setBatchCategory] = useState('')
 
+  // ── Load stats ──────────────────────────────────────────
   useEffect(() => {
     loadStats()
   }, [])
@@ -181,9 +189,11 @@ export default function AdminPage() {
     if (activeTab === 'assets') loadAssets()
   }, [activeTab])
 
+  // ── Delete asset ────────────────────────────────────────
   async function deleteAsset(asset: AssetRow) {
     if (!confirm(`Delete "${asset.title}"? This cannot be undone.`)) return
     setDeletingId(asset.id)
+    // Remove from Storage
     if (asset.file_url) {
       const path = asset.file_url.split('/assets/')[1]
       if (path) await supabase.storage.from('assets').remove([path])
@@ -198,26 +208,70 @@ export default function AdminPage() {
     setDeletingId(null)
   }
 
-  function handleBatchSelect(files: FileList | null) {
+  // ── Batch: add files + AI naming ─────────────────────────
+  async function handleBatchSelect(files: FileList | null) {
     if (!files) return
+    // Add items immediately with filename-based naming
     const newItems: BatchItem[] = Array.from(files).map(file => {
       const { title, tags, type } = autoNameFromFile(file)
       return {
-        id: `${Date.now()}-${Math.random()}`,
+        id: `${Date.now()}-${Math.random()}-${file.name}`,
         file,
         title,
         tags,
         type,
-        status: 'pending',
+        status: 'pending' as const,
+        aiLoading: true,
       }
     })
     setBatchItems(prev => [...prev, ...newItems])
+
+    // Fire Gemini AI naming for each image in parallel
+    const isGeminiReady = true // will fail gracefully if key not set
+    if (isGeminiReady) {
+      await Promise.all(
+        newItems.map(async item => {
+          if (!item.file.type.startsWith('image/')) {
+            // Non-image: skip AI, keep filename-based name
+            setBatchItems(prev =>
+              prev.map(it => it.id === item.id ? { ...it, aiLoading: false } : it)
+            )
+            return
+          }
+          try {
+            const fd = new FormData()
+            fd.append('file', item.file)
+            const res = await fetch('/api/ai-name', { method: 'POST', body: fd })
+            if (res.ok) {
+              const ai = await res.json()
+              setBatchItems(prev =>
+                prev.map(it =>
+                  it.id === item.id
+                    ? { ...it, title: ai.title || it.title, tags: ai.tags || it.tags, type: ai.type || it.type, aiLoading: false }
+                    : it
+                )
+              )
+            } else {
+              setBatchItems(prev =>
+                prev.map(it => it.id === item.id ? { ...it, aiLoading: false } : it)
+              )
+            }
+          } catch {
+            setBatchItems(prev =>
+              prev.map(it => it.id === item.id ? { ...it, aiLoading: false } : it)
+            )
+          }
+        })
+      )
+    }
   }
 
+  // ── Batch: update single item ─────────────────────────────
   function updateBatchItem(id: string, changes: Partial<BatchItem>) {
     setBatchItems(prev => prev.map(it => (it.id === id ? { ...it, ...changes } : it)))
   }
 
+  // ── Batch: upload all pending ─────────────────────────────
   const runBatchUpload = useCallback(async () => {
     setBatchRunning(true)
     const pending = batchItems.filter(it => it.status === 'pending')
@@ -264,15 +318,17 @@ export default function AdminPage() {
     loadStats()
   }, [batchItems, batchPlan, batchCategory])
 
+  // ── AI auto-naming on file select ────────────────────────
   function handleFileSelect(file: File | null) {
     setSelectedFile(file)
     if (!file) return
     setAiNaming(true)
+    // Simulate brief AI "thinking" delay for UX
     setTimeout(() => {
       const { title, tags, type } = autoNameFromFile(file)
       setForm(f => ({
         ...f,
-        title: f.title || title,
+        title: f.title || title,        // don't overwrite if user already typed
         tags: f.tags || tags,
         type,
       }))
@@ -280,6 +336,7 @@ export default function AdminPage() {
     }, 600)
   }
 
+  // ── Upload asset ────────────────────────────────────────
   async function handleUpload(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedFile) { setUploadResult({ ok: false, msg: 'Please select a file.' }); return }
@@ -295,12 +352,14 @@ export default function AdminPage() {
       const ext = selectedFile.name.split('.').pop()
       const filePath = `${form.type.toLowerCase().replace(/\s+/g, '-')}/${ts}-${safeTitle}.${ext}`
 
+      // Upload main file
       const { error: fileErr } = await supabase.storage
         .from('assets')
         .upload(filePath, selectedFile, { cacheControl: '3600', upsert: false })
       if (fileErr) throw fileErr
       setUploadProgress(60)
 
+      // Upload thumbnail (separate image or same file for images)
       let thumbPath = ''
       const isImage = selectedFile.type.startsWith('image/')
 
@@ -312,15 +371,17 @@ export default function AdminPage() {
           .upload(thumbPath, selectedThumb, { cacheControl: '3600', upsert: false })
         if (tErr) throw tErr
       } else if (isImage) {
-        thumbPath = filePath
+        thumbPath = filePath // use same file as thumbnail for images
       }
       setUploadProgress(80)
 
+      // Get public URLs
       const { data: fileUrlData } = supabase.storage.from('assets').getPublicUrl(filePath)
       const { data: thumbUrlData } = thumbPath
         ? supabase.storage.from('assets').getPublicUrl(thumbPath)
         : { data: { publicUrl: '' } }
 
+      // Insert into DB
       const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean)
       const { error: dbErr } = await supabase.from('assets').insert({
         title: form.title.trim(),
@@ -350,8 +411,10 @@ export default function AdminPage() {
     }
   }
 
+  // ── Render ──────────────────────────────────────────────
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
+      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold" style={{ color: 'var(--fg)' }}>
@@ -370,6 +433,7 @@ export default function AdminPage() {
         </span>
       </div>
 
+      {/* Tabs */}
       <div
         className="flex gap-1 rounded-xl p-1 mb-8 w-fit"
         style={{ backgroundColor: 'var(--bg-subtle)' }}
@@ -390,8 +454,10 @@ export default function AdminPage() {
         ))}
       </div>
 
+      {/* ── Overview Tab ────────────────────────────────────── */}
       {activeTab === 'overview' && (
         <div>
+          {/* Stat cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {[
               { label: 'Total Assets', value: loadingStats ? '…' : stats.total, accent: '#9765E0' },
@@ -410,6 +476,7 @@ export default function AdminPage() {
             ))}
           </div>
 
+          {/* By type breakdown */}
           {!loadingStats && Object.keys(stats.byType).length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="card p-6">
@@ -445,6 +512,7 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* Pricing reference */}
           <div className="card p-6 mt-4">
             <h3 className="font-semibold mb-4 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Pricing Reference</h3>
             <div className="grid grid-cols-3 gap-6 text-center">
@@ -463,6 +531,7 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* ── Assets Tab ────────────────────────────────────────── */}
       {activeTab === 'assets' && (
         <div>
           {loadingAssets ? (
@@ -471,7 +540,7 @@ export default function AdminPage() {
             </div>
           ) : assets.length === 0 ? (
             <div className="text-center py-16">
-              <div className="text-5xl mb-4">📭</div>
+              <div className="text-5xl mb-4">🚫</div>
               <p style={{ color: 'var(--fg-muted)' }}>No assets yet. Upload your first one!</p>
             </div>
           ) : (
@@ -545,8 +614,10 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* ── Batch Upload Tab ─────────────────────────────────────── */}
       {activeTab === 'batch' && (
         <div>
+          {/* Drop zone */}
           <div
             className="card p-10 text-center cursor-pointer mb-6 transition-all"
             style={{
@@ -574,6 +645,7 @@ export default function AdminPage() {
             />
           </div>
 
+          {/* Global settings for batch */}
           {batchItems.length > 0 && (
             <div className="grid grid-cols-2 gap-4 mb-6">
               <div>
@@ -600,6 +672,7 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* Queue */}
           {batchItems.length > 0 && (
             <div className="card overflow-hidden mb-6">
               <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -614,30 +687,41 @@ export default function AdminPage() {
               <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
                 {batchItems.map(item => (
                   <div key={item.id} className="px-4 py-3 grid grid-cols-[1fr_1fr_auto_auto] gap-3 items-center">
-                    <input
-                      className="input-field text-sm py-1"
-                      value={item.title}
-                      onChange={e => updateBatchItem(item.id, { title: e.target.value })}
-                      disabled={item.status !== 'pending'}
-                    />
+                    {/* Title (editable) */}
+                    <div className="relative">
+                      <input
+                        className="input-field text-sm py-1 w-full"
+                        value={item.title}
+                        onChange={e => updateBatchItem(item.id, { title: e.target.value })}
+                        disabled={item.status !== 'pending' || item.aiLoading}
+                        placeholder={item.aiLoading ? '🤖 AI analyzing…' : 'Title'}
+                      />
+                      {item.aiLoading && (
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs animate-pulse" style={{ color: '#9765E0' }}>🤖</span>
+                      )}
+                    </div>
+                    {/* Tags (editable) */}
                     <input
                       className="input-field text-xs py-1"
                       value={item.tags}
-                      placeholder="tags, comma, separated"
+                      placeholder={item.aiLoading ? 'AI generating tags…' : 'tags, comma, separated'}
                       onChange={e => updateBatchItem(item.id, { tags: e.target.value })}
-                      disabled={item.status !== 'pending'}
+                      disabled={item.status !== 'pending' || item.aiLoading}
                     />
+                    {/* Type selector */}
                     <select
                       className="input-field text-xs py-1"
                       value={item.type}
                       onChange={e => updateBatchItem(item.id, { type: e.target.value })}
-                      disabled={item.status !== 'pending'}
+                      disabled={item.status !== 'pending' || item.aiLoading}
                     >
                       <option value="Location">📍 Location</option>
                       <option value="Character">🎭 Character</option>
                     </select>
+                    {/* Status */}
                     <span className="text-sm w-6 text-center">
-                      {item.status === 'pending'   && '⏳'}
+                      {item.aiLoading              && <SpinnerIcon />}
+                      {!item.aiLoading && item.status === 'pending'   && '⏳'}
                       {item.status === 'uploading' && <SpinnerIcon />}
                       {item.status === 'done'      && '✅'}
                       {item.status === 'error'     && (
@@ -650,6 +734,7 @@ export default function AdminPage() {
             </div>
           )}
 
+          {/* Actions */}
           {batchItems.length > 0 && (
             <div className="flex gap-3">
               <button
@@ -680,9 +765,11 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* ── Upload Tab ─────────────────────────────────────────── */}
       {activeTab === 'upload' && (
         <div className="max-w-xl">
           <form onSubmit={handleUpload} className="space-y-5">
+            {/* File drop zone */}
             <div
               className="card p-8 text-center cursor-pointer transition-all"
               style={{
@@ -720,6 +807,7 @@ export default function AdminPage() {
               />
             </div>
 
+            {/* Thumbnail (optional — for videos/audio) */}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
                 Thumbnail Image <span style={{ color: 'var(--fg-subtle)' }}>(optional — for videos/LUTs)</span>
@@ -743,6 +831,7 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Title */}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider flex items-center gap-2 mb-2" style={{ color: 'var(--fg-muted)' }}>
                 Title *
@@ -761,6 +850,7 @@ export default function AdminPage() {
               />
             </div>
 
+            {/* Type + Plan */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Type</label>
@@ -770,7 +860,7 @@ export default function AdminPage() {
                   onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
                 >
                   <option value="Location">📍 Location</option>
-                  <option value="Character">🧍 Character</option>
+                  <option value="Character">🧑 Character</option>
                 </select>
               </div>
               <div>
@@ -787,6 +877,7 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Category */}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
                 Category
@@ -799,6 +890,7 @@ export default function AdminPage() {
               />
             </div>
 
+            {/* Tags */}
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
                 Tags <span style={{ color: 'var(--fg-subtle)' }}>(comma separated)</span>
@@ -811,6 +903,7 @@ export default function AdminPage() {
               />
             </div>
 
+            {/* Progress bar */}
             {uploading && (
               <div className="rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-subtle)', height: 4 }}>
                 <div
@@ -823,6 +916,7 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Result */}
             {uploadResult && (
               <div
                 className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
@@ -837,6 +931,7 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={uploading}
