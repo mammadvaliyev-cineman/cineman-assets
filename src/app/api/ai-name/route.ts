@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent'
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
 
 const PROMPT = `You are a professional cinematographer and art director analyzing images for a high-end cinematic asset library called Cineman.
 
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       const err = await res.text()
       console.error('Gemini error:', err)
-      return NextResponse.json({ error: 'Gemini API error' }, { status: 502 })
+      return NextResponse.json({ error: 'Gemini API error', detail: err }, { status: 502 })
     }
 
     const data = await res.json()
