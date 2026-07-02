@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { CATEGORIES, STYLES, MOODS, LIGHTING, getSubcategoriesFor } from '@/config/categories'
 
 // ── Types ───────────────────────────────────────────────────
 type AssetRow = {
@@ -52,13 +53,6 @@ function SpinnerIcon() {
   )
 }
 
-function CheckIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
-  )
-}
 
 // ── Plan / Type badges ──────────────────────────────────────
 const PLAN_COLOR: Record<string, { bg: string; color: string }> = {
@@ -161,36 +155,22 @@ type BatchItem = {
 
 // ── Main Component ──────────────────────────────────────────
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'upload' | 'batch'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories'>('overview')
   const [stats, setStats] = useState<Stats>({ total: 0, byType: {}, byPlan: {} })
   const [assets, setAssets] = useState<AssetRow[]>([])
   const [loadingStats, setLoadingStats] = useState(true)
   const [loadingAssets, setLoadingAssets] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  // ── Upload form state ───────────────────────────────────
-  const fileRef = useRef<HTMLInputElement>(null)
-  const thumbRef = useRef<HTMLInputElement>(null)
-  const [form, setForm] = useState({
-    title: '',
-    type: 'Location',
-    category: '',
-    plan: 'starter',
-    tags: '',
-  })
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [selectedThumb, setSelectedThumb] = useState<File | null>(null)
-  const [aiNaming, setAiNaming] = useState(false)
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadResult, setUploadResult] = useState<{ ok: boolean; msg: string } | null>(null)
-
   // ── Batch upload state ──────────────────────────────────
   const batchRef = useRef<HTMLInputElement>(null)
   const [batchItems, setBatchItems] = useState<BatchItem[]>([])
   const [batchRunning, setBatchRunning] = useState(false)
   const [batchPlan, setBatchPlan] = useState('starter')
-  const [batchCategory, setBatchCategory] = useState('')
+  const [batchCategory, setBatchCategory] = useState('Location')
+  const [batchSubcategory, setBatchSubcategory] = useState('')
+  const [batchStyle, setBatchStyle] = useState('')
+  const [batchMood, setBatchMood] = useState('')
 
   // ── Load stats ──────────────────────────────────────────
   useEffect(() => {
@@ -345,11 +325,15 @@ export default function AdminPage() {
           ? supabase.storage.from('assets').getPublicUrl(thumbPath).data.publicUrl
           : ''
 
-        const tags = item.tags.split(',').map(t => t.trim()).filter(Boolean)
+        const baseTags = item.tags.split(',').map(t => t.trim()).filter(Boolean)
+        // Append style/mood/subcategory as structured tags
+        const extraTags = [batchSubcategory, batchStyle, batchMood].filter(Boolean)
+        const tags = Array.from(new Set([...baseTags, ...extraTags]))
+
         const { error: dbErr } = await supabase.from('assets').insert({
           title: item.title.trim(),
           type: item.type,
-          category: batchCategory.trim() || item.type,
+          category: batchCategory || item.type,
           plan: batchPlan,
           tags,
           description: item.description || '',
@@ -367,99 +351,6 @@ export default function AdminPage() {
     setBatchRunning(false)
     loadStats()
   }, [batchItems, batchPlan, batchCategory])
-
-  // ── AI auto-naming on file select ────────────────────────
-  function handleFileSelect(file: File | null) {
-    setSelectedFile(file)
-    if (!file) return
-    setAiNaming(true)
-    // Simulate brief AI "thinking" delay for UX
-    setTimeout(() => {
-      const { title, tags, type } = autoNameFromFile(file)
-      setForm(f => ({
-        ...f,
-        title: f.title || title,        // don't overwrite if user already typed
-        tags: f.tags || tags,
-        type,
-      }))
-      setAiNaming(false)
-    }, 600)
-  }
-
-  // ── Upload asset ────────────────────────────────────────
-  async function handleUpload(e: React.FormEvent) {
-    e.preventDefault()
-    if (!selectedFile) { setUploadResult({ ok: false, msg: 'Please select a file.' }); return }
-    if (!form.title.trim()) { setUploadResult({ ok: false, msg: 'Please enter a title.' }); return }
-
-    setUploading(true)
-    setUploadProgress(10)
-    setUploadResult(null)
-
-    try {
-      const ts = Date.now()
-      const safeTitle = form.title.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-      const ext = selectedFile.name.split('.').pop()
-      const filePath = `${form.type.toLowerCase().replace(/\s+/g, '-')}/${ts}-${safeTitle}.${ext}`
-
-      // Upload main file
-      const { error: fileErr } = await supabase.storage
-        .from('assets')
-        .upload(filePath, selectedFile, { cacheControl: '3600', upsert: false })
-      if (fileErr) throw fileErr
-      setUploadProgress(60)
-
-      // Upload thumbnail (separate image or same file for images)
-      let thumbPath = ''
-      const isImage = selectedFile.type.startsWith('image/')
-
-      if (selectedThumb) {
-        const tExt = selectedThumb.name.split('.').pop()
-        thumbPath = `thumbnails/${ts}-${safeTitle}-thumb.${tExt}`
-        const { error: tErr } = await supabase.storage
-          .from('assets')
-          .upload(thumbPath, selectedThumb, { cacheControl: '3600', upsert: false })
-        if (tErr) throw tErr
-      } else if (isImage) {
-        thumbPath = filePath // use same file as thumbnail for images
-      }
-      setUploadProgress(80)
-
-      // Get public URLs
-      const { data: fileUrlData } = supabase.storage.from('assets').getPublicUrl(filePath)
-      const { data: thumbUrlData } = thumbPath
-        ? supabase.storage.from('assets').getPublicUrl(thumbPath)
-        : { data: { publicUrl: '' } }
-
-      // Insert into DB
-      const tags = form.tags.split(',').map(t => t.trim()).filter(Boolean)
-      const { error: dbErr } = await supabase.from('assets').insert({
-        title: form.title.trim(),
-        type: form.type,
-        category: form.category.trim() || form.type,
-        plan: form.plan,
-        tags,
-        file_url: fileUrlData.publicUrl,
-        thumbnail_url: thumbUrlData.publicUrl,
-      })
-      if (dbErr) throw dbErr
-
-      setUploadProgress(100)
-      setUploadResult({ ok: true, msg: `"${form.title}" uploaded successfully!` })
-      setForm({ title: '', type: 'Location', category: '', plan: 'starter', tags: '' })
-      setSelectedFile(null)
-      setSelectedThumb(null)
-      if (fileRef.current) fileRef.current.value = ''
-      if (thumbRef.current) thumbRef.current.value = ''
-      loadStats()
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Upload failed'
-      setUploadResult({ ok: false, msg })
-    } finally {
-      setUploading(false)
-      setTimeout(() => setUploadProgress(0), 1000)
-    }
-  }
 
   // ── Render ──────────────────────────────────────────────
   return (
@@ -488,7 +379,7 @@ export default function AdminPage() {
         className="flex gap-1 rounded-xl p-1 mb-8 w-fit"
         style={{ backgroundColor: 'var(--bg-subtle)' }}
       >
-        {(['overview', 'assets', 'upload', 'batch'] as const).map(tab => (
+        {(['overview', 'assets', 'batch', 'categories'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -637,7 +528,7 @@ export default function AdminPage() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 font-medium max-w[180px] truncate" style={{ color: 'var(--fg)' }}>
+                        <td className="px-4 py-3 font-medium max-w-[180px] truncate" style={{ color: 'var(--fg)' }}>
                           {asset.title}
                         </td>
                         <td className="px-4 py-3">
@@ -652,7 +543,7 @@ export default function AdminPage() {
                             {asset.plan}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-xs max-w[140px] truncate" style={{ color: 'var(--fg-subtle)' }}>
+                        <td className="px-4 py-3 text-xs max-w-[140px] truncate" style={{ color: 'var(--fg-subtle)' }}>
                           {Array.isArray(asset.tags) ? asset.tags.join(', ') : '—'}
                         </td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-subtle)' }}>
@@ -715,27 +606,58 @@ export default function AdminPage() {
 
           {/* Global settings for batch */}
           {batchItems.length > 0 && (
-            <div className="grid grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+              {/* Plan */}
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
-                  Plan for all
-                </label>
+                <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Plan</label>
                 <select className="input-field" value={batchPlan} onChange={e => setBatchPlan(e.target.value)}>
                   <option value="starter">Starter</option>
                   <option value="pro">Pro</option>
                   <option value="enterprise">Enterprise</option>
                 </select>
               </div>
+              {/* Category */}
               <div>
-                <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
-                  Category for all
-                </label>
-                <input
+                <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Category</label>
+                <select
                   className="input-field"
-                  placeholder="e.g. Urban, Nature, Portrait…"
                   value={batchCategory}
-                  onChange={e => setBatchCategory(e.target.value)}
-                />
+                  onChange={e => { setBatchCategory(e.target.value); setBatchSubcategory('') }}
+                >
+                  {CATEGORIES.map(c => (
+                    <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Subcategory */}
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Subcategory</label>
+                <select
+                  className="input-field"
+                  value={batchSubcategory}
+                  onChange={e => setBatchSubcategory(e.target.value)}
+                >
+                  <option value="">— All —</option>
+                  {getSubcategoriesFor(batchCategory).map(s => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              {/* Style */}
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Style</label>
+                <select className="input-field" value={batchStyle} onChange={e => setBatchStyle(e.target.value)}>
+                  <option value="">— None —</option>
+                  {STYLES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              {/* Mood */}
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Mood</label>
+                <select className="input-field" value={batchMood} onChange={e => setBatchMood(e.target.value)}>
+                  <option value="">— None —</option>
+                  {MOODS.map(m => <option key={m} value={m}>{m}</option>)}
+                </select>
               </div>
             </div>
           )}
@@ -840,188 +762,55 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ── Upload Tab ─────────────────────────────────────────── */}
-      {activeTab === 'upload' && (
-        <div className="max-w-xl">
-          <form onSubmit={handleUpload} className="space-y-5">
-            {/* File drop zone */}
-            <div
-              className="card p-8 text-center cursor-pointer transition-all"
-              style={{
-                border: `2px dashed ${selectedFile ? '#9765E0' : 'var(--border)'}`,
-                backgroundColor: selectedFile ? 'rgba(151,101,224,0.06)' : 'var(--bg-card)',
-              }}
-              onClick={() => fileRef.current?.click()}
-            >
-              <div className="text-4xl mb-3">
-                {aiNaming ? '🤖' : selectedFile ? '✅' : '📁'}
-              </div>
-              {aiNaming ? (
-                <p className="font-semibold text-sm animate-pulse" style={{ color: '#9765E0' }}>
-                  AI is naming your file…
-                </p>
-              ) : selectedFile ? (
-                <>
-                  <p className="font-semibold text-sm" style={{ color: '#9765E0' }}>{selectedFile.name}</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--fg-muted)' }}>
-                    {(selectedFile.size / 1024 / 1024).toFixed(1)} MB
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="font-semibold text-sm mb-1" style={{ color: 'var(--fg)' }}>Drop your asset file here</p>
-                  <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>JPG, PNG, MP4, MOV — up to 500 MB</p>
-                </>
-              )}
-              <input
-                ref={fileRef}
-                type="file"
-                className="hidden"
-                accept="image/*,video/*"
-                onChange={e => handleFileSelect(e.target.files?.[0] ?? null)}
-              />
-            </div>
+      {/* ── Categories Tab ──────────────────────────────────────── */}
+      {activeTab === 'categories' && (
+        <div>
+          <p className="text-sm mb-6" style={{ color: 'var(--fg-muted)' }}>
+            Full taxonomy used in batch uploads and catalog filters. To add categories, edit <code style={{ color: '#9765E0' }}>src/config/categories.ts</code>.
+          </p>
 
-            {/* Thumbnail (optional — for videos/audio) */}
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
-                Thumbnail Image <span style={{ color: 'var(--fg-subtle)' }}>(optional — for videos/LUTs)</span>
-              </label>
-              <div
-                className="card p-4 flex items-center gap-3 cursor-pointer transition-all"
-                style={{ border: `1px dashed ${selectedThumb ? '#00C2BA' : 'var(--border)'}` }}
-                onClick={() => thumbRef.current?.click()}
-              >
-                <span className="text-xl">{selectedThumb ? '🖼️' : '➕'}</span>
-                <span className="text-sm" style={{ color: selectedThumb ? '#00C2BA' : 'var(--fg-muted)' }}>
-                  {selectedThumb ? selectedThumb.name : 'Add thumbnail…'}
-                </span>
-                <input
-                  ref={thumbRef}
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={e => setSelectedThumb(e.target.files?.[0] ?? null)}
-                />
-              </div>
-            </div>
-
-            {/* Title */}
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider flex items-center gap-2 mb-2" style={{ color: 'var(--fg-muted)' }}>
-                Title *
-                {form.title && !aiNaming && (
-                  <span className="text-xs normal-case font-normal px-2 py-0.5 rounded-full" style={{ backgroundColor: 'rgba(151,101,224,0.12)', color: '#9765E0' }}>
-                    ✨ AI named
+          {/* Category grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+            {CATEGORIES.map(cat => (
+              <div key={cat.id} className="card p-5" style={{ borderLeft: `3px solid ${cat.color}` }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-xl">{cat.emoji}</span>
+                  <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{cat.label}</span>
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: `${cat.color}22`, color: cat.color }}>
+                    {cat.subcategories.length} sub
                   </span>
-                )}
-              </label>
-              <input
-                className="input-field"
-                placeholder="e.g. Golden Hour Desert Timelapse"
-                value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                required
-              />
-            </div>
-
-            {/* Type + Plan */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Type</label>
-                <select
-                  className="input-field"
-                  value={form.type}
-                  onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
-                >
-                  <option value="Location">📍 Location</option>
-                  <option value="Character">🧑 Character</option>
-                </select>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {cat.subcategories.map(sub => (
+                    <span key={sub.id} className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--fg-muted)' }}>
+                      {sub.label}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Plan</label>
-                <select
-                  className="input-field"
-                  value={form.plan}
-                  onChange={e => setForm(f => ({ ...f, plan: e.target.value }))}
-                >
-                  <option value="starter">Starter</option>
-                  <option value="pro">Pro</option>
-                  <option value="enterprise">Enterprise</option>
-                </select>
+            ))}
+          </div>
+
+          {/* Style / Mood / Lighting */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { label: 'Styles', emoji: '🎨', items: STYLES, color: '#9765E0' },
+              { label: 'Moods', emoji: '🎭', items: MOODS, color: '#CE95FB' },
+              { label: 'Lighting', emoji: '💡', items: LIGHTING, color: '#00C2BA' },
+            ].map(group => (
+              <div key={group.label} className="card p-5" style={{ borderLeft: `3px solid ${group.color}` }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-lg">{group.emoji}</span>
+                  <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{group.label}</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  {group.items.map(item => (
+                    <span key={item} className="text-xs" style={{ color: 'var(--fg-muted)' }}>· {item}</span>
+                  ))}
+                </div>
               </div>
-            </div>
-
-            {/* Category */}
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
-                Category
-              </label>
-              <input
-                className="input-field"
-                placeholder="e.g. Aerial, Urban, Nature, Cinematic…"
-                value={form.category}
-                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-              />
-            </div>
-
-            {/* Tags */}
-            <div>
-              <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>
-                Tags <span style={{ color: 'var(--fg-subtle)' }}>(comma separated)</span>
-              </label>
-              <input
-                className="input-field"
-                placeholder="cinematic, golden hour, aerial, 4k"
-                value={form.tags}
-                onChange={e => setForm(f => ({ ...f, tags: e.target.value }))}
-              />
-            </div>
-
-            {/* Progress bar */}
-            {uploading && (
-              <div className="rounded-full overflow-hidden" style={{ backgroundColor: 'var(--bg-subtle)', height: 4 }}>
-                <div
-                  className="h-full transition-all duration-500 rounded-full"
-                  style={{
-                    width: `${uploadProgress}%`,
-                    background: 'linear-gradient(90deg, #9765E0, #00C2BA)',
-                  }}
-                />
-              </div>
-            )}
-
-            {/* Result */}
-            {uploadResult && (
-              <div
-                className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
-                style={{
-                  backgroundColor: uploadResult.ok ? 'rgba(0,194,186,0.12)' : 'rgba(255,95,95,0.12)',
-                  color: uploadResult.ok ? '#00C2BA' : '#ff5f5f',
-                  border: `1px solid ${uploadResult.ok ? 'rgba(0,194,186,0.3)' : 'rgba(255,95,95,0.3)'}`,
-                }}
-              >
-                {uploadResult.ok ? <CheckIcon /> : '⚠️'}
-                {uploadResult.msg}
-              </div>
-            )}
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={uploading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-all"
-              style={{
-                background: uploading ? 'rgba(151,101,224,0.4)' : 'linear-gradient(135deg, #9765E0, #534FA5)',
-                color: 'white',
-                boxShadow: uploading ? 'none' : '0 0 20px rgba(151,101,224,0.35)',
-                cursor: uploading ? 'not-allowed' : 'pointer',
-              }}
-            >
-              {uploading ? <SpinnerIcon /> : <UploadIcon />}
-              {uploading ? `Uploading… ${uploadProgress}%` : 'Upload Asset'}
-            </button>
-          </form>
+            ))}
+          </div>
         </div>
       )}
     </div>
