@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+export const maxDuration = 30 // Vercel: allow up to 30s for Gemini
+
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent'
 
@@ -39,19 +41,36 @@ export async function POST(req: NextRequest) {
     const base64 = Buffer.from(bytes).toString('base64')
     const mimeType = file.type || 'image/jpeg'
 
-    const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: mimeType, data: base64 } },
-            { text: PROMPT },
-          ],
-        }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
-      }),
-    })
+    // 20-second timeout so the function never hangs indefinitely
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 20000)
+
+    let res: Response
+    try {
+      res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: mimeType, data: base64 } },
+              { text: PROMPT },
+            ],
+          }],
+          generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+        }),
+      })
+    } catch (fetchErr: unknown) {
+      clearTimeout(timeout)
+      const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
+      console.error('Gemini fetch error:', msg)
+      return NextResponse.json(
+        { error: 'Gemini request timed out or failed', detail: msg },
+        { status: 504 }
+      )
+    }
+    clearTimeout(timeout)
 
     if (!res.ok) {
       const err = await res.text()
