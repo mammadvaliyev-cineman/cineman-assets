@@ -237,6 +237,28 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
                   </div>
                 )}
 
+                {/* Watermark */}
+                {asset.thumbnail && (
+                  <div
+                    className="absolute inset-0 pointer-events-none flex items-end justify-center pb-2"
+                    style={{ zIndex: 2 }}
+                  >
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        letterSpacing: '0.14em',
+                        color: 'rgba(255,255,255,0.60)',
+                        textShadow: '0 1px 5px rgba(0,0,0,0.95)',
+                        userSelect: 'none',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      www.cineman.ai
+                    </span>
+                  </div>
+                )}
+
                 <span
                   className="absolute top-2 left-2 badge text-xs font-semibold"
                   style={{ backgroundColor: typeStyle.bg, color: typeStyle.color, backdropFilter: 'blur(6px)' }}
