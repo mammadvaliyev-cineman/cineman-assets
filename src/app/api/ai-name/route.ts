@@ -55,12 +55,15 @@ export async function POST(req: NextRequest) {
             { text: PROMPT },
           ],
         }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 512,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     }).catch((fetchErr: unknown) => {
       clearTimeout(timeoutId)
-      const msg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr)
-      throw new Error('FETCH_FAILED:' + msg)
+      throw new Error('FETCH_FAILED:' + (fetchErr instanceof Error ? fetchErr.message : String(fetchErr)))
     })
 
     clearTimeout(timeoutId)
@@ -72,10 +75,15 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await res.json()
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
+
+    // gemini-2.5-flash may return thinking parts — find the actual text part
+    const parts: Array<{ thought?: boolean; text?: string }> =
+      data?.candidates?.[0]?.content?.parts ?? []
+    const text = parts.find(p => !p.thought)?.text ?? ''
 
     const jsonMatch = text.match(/\{[\s\S]*\}/)
     if (!jsonMatch) {
+      console.error('No JSON in response:', text.slice(0, 300))
       return NextResponse.json({ error: 'Could not parse AI response' }, { status: 500 })
     }
 
