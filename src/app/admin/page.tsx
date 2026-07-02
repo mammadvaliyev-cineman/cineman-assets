@@ -598,7 +598,7 @@ export default function AdminPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Title', 'Type', 'Category', 'Plan', 'Tags', 'Date', ''].map(h => (
+                    {['', 'Title', 'Type', 'Category', 'Plan', 'Tags', 'Date', ''].map(h => (
                       <th
                         key={h}
                         className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -619,6 +619,24 @@ export default function AdminPage() {
                         key={asset.id}
                         style={{ borderBottom: '1px solid var(--border)' }}
                       >
+                        {/* Thumbnail */}
+                        <td className="px-3 py-2">
+                          {asset.thumbnail_url ? (
+                            <img
+                              src={asset.thumbnail_url}
+                              alt=""
+                              className="rounded-lg object-cover"
+                              style={{ width: 52, height: 52 }}
+                            />
+                          ) : (
+                            <div
+                              className="rounded-lg flex items-center justify-center text-xl"
+                              style={{ width: 52, height: 52, backgroundColor: 'var(--bg-subtle)' }}
+                            >
+                              {asset.type === 'Character' ? '🎭' : '📍'}
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3 font-medium max-w[180px] truncate" style={{ color: 'var(--fg)' }}>
                           {asset.title}
                         </td>
