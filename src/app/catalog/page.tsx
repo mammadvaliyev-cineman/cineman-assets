@@ -15,16 +15,17 @@ function SearchIcon() {
 }
 
 function toAsset(a: Record<string, unknown>): Asset {
+  const id = String(a.id)
   return {
-    id: String(a.id),
+    id,
     title: String(a.title ?? ''),
     type: (a.type as Asset['type']) ?? 'photo',
     category: String(a.category ?? ''),
-    url: String(a.file_url ?? ''),
-    thumbnail: String(a.thumbnail_url ?? ''),
+    url: `/api/image/${id}`,
+    thumbnail: `/api/image/${id}`,
     plan: (a.plan as Asset['plan']) ?? 'starter',
     tags: Array.isArray(a.tags) ? a.tags : [],
-    fileUrl: String(a.file_url ?? ''),
+    fileUrl: id, // pass only ID — download route resolves URL server-side
   }
 }
 
@@ -40,7 +41,7 @@ export default function CatalogPage() {
     async function load() {
       setLoading(true)
       const { data, error } = await supabase
-        .from('assets').select('*').order('created_at', { ascending: false })
+        .from('assets').select('id, title, type, category, plan, tags, created_at').order('created_at', { ascending: false })
       if (data && !error) setAssets(data.map(toAsset))
       setLoading(false)
     }
