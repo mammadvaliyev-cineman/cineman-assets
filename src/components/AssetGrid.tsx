@@ -176,7 +176,7 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
       const res = await fetch('/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId: asset.id, filePath: asset.fileUrl }),
+        body: JSON.stringify({ assetId: asset.id }),
       })
       const json = await res.json()
       if (json.url) {
@@ -249,8 +249,7 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
                         fontWeight: 700,
                         letterSpacing: '0.14em',
                         color: 'rgba(255,255,255,0.60)',
-                        textShadow: '0 1px 5px rgba(0,0,0,0.95)',
-                        userSelect: 'none',
+                                                userSelect: 'none',
                         textTransform: 'uppercase',
                       }}
                     >
