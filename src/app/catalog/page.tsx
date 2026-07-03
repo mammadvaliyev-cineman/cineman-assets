@@ -106,7 +106,7 @@ function SidebarItem({
       }}
     >
       {emoji && <span style={{ fontSize: 15, lineHeight: 1, flexShrink: 0 }}>{emoji}</span>}
-      <span style={{ flex: 1, truncate: true, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
       {count !== undefined && count > 0 && (
         <span style={{ fontSize: 11, color: 'var(--fg-subtle)', flexShrink: 0 }}>{count.toLocaleString()}</span>
       )}
@@ -179,7 +179,7 @@ export default function CatalogPage() {
         a.title.toLowerCase().includes(q) ||
         a.category.toLowerCase().includes(q) ||
         a.tags.some(t => t.toLowerCase().includes(q))
-      // Sidebar category → filters by a.type (main category)
+      // Sidebar category ₒ filters by a.type (main category)
       const matchCat = activeCat === 'All' || a.type === activeCat
       const matchType = activeType === 'All' || a.type === activeType
       const matchStyle = activeStyle === 'All' || a.tags.some(t => t.toLowerCase().includes(activeStyle.toLowerCase()))
