@@ -3,31 +3,22 @@
 import { useState } from 'react'
 import { Asset } from '@/lib/mock-data'
 
-// ── Plan config ─────────────────────────────────────────────
-const PLAN_STYLE: Record<string, { bg: string; color: string; label: string }> = {
-  starter:    { bg: 'rgba(83,79,165,0.25)',  color: '#CE95FB', label: 'Starter'    },
-  pro:        { bg: 'rgba(0,194,186,0.20)',  color: '#00C2BA', label: 'Pro'        },
-  enterprise: { bg: 'rgba(151,101,224,0.25)', color: '#9765E0', label: 'Enterprise' },
-}
-
-// ── Type config ─────────────────────────────────────────────
+// ── Type config ──────────────────────────────────────────────
 const TYPE_STYLE: Record<string, { bg: string; color: string; icon: string }> = {
-  Location:         { bg: 'rgba(151,101,224,0.75)', color: '#EEE8FF', icon: '📍' },
-  Character:        { bg: 'rgba(206,149,251,0.75)', color: '#1a0a2e', icon: '🎭' },
-  photo:            { bg: 'rgba(83,79,165,0.7)',    color: '#EEE8FF', icon: '📷' },
-  video:            { bg: 'rgba(54,0,156,0.75)',    color: '#CE95FB', icon: '▶'  },
-  'Video Clip':     { bg: 'rgba(54,0,156,0.75)',    color: '#CE95FB', icon: '▶'  },
-  LUT:              { bg: 'rgba(0,194,186,0.7)',    color: '#EEE8FF', icon: '🎨' },
-  'Sound Design':   { bg: 'rgba(151,101,224,0.7)',  color: '#EEE8FF', icon: '🔊' },
-  'Motion Graphics':{ bg: 'rgba(83,79,165,0.7)',    color: '#EEE8FF', icon: '✨' },
+  Location:          { bg: 'rgba(151,101,224,0.75)', color: '#EEE8FF', icon: '📍' },
+  Character:         { bg: 'rgba(206,149,251,0.75)', color: '#1a0a2e', icon: '🎭' },
+  photo:             { bg: 'rgba(83,79,165,0.7)',    color: '#EEE8FF', icon: '📷' },
+  video:             { bg: 'rgba(54,0,156,0.75)',    color: '#CE95FB', icon: '▶'  },
+  'Video Clip':      { bg: 'rgba(54,0,156,0.75)',    color: '#CE95FB', icon: '▶'  },
+  LUT:               { bg: 'rgba(0,194,186,0.7)',    color: '#EEE8FF', icon: '🎨' },
+  'Sound Design':    { bg: 'rgba(151,101,224,0.7)',  color: '#EEE8FF', icon: '🔊' },
+  'Motion Graphics': { bg: 'rgba(83,79,165,0.7)',    color: '#EEE8FF', icon: '✨' },
 }
 
-// ── Free download tracking (localStorage) ───────────────────
+// ── Download tracking (localStorage, resets daily) ───────────
 const FREE_LIMIT = 3
 
-function getTodayKey() {
-  return new Date().toISOString().slice(0, 10)
-}
+function getTodayKey() { return new Date().toISOString().slice(0, 10) }
 
 function getFreeDownloadsUsed(): number {
   try {
@@ -36,9 +27,7 @@ function getFreeDownloadsUsed(): number {
     const { date, count } = JSON.parse(raw)
     if (date !== getTodayKey()) return 0
     return Number(count) || 0
-  } catch {
-    return 0
-  }
+  } catch { return 0 }
 }
 
 function incrementFreeDownloads(): number {
@@ -47,7 +36,7 @@ function incrementFreeDownloads(): number {
   return used
 }
 
-// ── Icons ──────────────────────────────────────────────────
+// ── Icons ────────────────────────────────────────────────────
 function DownloadIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -74,7 +63,7 @@ function CloseIcon() {
   )
 }
 
-// ── Upgrade modal ──────────────────────────────────────────
+// ── Upgrade modal ─────────────────────────────────────────────
 function UpgradeModal({ onClose }: { onClose: () => void }) {
   return (
     <div
@@ -91,37 +80,35 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
         }}
         onClick={e => e.stopPropagation()}
       >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4"
-          style={{ color: 'var(--fg-subtle)' }}
-        >
+        <button onClick={onClose} className="absolute top-4 right-4" style={{ color: 'var(--fg-subtle)' }}>
           <CloseIcon />
         </button>
 
         <div className="text-5xl mb-4">🔒</div>
 
         <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>
-          Daily limit reached
+          Limit reached
         </h2>
         <p className="text-sm mb-6" style={{ color: 'var(--fg-muted)' }}>
-          You&apos;ve used your <strong style={{ color: '#CE95FB' }}>3 free previews</strong> for today.
-          Come back tomorrow or subscribe to get unlimited full-resolution downloads.
+          You&apos;ve used your <strong style={{ color: '#CE95FB' }}>{FREE_LIMIT} free downloads</strong> for today.
+          Subscribe to download more assets.
         </p>
 
-        <div className="grid grid-cols-2 gap-3 mb-6">
+        {/* Plans */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
           {[
-            { name: 'Pro', price: '$24.99', color: '#9765E0', note: 'Unlimited downloads' },
-            { name: 'Starter', price: '$9.99', color: '#CE95FB', note: '50+ assets' },
+            { name: 'Basic',  price: '$9.99',  color: '#CE95FB', downloads: '50 / mo'  },
+            { name: 'Pro',    price: '$24.99', color: '#9765E0', downloads: '150 / mo' },
+            { name: 'Ultra',  price: '$79.99', color: '#00C2BA', downloads: '500 / mo' },
           ].map(p => (
             <div
               key={p.name}
-              className="rounded-xl p-4"
+              className="rounded-xl p-3"
               style={{ backgroundColor: 'var(--bg-subtle)', border: `1px solid ${p.color}30` }}
             >
-              <div className="font-bold text-lg mb-0.5" style={{ color: p.color }}>{p.price}</div>
-              <div className="text-xs font-semibold" style={{ color: 'var(--fg)' }}>{p.name}</div>
-              <div className="text-xs mt-1" style={{ color: 'var(--fg-muted)' }}>{p.note}</div>
+              <div className="font-bold text-base mb-0.5" style={{ color: p.color }}>{p.price}</div>
+              <div className="text-xs font-semibold mb-1" style={{ color: 'var(--fg)' }}>{p.name}</div>
+              <div className="text-xs" style={{ color: 'var(--fg-muted)' }}>{p.downloads}</div>
             </div>
           ))}
         </div>
@@ -136,16 +123,13 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
         >
           View Plans →
         </a>
-
-        <p className="text-xs mt-3" style={{ color: 'var(--fg-subtle)' }}>
-          No credit card required for free tier · Cancel anytime
-        </p>
+        <p className="text-xs mt-3" style={{ color: 'var(--fg-subtle)' }}>Cancel anytime</p>
       </div>
     </div>
   )
 }
 
-// ── Empty state ────────────────────────────────────────────
+// ── Empty state ───────────────────────────────────────────────
 function EmptyState() {
   return (
     <div className="text-center py-24">
@@ -156,11 +140,11 @@ function EmptyState() {
   )
 }
 
-// ── Main component ─────────────────────────────────────────
+// ── Main ──────────────────────────────────────────────────────
 export default function AssetGrid({ assets }: { assets: Asset[] }) {
   const [downloading, setDownloading] = useState<string | null>(null)
   const [showUpgrade, setShowUpgrade] = useState(false)
-  const [freeUsed, setFreeUsed] = useState<number>(() => getFreeDownloadsUsed())
+  const [freeUsed, setFreeUsed]       = useState<number>(() => getFreeDownloadsUsed())
 
   async function handleDownload(asset: Asset) {
     if (!asset.fileUrl) return
@@ -173,10 +157,10 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
 
     setDownloading(asset.id)
     try {
-      const res = await fetch('/api/download', {
+      const res  = await fetch('/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assetId: asset.id }),
+        body: JSON.stringify({ assetId: asset.id, filePath: asset.fileUrl }),
       })
       const json = await res.json()
       if (json.url) {
@@ -197,33 +181,29 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
 
   return (
     <>
+      {/* Free counter */}
       {freeUsed > 0 && freeUsed < FREE_LIMIT && (
         <div
           className="flex items-center justify-between px-4 py-2.5 rounded-xl mb-4 text-sm"
-          style={{
-            backgroundColor: 'rgba(151,101,224,0.08)',
-            border: '1px solid rgba(151,101,224,0.2)',
-          }}
+          style={{ backgroundColor: 'rgba(151,101,224,0.08)', border: '1px solid rgba(151,101,224,0.2)' }}
         >
           <span style={{ color: 'var(--fg-muted)' }}>
-            Free previews today:{' '}
-            <strong style={{ color: '#9765E0' }}>{freeUsed} / {FREE_LIMIT}</strong> used
+            Free downloads today:{' '}
+            <strong style={{ color: '#9765E0' }}>{freeUsed} / {FREE_LIMIT}</strong>
           </span>
-          <a href="/pricing" className="text-xs font-semibold" style={{ color: '#CE95FB' }}>
-            Upgrade →
-          </a>
+          <a href="/pricing" className="text-xs font-semibold" style={{ color: '#CE95FB' }}>Upgrade →</a>
         </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {assets.map(asset => {
-          const typeStyle = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
-          const planStyle = PLAN_STYLE[asset.plan] ?? PLAN_STYLE['starter']
+          const typeStyle    = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
           const isDownloading = downloading === asset.id
 
           return (
             <div key={asset.id} className="card group cursor-pointer flex flex-col">
-              <div className="relative aspect-video overflow-hidden" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+              {/* Thumbnail — always 16:9 horizontal */}
+              <div className="relative overflow-hidden" style={{ aspectRatio: '16/9', backgroundColor: 'var(--bg-subtle)' }}>
                 {asset.thumbnail ? (
                   <img
                     src={asset.thumbnail}
@@ -239,25 +219,17 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
 
                 {/* Watermark */}
                 {asset.thumbnail && (
-                  <div
-                    className="absolute inset-0 pointer-events-none flex items-end justify-center pb-2"
-                    style={{ zIndex: 2 }}
-                  >
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        letterSpacing: '0.14em',
-                        color: 'rgba(255,255,255,0.60)',
-                                                userSelect: 'none',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      www.cineman.ai
+                  <div className="absolute inset-0 pointer-events-none flex items-end justify-center pb-2" style={{ zIndex: 2 }}>
+                    <span style={{
+                      fontSize: '10px', fontWeight: 700, letterSpacing: '0.14em',
+                      color: 'rgba(255,255,255,0.55)', userSelect: 'none', textTransform: 'uppercase',
+                    }}>
+                      cineman.ai
                     </span>
                   </div>
                 )}
 
+                {/* Type badge only — no plan badge */}
                 <span
                   className="absolute top-2 left-2 badge text-xs font-semibold"
                   style={{ backgroundColor: typeStyle.bg, color: typeStyle.color, backdropFilter: 'blur(6px)' }}
@@ -265,13 +237,7 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
                   {typeStyle.icon} {asset.type}
                 </span>
 
-                <span
-                  className="absolute top-2 right-2 badge text-xs font-medium"
-                  style={{ backgroundColor: planStyle.bg, color: planStyle.color, backdropFilter: 'blur(6px)' }}
-                >
-                  {planStyle.label}
-                </span>
-
+                {/* Hover download */}
                 <div
                   className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3"
                   style={{ background: 'linear-gradient(to top, rgba(8,5,15,0.85) 0%, transparent 60%)' }}
@@ -282,9 +248,7 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
                       disabled={isDownloading}
                       className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
                       style={{
-                        background: isDownloading
-                          ? 'rgba(151,101,224,0.5)'
-                          : 'linear-gradient(135deg,#9765E0,#534FA5)',
+                        background: isDownloading ? 'rgba(151,101,224,0.5)' : 'linear-gradient(135deg,#9765E0,#534FA5)',
                         color: 'white',
                         boxShadow: '0 0 16px rgba(151,101,224,0.4)',
                       }}
@@ -296,6 +260,7 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
                 </div>
               </div>
 
+              {/* Info */}
               <div className="p-4 flex flex-col flex-1">
                 <h3 className="font-semibold mb-1 truncate text-sm" style={{ color: 'var(--fg)' }}>
                   {asset.title}
@@ -303,7 +268,6 @@ export default function AssetGrid({ assets }: { assets: Asset[] }) {
                 <p className="text-xs mb-3" style={{ color: 'var(--fg-muted)' }}>
                   {asset.category}
                 </p>
-
                 {asset.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1 mt-auto">
                     {asset.tags.slice(0, 3).map(tag => (
