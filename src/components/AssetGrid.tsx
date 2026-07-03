@@ -51,7 +51,7 @@ function getFavs(): Set<string> {
 function toggleFav(id: string): Set<string> {
   const favs = getFavs()
   if (favs.has(id)) favs.delete(id); else favs.add(id)
-  localStorage.setItem('cineman_favs', JSON.stringify([...favs]))
+  localStorage.setItem('cineman_favs', JSON.stringify(Array.from(favs)))
   return new Set(favs)
 }
 
