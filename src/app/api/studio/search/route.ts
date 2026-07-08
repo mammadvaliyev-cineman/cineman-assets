@@ -84,6 +84,9 @@ function words(s: string): string[] {
 // Gender guard: "девушка" must never surface male characters
 const FEMALE = new Set(['woman', 'women', 'girl', 'female', 'lady', 'she'])
 const MALE = new Set(['man', 'men', 'boy', 'male', 'guy', 'he'])
+// Age guard: "парень 17 лет" must never surface elderly characters
+const YOUNG = new Set(['young', 'teen', 'teenager', 'boy', 'girl', 'kid', 'child', 'youth', 'adolescent'])
+const OLD = new Set(['elderly', 'old', 'senior', 'aged', 'grandfather', 'grandmother'])
 
 function scoreAsset(a: AssetRow, keywords: string[]): number {
   let score = 0
@@ -102,6 +105,13 @@ function scoreAsset(a: AssetRow, keywords: string[]): number {
   const isMale = assetWords.some(w => MALE.has(w))
   if (wantsFemale && !wantsMale && isMale && !isFemale) return 0
   if (wantsMale && !wantsFemale && isFemale && !isMale) return 0
+
+  const wantsYoung = kwWords.some(w => YOUNG.has(w))
+  const wantsOld = kwWords.some(w => OLD.has(w))
+  const isYoung = assetWords.some(w => YOUNG.has(w))
+  const isOld = assetWords.some(w => OLD.has(w))
+  if (wantsYoung && !wantsOld && isOld && !isYoung) return 0
+  if (wantsOld && !wantsYoung && isYoung && !isOld) return 0
 
   keywords.forEach((kw, idx) => {
     const k = kw.toLowerCase().trim()
