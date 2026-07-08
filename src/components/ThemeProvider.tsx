@@ -16,10 +16,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    const saved = localStorage.getItem('cineman-theme') as Theme | null
-    const preferred = saved ?? 'dark'
-    setTheme(preferred)
-    applyTheme(preferred)
+    // Light theme is disabled for now — always dark
+    setTheme('dark')
+    applyTheme('dark')
+    localStorage.setItem('cineman-theme', 'dark')
     setMounted(true)
   }, [])
 
@@ -30,10 +30,9 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }
 
   function toggle() {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark'
-    setTheme(next)
-    applyTheme(next)
-    localStorage.setItem('cineman-theme', next)
+    // Light theme temporarily disabled — stay dark
+    setTheme('dark')
+    applyTheme('dark')
   }
 
   if (!mounted) {
