@@ -54,6 +54,30 @@ function ChevronDown() {
   )
 }
 
+// ── Thin line icon (lucide-style, multi-path via |) ──────────
+function LineIcon({ d, size = 15 }: { d: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      {d.split('|').map((p, i) => <path key={i} d={p} />)}
+    </svg>
+  )
+}
+const CAT_ICONS: Record<string, string> = {
+  grid: 'M3 3h7v7H3z|M14 3h7v7h-7z|M14 14h7v7h-7z|M3 14h7v7H3z',
+  heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
+  download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4|M7 10l5 5 5-5|M12 15V3',
+  sliders: 'M4 21v-7|M4 10V3|M12 21v-9|M12 8V3|M20 21v-5|M20 12V3|M2 14h4|M10 8h4|M18 16h4',
+  Character: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2|M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  Location: 'M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z|M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  Vehicle: 'M19 17h2v-4l-2-5H5l-2 5v4h2|M6.5 17a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z|M14.5 17a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z|M5 13h14',
+  Architecture: 'M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18|M2 22h20|M10 7h1|M13 7h1|M10 11h1|M13 11h1|M10 15h1|M13 15h1',
+  Nature: 'M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z|M2 21c0-3 1.85-5.36 5.08-6',
+  Creature: 'M12 5c-4.4 0-7 3.1-7 7 0 2.9 1.9 4.9 4 6l1 3h4l1-3c2.1-1.1 4-3.1 4-6 0-3.9-2.6-7-7-7z|M9.5 11.5h.01|M14.5 11.5h.01',
+  Fantasy: 'M12 3l1.9 5.8L19.7 11l-5.8 1.9L12 18.7l-1.9-5.8L4.3 11l5.8-2.2L12 3z|M19 3v4|M17 5h4',
+  'Sci-Fi': 'M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z|M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z|M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0|M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5',
+  Prop: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8z|M3.3 7l8.7 5 8.7-5|M12 22V12',
+}
+
 // ── Filter chip (select dropdown styled as pill) ──────────────
 function FilterChip({
   label, value, options, onChange,
@@ -92,8 +116,8 @@ function FilterChip({
 
 // ── Sidebar item ─────────────────────────────────────────────
 function SidebarItem({
-  emoji, label, count, active, color, onClick,
-}: { emoji?: string; label: string; count?: number; active: boolean; color?: string; onClick: () => void }) {
+  iconD, label, count, active, color, onClick,
+}: { iconD?: string; label: string; count?: number; active: boolean; color?: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -105,7 +129,7 @@ function SidebarItem({
         borderLeft: active ? `3px solid ${color ?? '#9765E0'}` : '3px solid transparent',
       }}
     >
-      {emoji && <span style={{ fontSize: 15, lineHeight: 1, flexShrink: 0 }}>{emoji}</span>}
+      {iconD && <span style={{ color: active ? (color ?? '#9765E0') : 'var(--fg-subtle)', display: 'flex' }}><LineIcon d={iconD} /></span>}
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
       {count !== undefined && count > 0 && (
         <span style={{ fontSize: 11, color: 'var(--fg-subtle)', flexShrink: 0 }}>{count.toLocaleString()}</span>
@@ -159,6 +183,7 @@ export default function CatalogPage() {
   const [activeLighting, setActiveLighting] = useState('All')
   const [viewMode, setViewMode]       = useState<'grid' | 'list'>('grid')
   const [sortBy, setSortBy]           = useState<'recent' | 'oldest'>('recent')
+  const [previewSize, setPreviewSize] = useState(100)
 
   useEffect(() => {
     async function load() {
@@ -244,9 +269,9 @@ export default function CatalogPage() {
 
         {/* Quick nav */}
         <div style={{ paddingTop: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
-          <SidebarItem emoji="⊞" label="All Assets" count={assets.length} active={activeCat === 'All' && !search} color="#9765E0" onClick={() => { setActiveCat('All'); setSearch('') }} />
-          <SidebarItem emoji="♡" label="Favorites" active={false} color="#CE95FB" onClick={() => {}} />
-          <SidebarItem emoji="↓" label="Downloads" active={false} color="#00C2BA" onClick={() => {}} />
+          <SidebarItem iconD={CAT_ICONS.grid} label="All Assets" count={assets.length} active={activeCat === 'All' && !search} color="#9765E0" onClick={() => { setActiveCat('All'); setSearch('') }} />
+          <SidebarItem iconD={CAT_ICONS.heart} label="Favorites" active={false} color="#CE95FB" onClick={() => {}} />
+          <SidebarItem iconD={CAT_ICONS.download} label="Downloads" active={false} color="#00C2BA" onClick={() => {}} />
         </div>
 
         {/* Categories */}
@@ -254,11 +279,11 @@ export default function CatalogPage() {
           <p style={{ padding: '4px 16px 6px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-subtle)', textTransform: 'uppercase' }}>
             Categories
           </p>
-          <SidebarItem emoji="⊞" label="All Categories" active={activeCat === 'All'} color="#9765E0" onClick={() => setActiveCat('All')} />
+          <SidebarItem iconD={CAT_ICONS.grid} label="All Categories" active={activeCat === 'All'} color="#9765E0" onClick={() => setActiveCat('All')} />
           {CATEGORIES.map(cat => (
             <SidebarItem
               key={cat.id}
-              emoji={cat.emoji}
+              iconD={CAT_ICONS[cat.id] ?? CAT_ICONS.grid}
               label={cat.label}
               active={activeCat === cat.id}
               color={cat.color}
@@ -285,7 +310,7 @@ export default function CatalogPage() {
               cursor: 'pointer',
             }}
           >
-            <span>⚙</span>
+            <span style={{ display: 'flex', color: 'var(--fg-subtle)' }}><LineIcon d={CAT_ICONS.sliders} size={14} /></span>
             <span>Filters</span>
             {activeFilterCount > 0 && (
               <span style={{ marginLeft: 'auto', backgroundColor: '#9765E0', color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 9999, padding: '1px 7px' }}>
@@ -303,7 +328,7 @@ export default function CatalogPage() {
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 20, color: 'var(--fg)', display: 'flex', alignItems: 'center', gap: 10 }}>
           {activeCatObj ? (
             <>
-              <span>{activeCatObj.emoji}</span>
+              <span style={{ display: 'flex', color: activeCatObj.color }}><LineIcon d={CAT_ICONS[activeCatObj.id] ?? CAT_ICONS.grid} size={22} /></span>
               <span>{activeCatObj.label}</span>
             </>
           ) : 'All Assets'}
@@ -353,6 +378,22 @@ export default function CatalogPage() {
 
           {/* Sort + View toggle */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+            {viewMode === 'grid' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--fg-subtle)', whiteSpace: 'nowrap' }}>Preview Size</span>
+                <input
+                  type="range"
+                  className="cine-range"
+                  min={60}
+                  max={160}
+                  step={10}
+                  value={previewSize}
+                  onChange={e => setPreviewSize(Number(e.target.value))}
+                  style={{ width: 130 }}
+                />
+                <span style={{ fontSize: 12, color: '#a78bfa', width: 38, fontWeight: 600 }}>{previewSize}%</span>
+              </div>
+            )}
             <div style={{ position: 'relative' }}>
               <select
                 value={sortBy}
@@ -396,7 +437,7 @@ export default function CatalogPage() {
         )}
 
         {/* Content */}
-        {loading ? <Skeleton /> : <AssetGrid assets={filtered} viewMode={viewMode} />}
+        {loading ? <Skeleton /> : <AssetGrid assets={filtered} viewMode={viewMode} previewSize={previewSize} />}
       </main>
     </div>
   )
