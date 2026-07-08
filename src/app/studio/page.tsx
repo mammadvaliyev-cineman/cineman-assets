@@ -1,7 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ENGINE_CATS, DEFAULT_ENGINE_CONFIG, EngineConfig } from '@/lib/engine'
+import { ENGINE_CATS, CAM_GROUPS, DEFAULT_ENGINE_CONFIG, EngineConfig } from '@/lib/engine'
+import { supabase } from '@/lib/supabase'
 
 // ─────────────────────────────────────────────────────────────
 // CINEMAN AI STUDIO — chat-first director agent.
@@ -51,6 +52,7 @@ const I = {
   mic: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z|M19 10v2a7 7 0 0 1-14 0v-2|M12 19v4|M8 23h8',
   send: 'M22 2L11 13|M22 2l-7 20-4-9-9-4 20-7z',
   bolt: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+  upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4|M17 8l-5-5-5 5|M12 3v12',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 7v5l3 2',
   cloud: 'M17.5 19a4.5 4.5 0 0 0 .42-8.98 7 7 0 0 0-13.42 1.9A4 4 0 0 0 6 19h11.5',
   aperture: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M14.3 8L8.6 4.7|M9.7 8h6.9|M12 12l-3.5 6.1|M9.7 16L6.2 9.9|M14.3 16H7.4|M12 12l3.5-6.1|M15.4 9.9l3.4 5.8',
@@ -95,7 +97,8 @@ const RU_VAL: Record<string, string> = {
   // camera (базовые)
   'Static': 'Статика',
 }
-const ruVal = (label: string) => RU_VAL[label] || label
+const ruVal = (label: string) => label // interface is English-only; RU map kept for later localization
+void RU_VAL
 
 // Иконки категорий движка для карточек
 const CAT_ICON: Record<string, string> = {
@@ -116,52 +119,52 @@ const CAT_ICON: Record<string, string> = {
 }
 
 const VIDEO_TYPES = [
-  { id: 'ad', label: 'Рекламный ролик', icon: I.megaphone, hint: 'Продукт, бренд, промо' },
-  { id: 'film', label: 'Фильм / сцена', icon: I.clapper, hint: 'Кино, драма, экшн' },
-  { id: 'product', label: 'Продуктовое видео', icon: I.box, hint: 'Обзор, демонстрация' },
-  { id: 'music', label: 'Музыкальный клип', icon: I.music, hint: 'Ритм, стиль, вайб' },
+  { id: 'ad', label: 'Commercial', icon: I.megaphone, hint: 'Product, brand, promo' },
+  { id: 'film', label: 'Film / Scene', icon: I.clapper, hint: 'Cinema, drama, action' },
+  { id: 'product', label: 'Product Video', icon: I.box, hint: 'Review, showcase' },
+  { id: 'music', label: 'Music Video', icon: I.music, hint: 'Rhythm, style, vibe' },
 ]
 
 const STEP_LABELS: { id: Step; label: string }[] = [
-  { id: 'type', label: 'Тип' },
-  { id: 'hero', label: 'Герой' },
-  { id: 'location', label: 'Локация' },
-  { id: 'action', label: 'Действие' },
-  { id: 'camera', label: 'Камера' },
-  { id: 'details', label: 'Атмосфера' },
-  { id: 'confirm', label: 'Финал' },
+  { id: 'type', label: 'Type' },
+  { id: 'hero', label: 'Hero' },
+  { id: 'location', label: 'Location' },
+  { id: 'action', label: 'Action' },
+  { id: 'camera', label: 'Camera' },
+  { id: 'details', label: 'Mood' },
+  { id: 'confirm', label: 'Final' },
 ]
 
 // Engine categories per step + RU titles
 const CAMERA_CATS = ['camera', 'shottype', 'angle', 'lens', 'focus', 'camtype']
 const DETAIL_CATS = ['light', 'time', 'weather', 'genre', 'styles', 'colorgrade', 'music', 'delivery']
 const RU_CAT: Record<string, string> = {
-  camera: 'Движение камеры', shottype: 'Крупность', angle: 'Ракурс', lens: 'Объектив',
-  focus: 'Фокус', camtype: 'Тип камеры', light: 'Свет', time: 'Время суток',
-  weather: 'Погода', genre: 'Жанр / настроение', styles: 'Стиль', colorgrade: 'Цветокор',
-  music: 'Музыка', delivery: 'Подача голоса',
+  camera: 'Camera Move', shottype: 'Shot Size', angle: 'Angle', lens: 'Lens',
+  focus: 'Focus', camtype: 'Camera Body', light: 'Light', time: 'Time of Day',
+  weather: 'Weather', genre: 'Genre / Mood', styles: 'Style', colorgrade: 'Color Grade',
+  music: 'Music', delivery: 'Voice Delivery',
 }
 
 const BOT_LINES: Record<Step, string> = {
-  type: 'Что снимаем сегодня? Выбери тип — или опиши своими словами.',
-  hero: 'Кто главный герой? Опиши его — я найду варианты в базе.',
-  location: 'Где происходит действие? Опиши локацию.',
-  action: 'Что происходит в кадре? Напиши текстом или надиктуй голосом.',
-  camera: 'Как работает камера? Выбери из вариантов — или доверься мне.',
-  details: 'Добавим атмосферу? Это по желанию — могу решить сам.',
-  confirm: 'Всё готово! Проверь сцену и жми Generate.',
-  render: 'Снимаю твой ролик…',
-  result: 'Готово! Вот твой ролик.',
+  type: 'What are we shooting today? Pick a type — or describe your own.',
+  hero: "Who is the hero? Describe them — I'll find options in the base.",
+  location: 'Where does the action happen? Describe the location.',
+  action: 'What happens in the frame? Type it or dictate with the mic.',
+  camera: 'How does the camera move? Pick options — or trust me.',
+  details: 'Add atmosphere? Optional — I can decide myself.',
+  confirm: 'All set! Review the scene and hit Generate.',
+  render: 'Shooting your video…',
+  result: "Done! Here's your video.",
 }
 
 const PLACEHOLDERS: Record<Step, string> = {
-  type: 'Или напиши свой формат: тревел-влог, тизер…',
-  hero: 'Например: молодой спортсмен, 25 лет, уверенный',
-  location: 'Например: вечерний город, неон, дождь',
-  action: 'Например: он бежит по улице и смотрит в камеру',
-  camera: 'Уточнение для режиссёра (необязательно)…',
-  details: 'Уточнение по атмосфере (необязательно)…',
-  confirm: 'Финальное уточнение сцены (необязательно)…',
+  type: 'Or type your own format: travel vlog, teaser…',
+  hero: 'E.g.: young athlete, 25, confident',
+  location: 'E.g.: night city, neon, rain',
+  action: 'E.g.: he runs down the street looking into the camera',
+  camera: 'A note for the director (optional)…',
+  details: 'Atmosphere note (optional)…',
+  confirm: 'Final scene note (optional)…',
   render: '',
   result: '',
 }
@@ -347,16 +350,36 @@ function CategoryPicker({
           <div className="inline-block bg-zinc-900/80 border border-zinc-800 rounded-2xl rounded-bl-md px-4 py-2 text-zinc-200 text-sm mb-3">
             {RU_CAT[open] || open}?
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {items.map(([label]) => (
-              <Chip key={label} active={engineSel[open] === label} onClick={() => onPick(open, engineSel[open] === label ? '' : label)}>
-                {ruVal(label)}
-              </Chip>
-            ))}
-            {cat.items.length > 10 && (
-              <button onClick={() => onToggleExpand(open)} className="px-3 py-1.5 rounded-full text-[13px] text-violet-400 hover:text-violet-300 transition-colors">
-                {expanded[open] ? 'Свернуть' : `+${cat.items.length - 10} ещё`}
-              </button>
+          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
+            {open === 'camera' ? (
+              // 50 camera moves — grouped like a real camera department
+              <div className="space-y-4">
+                {Object.entries(CAM_GROUPS).map(([group, moves]) => (
+                  <div key={group}>
+                    <p className="text-[11px] uppercase tracking-widest text-zinc-500 mb-1.5">{group}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {moves.map(label => (
+                        <Chip key={label} active={engineSel[open] === label} onClick={() => onPick(open, engineSel[open] === label ? '' : label)}>
+                          {label}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {items.map(([label]) => (
+                  <Chip key={label} active={engineSel[open] === label} onClick={() => onPick(open, engineSel[open] === label ? '' : label)}>
+                    {ruVal(label)}
+                  </Chip>
+                ))}
+                {cat.items.length > 10 && (
+                  <button onClick={() => onToggleExpand(open)} className="px-3 py-1.5 rounded-full text-[13px] text-violet-400 hover:text-violet-300 transition-colors">
+                    {expanded[open] ? 'Show less' : `+${cat.items.length - 10} more`}
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -423,6 +446,9 @@ export default function StudioPage() {
   // chat input + voice
   const [input, setInput] = useState('')
   const [micOn, setMicOn] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [extraRefs, setExtraRefs] = useState<Asset[]>([])
+  const fileRef = useRef<HTMLInputElement | null>(null)
   const recRef = useRef<SpeechRec | null>(null)
   const chatRef = useRef<HTMLDivElement | null>(null)
 
@@ -456,7 +482,7 @@ export default function StudioPage() {
       if (assetType === 'Character') { setHeroResults(json.results); setHeroOffset(offset); setHeroMatched(json.matched ?? null) }
       else { setLocResults(json.results); setLocOffset(offset); setLocMatched(json.matched ?? null) }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка поиска')
+      setError(e instanceof Error ? e.message : 'Search failed')
     } finally {
       setSearching(false)
     }
@@ -479,17 +505,18 @@ export default function StudioPage() {
           const j = await r.json()
           if (j.state === 'success' && j.asset) {
             clearInterval(iv)
-            if (assetType === 'Character') { setHeroes(prev => [...prev, j.asset].slice(0, 4)); setHeroResults(prev => [j.asset, ...prev].slice(0, 4)); setHeroMatched(1) }
-            else { setLocation(j.asset); setLocResults(prev => [j.asset, ...prev].slice(0, 4)); setLocMatched(1) }
+            // Невыбранные варианты уходят — остаётся только новый герой
+            if (assetType === 'Character') { setHeroes(prev => [...prev, j.asset].slice(0, 4)); setHeroResults([j.asset]); setHeroMatched(1) }
+            else { setLocation(j.asset); setLocResults([j.asset]); setLocMatched(1) }
             resolve()
           } else if (j.state === 'fail' || j.error) {
             clearInterval(iv)
-            reject(new Error(j.error || 'Генерация не удалась'))
+            reject(new Error(j.error || 'Generation failed'))
           }
         }, 4000)
       })
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка генерации')
+      setError(e instanceof Error ? e.message : 'Generation failed')
     } finally {
       setGenState('idle')
     }
@@ -516,7 +543,7 @@ export default function StudioPage() {
       const { prompt, error: cErr } = await compileRes.json()
       if (cErr) throw new Error(cErr)
 
-      const refs = [...heroes.map(h => h.file_url), location?.file_url].filter(Boolean)
+      const refs = [...heroes.map(h => h.file_url), location?.file_url, ...extraRefs.map(r => r.file_url)].filter(Boolean)
       const videoRes = await fetch('/api/studio/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -535,15 +562,71 @@ export default function StudioPage() {
           setStep('result')
         } else if (j.state === 'fail') {
           if (pollRef.current) clearInterval(pollRef.current)
-          setError(j.failMsg || 'Генерация видео не удалась')
+          setError(j.failMsg || 'Video generation failed')
           setStep('confirm')
         }
       }, 5000)
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Ошибка')
+      setError(e instanceof Error ? e.message : 'Error')
       setStep('confirm')
     }
-  }, [videoType, heroes, location, action, extraNote, engineSel, engineCfg.masterPreset, quality, duration])
+  }, [videoType, heroes, location, action, extraNote, extraRefs, engineSel, engineCfg.masterPreset, quality, duration])
+
+  // ── User uploads: own character / location / prop ───────────
+  const toJpeg = (file: File, max = 1600, q = 0.85): Promise<Blob> => new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight))
+      const c = document.createElement('canvas')
+      c.width = Math.round(img.naturalWidth * sc)
+      c.height = Math.round(img.naturalHeight * sc)
+      c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
+      c.toBlob(b => { URL.revokeObjectURL(url); b ? resolve(b) : reject(new Error('convert failed')) }, 'image/jpeg', q)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image load failed')) }
+    img.src = url
+  })
+
+  const handleUpload = useCallback(async (file: File) => {
+    setUploading(true)
+    setError('')
+    try {
+      const blob = await toJpeg(file)
+      let meta: { title?: string; category?: string; description?: string; tags?: string } = {}
+      try {
+        const fd = new FormData()
+        fd.append('file', new File([blob], 'upload.jpg', { type: 'image/jpeg' }))
+        meta = await (await fetch('/api/ai-name', { method: 'POST', body: fd })).json()
+      } catch { /* best-effort naming */ }
+      const assetType = step === 'location' ? 'Location' : step === 'hero' ? 'Character' : 'Prop'
+      const path = `user/${Date.now()}-upload.jpg`
+      const { error: upErr } = await supabase.storage.from('assets').upload(path, blob, { contentType: 'image/jpeg' })
+      if (upErr) throw upErr
+      const url = supabase.storage.from('assets').getPublicUrl(path).data.publicUrl
+      const tags = typeof meta.tags === 'string' && meta.tags ? meta.tags.split(',').map(t => t.trim()) : []
+      const { data, error: dbErr } = await supabase.from('assets').insert({
+        title: meta.title || file.name.replace(/\.[^.]+$/, ''),
+        type: assetType,
+        category: meta.category || 'User Upload',
+        plan: 'free',
+        tags: [...tags, 'user-upload'],
+        description: meta.description || '',
+        file_url: url,
+        thumbnail_url: url,
+      }).select().single()
+      if (dbErr) throw dbErr
+      const asset = data as Asset
+      if (assetType === 'Character') { setHeroes(prev => [...prev, asset].slice(0, 4)); setHeroResults([asset]); setHeroMatched(1) }
+      else if (assetType === 'Location') { setLocation(asset); setLocResults([asset]); setLocMatched(1) }
+      else setExtraRefs(prev => [...prev, asset].slice(0, 3))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }, [step])
 
   // ── chat input: контекстное действие по шагу ────────────────
   const submitInput = useCallback(() => {
@@ -560,7 +643,7 @@ export default function StudioPage() {
   const toggleMic = useCallback(() => {
     if (micOn) { recRef.current?.stop(); setMicOn(false); return }
     const rec = getSpeechRec()
-    if (!rec) { setError('Голосовой ввод не поддерживается в этом браузере — попробуй Chrome'); return }
+    if (!rec) { setError('Voice input is not supported in this browser — try Chrome'); return }
     rec.lang = 'ru-RU'
     rec.continuous = false
     rec.interimResults = true
@@ -587,27 +670,27 @@ export default function StudioPage() {
   // Живые подсказки: маскот ведёт за руку по шагам
   let botLine = BOT_LINES[step]
   if (step === 'hero' && heroResults.length > 0) botLine = heroes.length > 0
-    ? `Отлично, выбрано: ${heroes.length}. Можешь добавить ещё героев — или жми «Дальше», выберем локацию!`
-    : 'Выбери героя — можно сразу нескольких! Дальше выберем локацию.'
+    ? `Great, ${heroes.length} selected. Add more heroes — or hit Next to pick a location!`
+    : 'Pick a hero — you can select several! Next we choose a location.'
   if (step === 'location' && locResults.length > 0) botLine = location
-    ? 'Локация выбрана! Жми «Дальше» — опишем действие.'
-    : 'Выбери локацию — и переходим к действию.'
+    ? "Location locked! Hit Next — let's describe the action."
+    : 'Pick a location — then we move to the action.'
 
   // История ответов — клик возвращает на шаг
   const history: { step: Step; q: string; a: string }[] = []
   if (stepIndex > 0 || step === 'render' || step === 'result') {
     const past = (s: Step) => STEPS.indexOf(s) < (stepIndex === -1 ? STEPS.length : stepIndex)
     if (past('hero') || stepIndex === -1) history.push({ step: 'type', q: BOT_LINES.type, a: customType || VIDEO_TYPES.find(t => t.id === videoType)?.label || '—' })
-    if (past('location')) history.push({ step: 'hero', q: BOT_LINES.hero, a: heroes.length ? heroes.map(h => h.title).join(', ') : 'Без героя' })
-    if (past('action')) history.push({ step: 'location', q: BOT_LINES.location, a: location ? location.title : 'Пропущено' })
+    if (past('location')) history.push({ step: 'hero', q: BOT_LINES.hero, a: heroes.length ? heroes.map(h => h.title).join(', ') : 'No hero' })
+    if (past('action')) history.push({ step: 'location', q: BOT_LINES.location, a: location ? location.title : 'Skipped' })
     if (past('camera')) history.push({ step: 'action', q: BOT_LINES.action, a: action.slice(0, 80) + (action.length > 80 ? '…' : '') })
     if (past('details')) {
       const camSel = CAMERA_CATS.map(c => engineSel[c]).filter(Boolean).map(ruVal).join(', ')
-      history.push({ step: 'camera', q: BOT_LINES.camera, a: camSel || 'На усмотрение Cineman' })
+      history.push({ step: 'camera', q: BOT_LINES.camera, a: camSel || 'Up to Cineman' })
     }
     if (past('confirm')) {
       const detSel = DETAIL_CATS.map(c => engineSel[c]).filter(Boolean).map(ruVal).join(', ')
-      history.push({ step: 'details', q: BOT_LINES.details, a: detSel || 'На усмотрение Cineman' })
+      history.push({ step: 'details', q: BOT_LINES.details, a: detSel || 'Up to Cineman' })
     }
   }
 
@@ -618,15 +701,15 @@ export default function StudioPage() {
   const noMatchBanner = (matched: number | null, kind: 'Character' | 'Location', query: string) =>
     matched === 0 ? (
       <div className="mb-4 px-4 py-3 rounded-xl bg-amber-950/40 border border-amber-700/40 text-amber-200/90 text-sm fade-in-up">
-        Точного совпадения в базе нет — показываю ближайшее похожее. Могу{' '}
+        No exact match in the base — showing the closest. I can{' '}
         <button
           onClick={() => generateAsset(kind, query)}
           disabled={genState === 'working'}
           className="underline decoration-amber-400/60 hover:text-amber-100 font-medium"
         >
-          сгенерировать {kind === 'Character' ? 'нового героя' : 'новую локацию'}
+          generate {kind === 'Character' ? 'a new hero' : 'a new location'}
         </button>{' '}
-        по твоему описанию.
+        from your description.
       </div>
     ) : null
 
@@ -646,7 +729,7 @@ export default function StudioPage() {
               <Mascot size={step === 'type' ? 180 : 132} mood={mood} />
               <div>
                 <p className="text-zinc-50 font-semibold text-lg leading-tight">Cineman</p>
-                <p className="text-violet-400/80 text-xs">AI-режиссёр · онлайн</p>
+                <p className="text-violet-400/80 text-xs">AI Director · online</p>
               </div>
             </div>
             {stepIndex >= 0 && (
@@ -691,7 +774,7 @@ export default function StudioPage() {
                 <div className="flex justify-end">
                   <button
                     onClick={() => canSend && setStep(h.step)}
-                    title="Нажми, чтобы изменить"
+                    title="Click to edit"
                     className="bg-violet-600/20 border border-violet-500/30 hover:border-violet-400/60 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md text-left transition-colors"
                   >
                     {h.a}
@@ -747,7 +830,14 @@ export default function StudioPage() {
                     </div>
                   )}
                   {noMatchBanner(heroMatched, 'Character', heroQuery)}
-                  {heroResults.length > 0 && (
+                  {(genState === 'working' || uploading) && (
+                    <div className="rounded-2xl border border-violet-500/40 bg-zinc-900/60 p-8 flex flex-col items-center gap-3 mb-6 fade-in-up">
+                      <Mascot size={72} mood="thinking" />
+                      <p className="text-zinc-300 text-sm">{uploading ? 'Uploading your image…' : 'Generating your hero… ~20s'}</p>
+                      <div className="w-44 h-1.5 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full w-1/2 rounded-full animate-pulse" style={{ background: 'linear-gradient(90deg,#8b5cf6,#22d3ee)' }} /></div>
+                    </div>
+                  )}
+                  {genState !== 'working' && !uploading && heroResults.length > 0 && (
                     <>
                       <div className="grid grid-cols-4 gap-3 mb-4">
                         {heroResults.map(a => (
@@ -758,30 +848,36 @@ export default function StudioPage() {
                             onClick={() => setHeroes(prev => prev.some(h => h.id === a.id) ? prev.filter(h => h.id !== a.id) : [...prev, a].slice(0, 4))}
                           />
                         ))}
+                        <button
+                          onClick={() => fileRef.current?.click()}
+                          className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-[3/4] flex flex-col items-center justify-center gap-2 transition-all text-xs"
+                        >
+                          <Icon d={I.upload} size={20} /> Add your own
+                        </button>
                       </div>
                       {heroes.length > 0 && (
                         <p className="text-violet-300/90 text-sm mb-4 fade-in-up">
-                          В касте: {heroes.map(h => h.title).join(' · ')} ({heroes.length}/4)
+                          Cast: {heroes.map(h => h.title).join(' · ')} ({heroes.length}/4)
                         </p>
                       )}
                       <div className="flex gap-5 mb-6 text-sm">
                         <button onClick={() => search('Character', heroQuery, heroOffset + 4)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors" disabled={searching}>
-                          <Icon d={I.refresh} size={15} /> Ещё варианты
+                          <Icon d={I.refresh} size={15} /> More options
                         </button>
-                        <button onClick={() => generateAsset('Character', heroQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors" disabled={genState === 'working'}>
-                          <Icon d={I.sparkles} size={15} /> {genState === 'working' ? 'Генерирую (~20 сек)…' : 'Сгенерировать нового'}
+                        <button onClick={() => generateAsset('Character', heroQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors">
+                          <Icon d={I.sparkles} size={15} /> Generate new
                         </button>
                       </div>
                     </>
                   )}
                   {heroResults.length === 0 && !searching && (
-                    <p className="text-zinc-600 text-sm mb-6">Напиши описание героя в строке ниже — покажу варианты из базы.</p>
+                    <p className="text-zinc-600 text-sm mb-6">Describe the hero in the input below — options will appear here.</p>
                   )}
-                  {searching && <p className="text-violet-300/80 text-sm mb-6 fade-in-up">Ищу в базе…</p>}
+                  {searching && <p className="text-violet-300/80 text-sm mb-6 fade-in-up">Searching the base…</p>}
                   <div className="flex justify-end gap-3 items-center">
-                    <button onClick={() => { setHeroes([]); setStep('location') }} className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">Без героя</button>
+                    <button onClick={() => { setHeroes([]); setStep('location') }} className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">No hero</button>
                     <button onClick={() => setStep('location')} disabled={heroes.length === 0} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-30 transition-colors">
-                      Дальше <Icon d={I.arrowR} size={15} />
+                      Next <Icon d={I.arrowR} size={15} />
                     </button>
                   </div>
                 </div>
@@ -796,31 +892,44 @@ export default function StudioPage() {
                     </div>
                   )}
                   {noMatchBanner(locMatched, 'Location', locQuery)}
-                  {locResults.length > 0 && (
+                  {(genState === 'working' || uploading) && (
+                    <div className="rounded-2xl border border-violet-500/40 bg-zinc-900/60 p-8 flex flex-col items-center gap-3 mb-6 fade-in-up">
+                      <Mascot size={72} mood="thinking" />
+                      <p className="text-zinc-300 text-sm">{uploading ? 'Uploading your image…' : 'Generating your location… ~20s'}</p>
+                      <div className="w-44 h-1.5 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full w-1/2 rounded-full animate-pulse" style={{ background: 'linear-gradient(90deg,#8b5cf6,#22d3ee)' }} /></div>
+                    </div>
+                  )}
+                  {genState !== 'working' && !uploading && locResults.length > 0 && (
                     <>
                       <div className="grid grid-cols-2 gap-3 mb-4">
                         {locResults.map(a => (
                           <AssetCard key={a.id} asset={a} selected={location?.id === a.id} onClick={() => setLocation(a)} wide />
                         ))}
+                        <button
+                          onClick={() => fileRef.current?.click()}
+                          className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-video flex flex-col items-center justify-center gap-2 transition-all text-xs"
+                        >
+                          <Icon d={I.upload} size={20} /> Add your own
+                        </button>
                       </div>
                       <div className="flex gap-5 mb-6 text-sm">
                         <button onClick={() => search('Location', locQuery, locOffset + 4)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors" disabled={searching}>
-                          <Icon d={I.refresh} size={15} /> Ещё варианты
+                          <Icon d={I.refresh} size={15} /> More options
                         </button>
-                        <button onClick={() => generateAsset('Location', locQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors" disabled={genState === 'working'}>
-                          <Icon d={I.sparkles} size={15} /> {genState === 'working' ? 'Генерирую (~20 сек)…' : 'Сгенерировать новую'}
+                        <button onClick={() => generateAsset('Location', locQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors">
+                          <Icon d={I.sparkles} size={15} /> Generate new
                         </button>
                       </div>
                     </>
                   )}
                   {locResults.length === 0 && !searching && (
-                    <p className="text-zinc-600 text-sm mb-6">Опиши локацию в строке ниже — найду в базе.</p>
+                    <p className="text-zinc-600 text-sm mb-6">Describe the location below — I'll search the base.</p>
                   )}
-                  {searching && <p className="text-violet-300/80 text-sm mb-6 fade-in-up">Ищу в базе…</p>}
+                  {searching && <p className="text-violet-300/80 text-sm mb-6 fade-in-up">Searching the base…</p>}
                   <div className="flex justify-end gap-3 items-center">
-                    <button onClick={() => { setLocation(null); setStep('action') }} className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">Пропустить</button>
+                    <button onClick={() => { setLocation(null); setStep('action') }} className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">Skip</button>
                     <button onClick={() => setStep('action')} disabled={!location} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-30 transition-colors">
-                      Дальше <Icon d={I.arrowR} size={15} />
+                      Next <Icon d={I.arrowR} size={15} />
                     </button>
                   </div>
                 </div>
@@ -834,11 +943,11 @@ export default function StudioPage() {
                       <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2.5 text-violet-100 text-sm max-w-lg">{action}</div>
                     </div>
                   )}
-                  <p className="text-zinc-600 text-sm mb-6">Напиши в строке ниже или нажми на микрофон и надиктуй.</p>
+                  <p className="text-zinc-600 text-sm mb-6">Type below or tap the mic and dictate.</p>
                   {action && (
                     <div className="flex justify-end">
                       <button onClick={() => setStep('camera')} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
-                        Дальше <Icon d={I.arrowR} size={15} />
+                        Next <Icon d={I.arrowR} size={15} />
                       </button>
                     </div>
                   )}
@@ -864,7 +973,7 @@ export default function StudioPage() {
                   )}
                   <div className="flex justify-end mt-3">
                     <button onClick={() => { setOpenCat(null); setStep('details') }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
-                      Дальше <Icon d={I.arrowR} size={15} />
+                      Next <Icon d={I.arrowR} size={15} />
                     </button>
                   </div>
                 </div>
@@ -889,7 +998,7 @@ export default function StudioPage() {
                   )}
                   <div className="flex justify-end mt-3">
                     <button onClick={() => { setOpenCat(null); setStep('confirm') }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
-                      Дальше <Icon d={I.arrowR} size={15} />
+                      Next <Icon d={I.arrowR} size={15} />
                     </button>
                   </div>
                 </div>
@@ -910,24 +1019,25 @@ export default function StudioPage() {
                       )}
                     </div>
                     <ul className="text-sm text-zinc-300 space-y-2.5">
-                      <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.film} size={15} /></span> {customType || VIDEO_TYPES.find(t => t.id === videoType)?.label || 'Видео'}</li>
+                      <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.film} size={15} /></span> {customType || VIDEO_TYPES.find(t => t.id === videoType)?.label || 'Video'}</li>
                       {heroes.length > 0 && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.user} size={15} /></span> {heroes.map(h => h.title).join(', ')}</li>}
-                      {location && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.pin} size={15} /></span> {location.title || 'Локация выбрана'}</li>}
+                      {location && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.pin} size={15} /></span> {location.title || 'Location selected'}</li>}
                       <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.wand} size={15} /></span> {action.slice(0, 70)}{action.length > 70 ? '…' : ''}</li>
                       {Object.entries(engineSel).filter(([, v]) => v).length > 0 && (
                         <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5"><Icon d={I.camera} size={15} /></span> {Object.entries(engineSel).filter(([, v]) => v).map(([, v]) => ruVal(v)).join(' · ')}</li>
                       )}
+                      {extraRefs.length > 0 && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.upload} size={15} /></span> {extraRefs.map(r => r.title).join(', ')}</li>}
                       {extraNote && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.bolt} size={15} /></span> {extraNote.slice(0, 70)}</li>}
                     </ul>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-4 mb-7">
                     <div className="flex gap-2">
-                      <Chip active={quality === 'draft'} onClick={() => setQuality('draft')}>Черновик · 720p · дёшево</Chip>
-                      <Chip active={quality === 'final'} onClick={() => setQuality('final')}>Финал · 1080p + звук</Chip>
+                      <Chip active={quality === 'draft'} onClick={() => setQuality('draft')}>Draft · 720p</Chip>
+                      <Chip active={quality === 'final'} onClick={() => setQuality('final')}>Final · 1080p + audio</Chip>
                     </div>
                     <div className="flex gap-2">
-                      {[5, 10, 15].map(d => <Chip key={d} active={duration === d} onClick={() => setDuration(d)}>{d} сек</Chip>)}
+                      {[5, 10, 15].map(d => <Chip key={d} active={duration === d} onClick={() => setDuration(d)}>{d}s</Chip>)}
                     </div>
                   </div>
 
@@ -943,12 +1053,12 @@ export default function StudioPage() {
               {step === 'render' && (
                 <div className="text-center py-12">
                   <div className="flex justify-center mb-6"><Mascot size={110} mood="thinking" /></div>
-                  <h2 className="text-xl text-zinc-100 font-medium mb-2">Снимаю твой ролик…</h2>
-                  <p className="text-zinc-500 text-sm mb-10">Обычно это 1–2 минуты</p>
+                  <h2 className="text-xl text-zinc-100 font-medium mb-2">Shooting your video…</h2>
+                  <p className="text-zinc-500 text-sm mb-10">Usually takes 1–2 minutes</p>
                   <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden border border-zinc-800">
                     <div className="h-2 rounded-full transition-all duration-1000" style={{ width: `${Math.max(progress, 5)}%`, background: 'linear-gradient(90deg,#8b5cf6,#22d3ee)' }} />
                   </div>
-                  <p className="text-zinc-600 text-sm mt-3">{progress > 0 ? `${progress}%` : 'В очереди…'}</p>
+                  <p className="text-zinc-600 text-sm mt-3">{progress > 0 ? `${progress}%` : 'Queued…'}</p>
                 </div>
               )}
 
@@ -958,18 +1068,18 @@ export default function StudioPage() {
                   <video src={videoUrl} controls autoPlay loop className="w-full rounded-2xl border border-zinc-800 mb-6 shadow-[0_8px_40px_rgba(0,0,0,0.5)]" />
                   <div className="flex flex-wrap gap-3">
                     <a href={videoUrl} download className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
-                      <Icon d={I.download} size={16} /> Скачать
+                      <Icon d={I.download} size={16} /> Download
                     </a>
                     {quality === 'draft' && (
                       <button onClick={() => { setQuality('final'); startRender() }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-violet-500/60 text-violet-300 hover:bg-violet-950/40 transition-colors">
-                        <Icon d={I.sparkles} size={16} /> Финальное качество
+                        <Icon d={I.sparkles} size={16} /> Final quality
                       </button>
                     )}
                     <button onClick={() => window.location.reload()} className="px-6 py-2.5 rounded-xl border border-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors">
-                      Новый ролик
+                      New video
                     </button>
                   </div>
-                  <p className="text-zinc-600 text-xs mt-4">Ссылка на видео живёт ~24 часа — скачай сразу.</p>
+                  <p className="text-zinc-600 text-xs mt-4">Video link lives ~24 hours — download it right away.</p>
                 </div>
               )}
             </div>
@@ -979,16 +1089,25 @@ export default function StudioPage() {
           {canSend && (
             <div className="px-5 pb-5 pt-3 border-t border-zinc-800/60" style={{ background: 'linear-gradient(0deg, rgba(139,92,246,0.05), transparent)' }}>
               <div className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur border border-zinc-800 focus-within:border-violet-500/70 rounded-2xl px-4 py-2 transition-colors shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }} />
+                <button
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  title="Upload your own character, location or prop"
+                  className={`p-2 rounded-xl transition-all ${uploading ? 'text-violet-400 animate-pulse' : 'text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10'}`}
+                >
+                  <Icon d={I.upload} size={18} />
+                </button>
                 <input
                   value={input}
                   onChange={e => setInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && submitInput()}
-                  placeholder={micOn ? 'Слушаю…' : PLACEHOLDERS[step]}
+                  placeholder={micOn ? 'Listening…' : PLACEHOLDERS[step]}
                   className="flex-1 bg-transparent text-zinc-100 placeholder-zinc-600 outline-none py-1.5 text-[15px]"
                 />
                 <button
                   onClick={toggleMic}
-                  title="Голосовой ввод"
+                  title="Voice input"
                   className={`p-2 rounded-xl transition-all ${micOn ? 'bg-red-500/20 text-red-400 animate-pulse' : 'text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10'}`}
                 >
                   <Icon d={I.mic} size={18} />
