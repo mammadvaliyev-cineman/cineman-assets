@@ -46,8 +46,18 @@ async function extractKeywords(text: string, debug?: Record<string, unknown>): P
     }
     const parts: Array<{ text?: string }> = json?.candidates?.[0]?.content?.parts || []
     const raw: string = parts.map(p => p.text || '').join('')
+    let arr: unknown = null
     const match = raw.match(/\[[\s\S]*\]/)
-    const arr = JSON.parse((match ? match[0] : raw.replace(/```json|```/g, '')).trim())
+    try {
+      arr = JSON.parse((match ? match[0] : raw.replace(/```json|```/g, '')).trim())
+    } catch {
+      // Model returned plain text — split on commas / newlines
+      arr = raw
+        .replace(/```json|```/g, '')
+        .split(/[,\n;]/)
+        .map(s => s.trim().replace(/^[\s"'\-\d.)*]+|[\s"'.]+$/g, '').toLowerCase())
+        .filter(s => s.length > 1)
+    }
     if (Array.isArray(arr) && arr.length) return arr.map(String)
   } catch (e) {
     if (debug) debug.caught = e instanceof Error ? e.message : String(e)
