@@ -103,10 +103,13 @@ function Mascot({ size = 64 }: { size?: number }) {
 
 function Robot({ line }: { line: string }) {
   return (
-    <div className="flex items-start gap-3 mb-7">
-      <Mascot size={64} />
-      <div className="bg-zinc-900/70 backdrop-blur border border-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3 text-zinc-100 max-w-xl shadow-lg shadow-black/30">
-        {line}
+    <div className="flex items-end gap-4 mb-8">
+      <Mascot size={96} />
+      <div className="pb-2">
+        <p className="text-violet-400/80 text-xs font-medium mb-1.5 ml-1 tracking-wide">Cineman</p>
+        <div className="bg-zinc-900/80 backdrop-blur border border-zinc-800 rounded-3xl rounded-bl-md px-5 py-3.5 text-zinc-100 text-[15px] leading-relaxed max-w-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
+          {line}
+        </div>
       </div>
     </div>
   )
@@ -539,26 +542,24 @@ export default function StudioPage() {
           <div>
             <Robot line="Всё готово к съёмке! Проверь и жми «Снимаем»." />
             <div className="p-5 rounded-2xl bg-zinc-900/50 backdrop-blur border border-zinc-800 mb-7">
-              <div className="grid grid-cols-[auto_1fr] gap-6">
-                <div className="flex gap-3">
-                  {hero && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={hero.thumbnail_url || hero.file_url} alt="hero" className="w-24 h-32 object-cover rounded-xl border border-zinc-700" />
-                  )}
-                  {location && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={location.thumbnail_url || location.file_url} alt="location" className="w-44 h-28 object-cover rounded-xl border border-zinc-700 self-center" />
-                  )}
-                </div>
-                <ul className="text-sm text-zinc-300 space-y-2.5">
+              <div className="flex gap-3 mb-5">
+                {hero && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={hero.thumbnail_url || hero.file_url} alt="hero" className="h-36 w-28 object-cover rounded-xl border border-zinc-800" style={{ objectPosition: 'center top' }} />
+                )}
+                {location && (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img src={location.thumbnail_url || location.file_url} alt="location" className="h-36 flex-1 object-cover rounded-xl border border-zinc-800" />
+                )}
+              </div>
+              <ul className="text-sm text-zinc-300 space-y-2.5">
                   <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.film} size={15} /></span> {VIDEO_TYPES.find(t => t.id === videoType)?.label}</li>
                   {hero && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.user} size={15} /></span> {hero.title || 'Герой выбран'}</li>}
                   {location && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.pin} size={15} /></span> {location.title || 'Локация выбрана'}</li>}
                   <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.wand} size={15} /></span> {action.slice(0, 70)}{action.length > 70 ? '…' : ''}</li>
                   <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.camera} size={15} /></span> {CAM_MOVES.find(m => m.id === camMove)?.label}, {FRAMINGS.find(f => f.id === framing)?.label}</li>
-                  {(weather || timeOfDay || mood) && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.sun} size={15} /></span> {[weather, timeOfDay, mood].filter(Boolean).join(', ')}</li>}
-                </ul>
-              </div>
+                {(weather || timeOfDay || mood) && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.sun} size={15} /></span> {[weather, timeOfDay, mood].filter(Boolean).join(', ')}</li>}
+              </ul>
             </div>
 
             <div className="flex flex-wrap items-center gap-4 mb-9">
