@@ -14,11 +14,11 @@ export const maxDuration = 30
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
 
-async function extractKeywords(text: string): Promise<string[]> {
+async function extractKeywords(text: string, debug?: Record<string, unknown>): Promise<string[]> {
   const apiKey = process.env.GEMINI_API_KEY
   // Fallback without LLM: use latin words as-is
   const naive = text.toLowerCase().match(/[a-z]{3,}/g) || []
-  if (!apiKey) return naive
+  if (!apiKey) { if (debug) debug.noKey = true; return naive }
 
   try {
     const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
@@ -38,13 +38,19 @@ async function extractKeywords(text: string): Promise<string[]> {
       }),
     })
     const json = await res.json()
+    if (debug) {
+      debug.status = res.status
+      debug.finishReason = json?.candidates?.[0]?.finishReason
+      debug.error = json?.error?.message
+      debug.rawSnippet = JSON.stringify(json?.candidates?.[0]?.content ?? json).slice(0, 400)
+    }
     const parts: Array<{ text?: string }> = json?.candidates?.[0]?.content?.parts || []
     const raw: string = parts.map(p => p.text || '').join('')
     const match = raw.match(/\[[\s\S]*\]/)
     const arr = JSON.parse((match ? match[0] : raw.replace(/```json|```/g, '')).trim())
     if (Array.isArray(arr) && arr.length) return arr.map(String)
-  } catch {
-    /* fall through to naive */
+  } catch (e) {
+    if (debug) debug.caught = e instanceof Error ? e.message : String(e)
   }
   return naive
 }
@@ -77,12 +83,13 @@ function scoreAsset(a: AssetRow, keywords: string[]): number {
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, assetType, offset = 0 } = await req.json()
+    const { text, assetType, offset = 0, debug: wantDebug } = await req.json()
     if (!text || !assetType) {
       return NextResponse.json({ error: 'text and assetType are required' }, { status: 400 })
     }
 
-    const keywords = await extractKeywords(String(text))
+    const debug: Record<string, unknown> | undefined = wantDebug ? {} : undefined
+    const keywords = await extractKeywords(String(text), debug)
 
     const { data, error } = await supabase
       .from('assets')
@@ -106,6 +113,7 @@ export async function POST(req: NextRequest) {
       total: pool.length,
       matched: scored.length,
       keywords,
+      ...(debug ? { _debug: debug } : {}),
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Search failed'
