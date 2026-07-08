@@ -136,9 +136,11 @@ export async function POST(req: NextRequest) {
     if (error) throw error
 
     const rows = (data || []) as AssetRow[]
+    // Threshold 3 = at least one word-level TAG hit. Title/desc-only
+    // grazes (score 1-2) are noise — they made "баку" return random.
     const scored = rows
       .map(a => ({ asset: a, score: scoreAsset(a, keywords) }))
-      .filter(s => s.score > 0)
+      .filter(s => s.score >= 3)
       .sort((x, y) => y.score - x.score)
 
     // A real match requires the SUBJECT (first keywords) to hit —
