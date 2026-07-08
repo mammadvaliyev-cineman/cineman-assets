@@ -213,11 +213,18 @@ function Mascot({ size = 96, mood = 'neutral' }: { size?: number; mood?: string 
     return () => { alive = false; clearTimeout(t) }
   }, [avail.blink])
 
-  const pick = blinking && avail.blink ? 'blink' : (avail[mood] ? mood : (avail.neutral ? 'neutral' : ''))
+  // ВАЖНО: один набор кадров. Если neutral не загружен — базой служит
+  // happy из того же сета, чтобы маскот не «прыгал» в размере при
+  // смене выражения (mascot.png отрисован с другим кадрированием).
+  const base = avail.neutral ? 'neutral' : (avail.happy ? 'happy' : '')
+  const pick = blinking && avail.blink ? 'blink' : (avail[mood] ? mood : base)
   const src = pick ? EXPR_SRC[pick] : FALLBACK_SRC
   const amp = Math.max(6, Math.round(size * 0.14))
   return (
-    <span className="relative inline-flex flex-col items-center shrink-0" style={{ width: size }}>
+    <span
+      className="relative inline-flex flex-col items-center shrink-0"
+      style={{ width: size, transition: 'width .5s cubic-bezier(.16,1,.3,1)' }}
+    >
       <style>{`
         @keyframes cinemanFloat { 0%, 100% { transform: translateY(0) rotate(-3deg) } 25% { transform: translateY(-${Math.round(amp * 0.6)}px) rotate(0deg) } 50% { transform: translateY(-${amp}px) rotate(3deg) } 75% { transform: translateY(-${Math.round(amp * 0.5)}px) rotate(0.5deg) } }
         @keyframes cinemanShadow { 0%, 100% { transform: scaleX(1); opacity: 0.5 } 50% { transform: scaleX(0.6); opacity: 0.22 } }
@@ -228,7 +235,7 @@ function Mascot({ size = 96, mood = 'neutral' }: { size?: number; mood?: string 
         alt=""
         onError={e => { const el = e.target as HTMLImageElement; if (el.src.indexOf(FALLBACK_SRC) < 0) el.src = FALLBACK_SRC; else el.style.visibility = 'hidden' }}
         className="shrink-0 object-contain"
-        style={{ width: size, height: size, animation: 'cinemanFloat 2.6s ease-in-out infinite', filter: 'drop-shadow(0 10px 20px rgba(139,92,246,0.4))' }}
+        style={{ width: size, height: size, transition: 'width .5s cubic-bezier(.16,1,.3,1), height .5s cubic-bezier(.16,1,.3,1)', animation: 'cinemanFloat 2.6s ease-in-out infinite', filter: 'drop-shadow(0 10px 20px rgba(139,92,246,0.4))' }}
       />
       {size >= 60 && (
         <span
