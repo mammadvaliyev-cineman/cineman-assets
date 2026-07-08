@@ -81,21 +81,40 @@ function words(s: string): string[] {
   return s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
 }
 
+// Gender guard: "девушка" must never surface male characters
+const FEMALE = new Set(['woman', 'women', 'girl', 'female', 'lady', 'she'])
+const MALE = new Set(['man', 'men', 'boy', 'male', 'guy', 'he'])
+
 function scoreAsset(a: AssetRow, keywords: string[]): number {
   let score = 0
   const tags = (a.tags || []).map(t => String(t).toLowerCase())
   const tagWords = new Set(tags.flatMap(words))
   const titleWords = new Set(words(a.title || ''))
   const descWords = new Set(words(a.description || ''))
-  for (const kw of keywords) {
+  const assetWords: string[] = []
+  tagWords.forEach(w => assetWords.push(w))
+  titleWords.forEach(w => assetWords.push(w))
+
+  const kwWords = keywords.flatMap(k => words(k))
+  const wantsFemale = kwWords.some(w => FEMALE.has(w))
+  const wantsMale = kwWords.some(w => MALE.has(w))
+  const isFemale = assetWords.some(w => FEMALE.has(w))
+  const isMale = assetWords.some(w => MALE.has(w))
+  if (wantsFemale && !wantsMale && isMale && !isFemale) return 0
+  if (wantsMale && !wantsFemale && isFemale && !isMale) return 0
+
+  keywords.forEach((kw, idx) => {
     const k = kw.toLowerCase().trim()
     const kws = words(k)
-    if (!kws.length) continue
-    if (tags.includes(k)) score += 5
-    else if (kws.every(w => tagWords.has(w))) score += 3
-    if (kws.every(w => titleWords.has(w))) score += 2
-    if (kws.every(w => descWords.has(w))) score += 1
-  }
+    if (!kws.length) return
+    let s = 0
+    if (tags.includes(k)) s += 5
+    else if (kws.every(w => tagWords.has(w))) s += 3
+    if (kws.every(w => titleWords.has(w))) s += 2
+    if (kws.every(w => descWords.has(w))) s += 1
+    // first keyword = subject — weight it double
+    score += idx === 0 ? s * 2 : s
+  })
   return score
 }
 
