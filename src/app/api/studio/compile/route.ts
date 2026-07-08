@@ -134,7 +134,7 @@ async function polish(prompt: string, action: string): Promise<string> {
       body: JSON.stringify({
         contents: [{
           parts: [{
-            text: `You are a film director writing a prompt for the Seedance 2.0 video model. Rewrite the draft below into fluent English prose, 100-260 words. RULES: keep every @imageN / reference image binding exactly as written; keep ALL camera, lens, framing, lighting, atmosphere, style and color facts; translate any non-English action description to English; the Consistency block must stay as the FINAL sentence; positive statements only (never "no X" except inside the Consistency block); do not invent new major elements. Return ONLY the prompt text.\n\nDRAFT:\n${prompt}\n\nORIGINAL USER ACTION (may be non-English): ${action}`,
+            text: `You are a film director writing a prompt for the Seedance 2.0 video model. Rewrite the draft below into fluent English prose. HARD LIMIT: 100-240 words total — compress style/lighting details rather than exceeding it. RULES: keep every @imageN / reference image binding exactly as written; keep camera, lens, framing, lighting, atmosphere, style and color facts (condense wordy style blocks to their essence); translate any non-English action description to English; the Consistency block must stay as the FINAL sentence; positive statements only (never "no X" except inside the Consistency block); do not invent new major elements. Return ONLY the prompt text.\n\nDRAFT:\n${prompt}\n\nORIGINAL USER ACTION (may be non-English): ${action}`,
           }],
         }],
         generationConfig: {
