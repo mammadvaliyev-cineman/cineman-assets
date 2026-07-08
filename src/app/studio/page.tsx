@@ -58,10 +58,8 @@ const RU_EN: Record<string, string> = {
 function Robot({ line }: { line: string }) {
   return (
     <div className="flex items-start gap-3 mb-6">
-      <div className="relative shrink-0 w-12 h-12 rounded-full bg-gradient-to-b from-zinc-700 to-zinc-900 border border-zinc-600 flex items-center justify-center text-xl shadow-lg shadow-purple-900/30">
-        <span aria-hidden>🤖</span>
-        <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-sm" aria-hidden>🎩</span>
-      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/cineman-mascot.png" alt="" onError={e => { (e.target as HTMLImageElement).style.visibility = 'hidden' }} className="shrink-0 w-14 h-14 rounded-full object-cover border border-zinc-700 shadow-lg shadow-purple-900/30 bg-zinc-900" />
       <div className="bg-zinc-800/80 border border-zinc-700 rounded-2xl rounded-tl-sm px-4 py-3 text-zinc-100 max-w-xl">
         {line}
       </div>
@@ -84,7 +82,7 @@ function Chip({ active, onClick, children }: { active?: boolean; onClick: () => 
   )
 }
 
-function AssetCard({ asset, selected, onClick }: { asset: Asset; selected: boolean; onClick: () => void }) {
+function AssetCard({ asset, selected, onClick, wide }: { asset: Asset; selected: boolean; onClick: () => void; wide?: boolean }) {
   return (
     <button
       onClick={onClick}
@@ -93,7 +91,7 @@ function AssetCard({ asset, selected, onClick }: { asset: Asset; selected: boole
       }`}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={asset.thumbnail_url || asset.file_url} alt={asset.title} className="w-full aspect-[3/4] object-cover" loading="lazy" />
+      <img src={asset.thumbnail_url || asset.file_url} alt={asset.title} className={wide ? 'w-full aspect-video object-cover' : 'w-full aspect-[3/4] object-cover'} style={wide ? undefined : { objectPosition: 'center top' }} loading="lazy" />
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2">
         <p className="text-xs text-zinc-200 line-clamp-2">{asset.title}</p>
       </div>
@@ -354,9 +352,9 @@ export default function StudioPage() {
           </div>
           {locResults.length > 0 && (
             <>
-              <div className="grid grid-cols-4 gap-3 mb-4">
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 {locResults.map(a => (
-                  <AssetCard key={a.id} asset={a} selected={location?.id === a.id} onClick={() => setLocation(a)} />
+                  <AssetCard key={a.id} asset={a} selected={location?.id === a.id} onClick={() => setLocation(a)} wide />
                 ))}
               </div>
               <div className="flex gap-3 mb-6 text-sm">
@@ -467,7 +465,7 @@ export default function StudioPage() {
               )}
               {location && (
                 /* eslint-disable-next-line @next/next/no-img-element */
-                <img src={location.thumbnail_url || location.file_url} alt="location" className="w-24 h-32 object-cover rounded-lg border border-zinc-700" />
+                <img src={location.thumbnail_url || location.file_url} alt="location" className="w-44 h-28 object-cover rounded-lg border border-zinc-700" />
               )}
             </div>
             <ul className="text-sm text-zinc-300 space-y-2">
