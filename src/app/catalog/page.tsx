@@ -121,7 +121,9 @@ function toAsset(a: Record<string, unknown>): Asset {
     type: (a.type as Asset['type']) ?? 'photo',
     category: String(a.category ?? ''),
     url: String(a.file_url ?? ''),
-    thumbnail: String(a.thumbnail_url ?? ''),
+    // Catalog sells the full turnaround sheet — show the original,
+    // face-crop thumbnails are for Studio cards only
+    thumbnail: String(a.file_url ?? a.thumbnail_url ?? ''),
     plan: (a.plan as Asset['plan']) ?? 'starter',
     tags: Array.isArray(a.tags) ? a.tags : [],
     fileUrl: String(a.file_url ?? ''),
