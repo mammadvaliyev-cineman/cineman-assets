@@ -14,7 +14,8 @@ TASK: Carefully study everything visible in this image — lighting, mood, envir
   "type": "Location or Character — Location means places/environments/landscapes/architecture/interiors. Character means people/portraits/figures/faces",
   "category": "Single category word: Urban | Nature | Portrait | Aerial | Interior | Desert | Forest | Industrial | Coastal | Mountain | Sci-Fi | Fantasy | Street | Architecture | Underwater | Studio",
   "description": "2-3 sentence cinematic description of EXACTLY what is in the frame. Describe: main subject, environment/setting, lighting quality and direction, mood/atmosphere, notable visual details. Write like a film director shot notes.",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"] — exactly 8 lowercase tags specific to THIS image: subject, visual style, lighting, mood, color, genre, texture, environment
+  "tags": ["tag1", "..."] — exactly 12 lowercase tags specific to THIS image. For people ALWAYS include: gender (man/woman), age group (young/middle-aged/elderly), hair color, key wardrobe items, build, vibe. Also add: visual style, lighting, mood, color, genre, environment,
+  "face_box": [x, y, width, height] — normalized 0-1 box around the clearest FRONTAL FACE (head only) in the image. If the sheet shows several views of one person, pick the view facing the camera. Use null if no clear frontal face
 }
 
 RULES:
@@ -93,7 +94,8 @@ export async function POST(req: NextRequest) {
       type: parsed.type === 'Character' ? 'Character' : 'Location',
       category: String(parsed.category ?? ''),
       description: String(parsed.description ?? ''),
-      tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 8).join(', ') : '',
+      tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 12).join(', ') : '',
+      face_box: Array.isArray(parsed.face_box) && parsed.face_box.length === 4 ? parsed.face_box.map(Number) : null,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
