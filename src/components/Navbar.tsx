@@ -94,7 +94,7 @@ export default function Navbar() {
                 WebkitTextFillColor: 'transparent',
               }}
             >
-              ASSETS
+              AI
             </span>
           </span>
         </Link>
@@ -102,7 +102,7 @@ export default function Navbar() {
         {/* Nav links */}
         <div className="hidden md:flex items-center gap-8">
           {[
-            { href: '/studio', label: 'Studio ✨' },
+            { href: '/studio', label: 'Studio' },
             { href: '/catalog', label: 'Catalog' },
             { href: '/pricing', label: 'Pricing' },
           ].map(({ href, label }) => (
