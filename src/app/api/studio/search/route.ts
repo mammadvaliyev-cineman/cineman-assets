@@ -30,12 +30,18 @@ async function extractKeywords(text: string): Promise<string[]> {
             text: `User describes a character or location for a film in any language. Return ONLY a JSON array of 6-10 lowercase ENGLISH search keywords (single words or short 2-word phrases) capturing: subject, age/type, style, mood, setting, lighting. No markdown.\n\nUser text: "${text}"`,
           }],
         }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 128 },
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 512,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     })
     const json = await res.json()
-    const raw: string = json?.candidates?.[0]?.content?.parts?.[0]?.text || '[]'
-    const arr = JSON.parse(raw.replace(/```json|```/g, '').trim())
+    const parts: Array<{ text?: string }> = json?.candidates?.[0]?.content?.parts || []
+    const raw: string = parts.map(p => p.text || '').join('')
+    const match = raw.match(/\[[\s\S]*\]/)
+    const arr = JSON.parse((match ? match[0] : raw.replace(/```json|```/g, '')).trim())
     if (Array.isArray(arr) && arr.length) return arr.map(String)
   } catch {
     /* fall through to naive */
