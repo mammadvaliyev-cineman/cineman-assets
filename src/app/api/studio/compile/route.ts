@@ -15,6 +15,8 @@ export const maxDuration = 30
 type SceneState = {
   videoType?: string
   hero?: { title?: string; description?: string } | null
+  // Cast model: several heroes, each bound to its @imageN reference
+  heroes?: Array<{ title?: string; description?: string }>
   location?: { title?: string; description?: string } | null
   action?: string
   camera?: { move?: string; framing?: string; cuts?: string }
@@ -62,8 +64,12 @@ function buildDeterministicPrompt(s: SceneState): string {
   const parts: string[] = []
 
   // Reference bindings — Seedance 2.0 reads reference images in order
-  if (s.hero) parts.push(`The main character is the person from reference image 1 (@image1): ${s.hero.title || ''}. Keep their face, hair and outfit perfectly consistent.`)
-  if (s.location) parts.push(`The scene takes place in the environment from reference image ${s.hero ? 2 : 1}: ${s.location.title || ''}.`)
+  const cast = (s.heroes && s.heroes.length ? s.heroes : (s.hero ? [s.hero] : []))
+  cast.forEach((h, i) => {
+    const role = i === 0 ? 'The main character' : `Character ${i + 1}`
+    parts.push(`${role} is the person from reference image ${i + 1} (@image${i + 1}): ${h.title || ''}. Keep their face, hair and outfit perfectly consistent.`)
+  })
+  if (s.location) parts.push(`The scene takes place in the environment from reference image ${cast.length + 1} (@image${cast.length + 1}): ${s.location.title || ''}.`)
 
   if (s.action) parts.push(`Action: ${s.action}.`)
 
