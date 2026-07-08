@@ -199,7 +199,7 @@ function AssetCard({
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontWeight: 600, fontSize: 14, color: 'var(--fg)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.title}</p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span className="badge" style={{ fontSize: 11, backgroundColor: typeStyle.bg, color: typeStyle.color }}>{typeStyle.icon} {asset.type}</span>
+            <span className="badge" style={{ fontSize: 11, backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
             {asset.category && <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{asset.category}</span>}
             {asset.tags.slice(0, 3).map(t => (
               <span key={t} style={{ fontSize: 11, color: 'var(--fg-subtle)', backgroundColor: 'var(--bg-subtle)', padding: '1px 6px', borderRadius: 4 }}>#{t}</span>
@@ -238,7 +238,7 @@ function AssetCard({
 
   // Grid card
   return (
-    <div className="card group cursor-pointer flex flex-col" style={{ position: 'relative' }}>
+    <div className="card group cursor-pointer flex flex-col fade-in-up" style={{ position: 'relative' }}>
       {/* Thumbnail — 16:9 */}
       <div className="relative overflow-hidden" style={{ aspectRatio: '16/9', backgroundColor: 'var(--bg-subtle)' }}>
         {asset.thumbnail ? (
@@ -268,7 +268,7 @@ function AssetCard({
           className="absolute top-2 left-2 badge text-xs font-semibold"
           style={{ backgroundColor: typeStyle.bg, color: typeStyle.color, backdropFilter: 'blur(6px)', zIndex: 3 }}
         >
-          {typeStyle.icon} {asset.type}
+          {asset.type}
         </span>
 
         {/* Heart button (top-right) */}
@@ -342,9 +342,11 @@ function AssetCard({
 export default function AssetGrid({
   assets,
   viewMode = 'grid',
+  previewSize = 100,
 }: {
   assets: Asset[]
   viewMode?: 'grid' | 'list'
+  previewSize?: number
 }) {
   const [downloading, setDownloading] = useState<string | null>(null)
   const [showUpgrade, setShowUpgrade] = useState(false)
@@ -419,7 +421,7 @@ export default function AssetGrid({
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(300 * previewSize / 100)}px, 1fr))`, gap: 16 }}>
           {assets.map(asset => (
             <AssetCard
               key={asset.id}
