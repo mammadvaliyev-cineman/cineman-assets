@@ -10,20 +10,20 @@ import { ENGINE_CATS, DEFAULT_ENGINE_CONFIG, EngineConfig } from '@/lib/engine'
 // ─────────────────────────────────────────────────────────────
 
 const RU_TITLES: Record<string, string> = {
-  genre: 'Жанр / Настроение',
-  styles: 'Стиль / Look',
-  shottype: 'Крупность плана',
-  angle: 'Ракурс камеры',
-  lens: 'Объектив',
-  focus: 'Фокус',
-  camtype: 'Тип камеры',
-  camera: 'Движение камеры',
-  light: 'Свет',
-  time: 'Время суток',
-  weather: 'Погода / Атмосфера',
-  delivery: 'Подача голоса',
-  music: 'Музыка',
-  colorgrade: 'Цветокор',
+  genre: 'Genre / Mood',
+  styles: 'Style / Look',
+  shottype: 'Shot Size',
+  angle: 'Camera Angle',
+  lens: 'Lens',
+  focus: 'Focus',
+  camtype: 'Camera Body',
+  camera: 'Camera Movement',
+  light: 'Lighting',
+  time: 'Time of Day',
+  weather: 'Weather / Atmosphere',
+  delivery: 'Voice Delivery',
+  music: 'Music',
+  colorgrade: 'Color Grading',
 }
 
 export default function EnginePage() {
@@ -69,12 +69,12 @@ export default function EnginePage() {
             disabled={saving}
             className="btn-shimmer px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 font-semibold hover:opacity-90 transition disabled:opacity-50"
           >
-            {saving ? 'Сохраняю…' : saved ? 'Сохранено ✓' : 'Сохранить'}
+            {saving ? 'Saving…' : saved ? 'Saved ✓' : 'Save'}
           </button>
         </div>
         <p className="text-white/50 mb-8">
-          Галочка = категория видна в студии как готовые варианты. Без галочки — работает под капотом.
-          Сейчас видно: {visibleCount} из {Object.keys(ENGINE_CATS).length}.
+          Checked = the category shows up in the Studio as ready-made options. Unchecked = it keeps working under the hood.
+          Visible now: {visibleCount} of {Object.keys(ENGINE_CATS).length}.
         </p>
 
         <label className="flex items-center gap-3 mb-8 p-4 rounded-2xl border border-violet-500/30 bg-violet-500/5 cursor-pointer">
@@ -85,8 +85,8 @@ export default function EnginePage() {
             className="w-5 h-5 accent-violet-500"
           />
           <div>
-            <div className="font-semibold">Master Preset — 8K IMAX фотореализм</div>
-            <div className="text-sm text-white/40">Добавлять кинематографичный стайл-блок в каждый промпт</div>
+            <div className="font-semibold">Master Preset — 8K IMAX photorealism</div>
+            <div className="text-sm text-white/40">Append the cinematic style block to every prompt</div>
           </div>
         </label>
 
@@ -109,13 +109,13 @@ export default function EnginePage() {
                 />
                 <div className="flex-1">
                   <div className="font-semibold">{RU_TITLES[id] || cat.title}</div>
-                  <div className="text-xs text-white/40">{cat.items.length} опций · {cat.title}</div>
+                  <div className="text-xs text-white/40">{cat.items.length} options</div>
                 </div>
                 <button
                   onClick={e => { e.preventDefault(); setOpen(open === id ? null : id) }}
                   className="text-xs text-violet-300 hover:text-violet-200 px-2 py-1 rounded-lg bg-white/5"
                 >
-                  {open === id ? 'Скрыть' : 'Показать'}
+                  {open === id ? 'Hide' : 'Show'}
                 </button>
               </label>
               {open === id && (
