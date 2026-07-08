@@ -141,14 +141,21 @@ export async function POST(req: NextRequest) {
       .filter(s => s.score > 0)
       .sort((x, y) => y.score - x.score)
 
-    // If nothing matched, return most recent as browsable fallback
+    // A real match requires the SUBJECT (first keywords) to hit —
+    // generic words like "city"/"sunny" alone are only "similar".
+    const subjectKws = keywords.slice(0, 2)
+    const subjectHit = subjectKws.length
+      ? rows.some(a => scoreAsset(a, subjectKws) > 0)
+      : scored.length > 0
+
+    // If nothing matched, return best-effort similar / most recent
     const pool = scored.length ? scored.map(s => s.asset) : rows
     const page = pool.slice(offset, offset + 4)
 
     return NextResponse.json({
       results: page,
       total: pool.length,
-      matched: scored.length,
+      matched: subjectHit ? scored.length : 0,
       keywords,
       ...(debug ? { _debug: debug } : {}),
     })
