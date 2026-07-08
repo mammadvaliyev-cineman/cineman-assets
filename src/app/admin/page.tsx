@@ -174,8 +174,9 @@ async function cropFace(file: File, box: [number, number, number, number]): Prom
     img.onload = () => {
       const W = img.naturalWidth, H = img.naturalHeight
       const [x, y, w, h] = box
-      const fw = Math.max(w * W, 1)
+      const faceH = Math.max(h * H, 1)
       const faceCx = (x + w / 2) * W
+      const faceCy = (y + h / 2) * H
       // Character sheets are 3 turnaround panels side by side.
       // Clamp the crop inside the panel that holds the face —
       // otherwise a sliver of the neighbouring angle leaks in.
@@ -184,11 +185,13 @@ async function cropFace(file: File, box: [number, number, number, number]): Prom
       const panelIdx = Math.max(0, Math.min(2, Math.floor(faceCx / panelW)))
       const pL = isSheet ? panelIdx * panelW : 0
       const pR = isSheet ? pL + panelW : W
-      let cw = Math.min(pR - pL, fw * 1.45)
-      let ch = Math.min(H, cw * 4 / 3)
-      cw = Math.min(cw, ch * 3 / 4)
+      // Uniform scale: the face always fills ~42% of crop height,
+      // so every portrait in the grid looks identical in zoom.
+      let ch = Math.min(H, faceH / 0.42)
+      let cw = Math.min(pR - pL, ch * 3 / 4)
+      ch = Math.min(ch, cw * 4 / 3)
       const cx = Math.max(pL, Math.min(pR - cw, faceCx - cw / 2))
-      const cy = Math.max(0, Math.min(H - ch, (y + h / 2) * H - ch * 0.45))
+      const cy = Math.max(0, Math.min(H - ch, faceCy - ch * 0.42))
       const canvas = document.createElement('canvas')
       canvas.width = 480
       canvas.height = 640
