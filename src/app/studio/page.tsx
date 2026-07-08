@@ -53,6 +53,9 @@ const I = {
   send: 'M22 2L11 13|M22 2l-7 20-4-9-9-4 20-7z',
   bolt: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
   upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4|M17 8l-5-5-5 5|M12 3v12',
+  dice: 'M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z|M8.5 8.5h.01|M15.5 8.5h.01|M12 12h.01|M8.5 15.5h.01|M15.5 15.5h.01',
+  scroll: 'M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4|M19 17V5a2 2 0 0 0-2-2H4|M13 7h4|M13 11h4',
+  copy: 'M20 9h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2z|M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 7v5l3 2',
   cloud: 'M17.5 19a4.5 4.5 0 0 0 .42-8.98 7 7 0 0 0-13.42 1.9A4 4 0 0 0 6 19h11.5',
   aperture: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M14.3 8L8.6 4.7|M9.7 8h6.9|M12 12l-3.5 6.1|M9.7 16L6.2 9.9|M14.3 16H7.4|M12 12l3.5-6.1|M15.4 9.9l3.4 5.8',
@@ -296,6 +299,9 @@ function AssetCard({ asset, selected, onClick, wide }: { asset: Asset; selected:
   )
 }
 
+// The 8 moves directors reach for first — the rest live in group tabs
+const POPULAR_MOVES = ['Static', 'Slow zoom in', 'Dolly in', 'Tracking shot', 'Orbit clockwise', 'Handheld', 'Crane up', 'FPV drone']
+
 // Категории движка — карточки с иконками (как в референсе), клик
 // открывает вопрос «Категория?» и варианты чипсами.
 function CategoryPicker({
@@ -309,6 +315,7 @@ function CategoryPicker({
   expanded: Record<string, boolean>
   onToggleExpand: (c: string) => void
 }) {
+  const [camGroup, setCamGroup] = useState('Popular')
   const open = openCat && cats.includes(openCat) ? openCat : null
   const cat = open ? ENGINE_CATS[open] : null
   const items = cat ? (expanded[open!] ? cat.items : cat.items.slice(0, 10)) : []
@@ -352,20 +359,30 @@ function CategoryPicker({
           </div>
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
             {open === 'camera' ? (
-              // 50 camera moves — grouped like a real camera department
-              <div className="space-y-4">
-                {Object.entries(CAM_GROUPS).map(([group, moves]) => (
-                  <div key={group}>
-                    <p className="text-[11px] uppercase tracking-widest text-zinc-500 mb-1.5">{group}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {moves.map(label => (
-                        <Chip key={label} active={engineSel[open] === label} onClick={() => onPick(open, engineSel[open] === label ? '' : label)}>
-                          {label}
-                        </Chip>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+              // 50 camera moves — group tabs, one clean row at a time
+              <div>
+                <div className="flex flex-wrap gap-1.5 mb-4 pb-3 border-b border-zinc-800/70">
+                  {['Popular', ...Object.keys(CAM_GROUPS)].map(g => (
+                    <button
+                      key={g}
+                      onClick={() => setCamGroup(g)}
+                      className={`px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider transition-all ${
+                        camGroup === g
+                          ? 'bg-violet-600/25 text-violet-200 border border-violet-500/50 shadow-[0_0_10px_rgba(139,92,246,0.2)]'
+                          : 'text-zinc-500 hover:text-zinc-300 border border-zinc-800'
+                      }`}
+                    >
+                      {g}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-1.5" key={camGroup}>
+                  {(camGroup === 'Popular' ? POPULAR_MOVES : CAM_GROUPS[camGroup] || []).map(label => (
+                    <Chip key={label} active={engineSel[open] === label} onClick={() => onPick(open, engineSel[open] === label ? '' : label)}>
+                      {label}
+                    </Chip>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="flex flex-wrap gap-1.5">
@@ -432,6 +449,28 @@ export default function StudioPage() {
   const [expandedCat, setExpandedCat] = useState<Record<string, boolean>>({})
   const [engineCfg, setEngineCfg] = useState<EngineConfig>(DEFAULT_ENGINE_CONFIG)
   const [openCat, setOpenCat] = useState<string | null>(null)
+
+  // Director's script preview (compiled Seedance prompt)
+  const [script, setScript] = useState('')
+  const [scriptLoading, setScriptLoading] = useState(false)
+  const [scriptCopied, setScriptCopied] = useState(false)
+
+  // "Surprise me" — a coherent random cinematic setup from the engine
+  const surpriseMe = useCallback(() => {
+    const pick = (catId: string) => {
+      const items = ENGINE_CATS[catId]?.items || []
+      return items.length ? items[Math.floor(Math.random() * items.length)][0] : ''
+    }
+    setEngineSel({
+      camera: POPULAR_MOVES[Math.floor(Math.random() * POPULAR_MOVES.length)],
+      shottype: pick('shottype'),
+      light: pick('light'),
+      time: pick('time'),
+      weather: pick('weather'),
+      genre: pick('genre'),
+    })
+    setScript('')
+  }, [])
 
   // render
   const [quality, setQuality] = useState<'draft' | 'final'>('draft')
@@ -627,6 +666,29 @@ export default function StudioPage() {
       if (fileRef.current) fileRef.current.value = ''
     }
   }, [step])
+
+  const loadScript = useCallback(async () => {
+    if (script) { setScript(''); return }
+    setScriptLoading(true)
+    try {
+      const fullAction = [action, extraNote].filter(Boolean).join('. ')
+      const res = await fetch('/api/studio/compile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoType: videoType || 'other',
+          heroes: heroes.map(h => ({ title: h.title, description: h.description })),
+          location: location ? { title: location.title, description: location.description } : null,
+          action: fullAction,
+          engine: engineSel,
+          masterPreset: engineCfg.masterPreset,
+        }),
+      })
+      const { prompt } = await res.json()
+      setScript(prompt || '')
+    } catch { setScript('') }
+    finally { setScriptLoading(false) }
+  }, [script, action, extraNote, videoType, heroes, location, engineSel, engineCfg.masterPreset])
 
   // ── chat input: контекстное действие по шагу ────────────────
   const submitInput = useCallback(() => {
@@ -971,7 +1033,10 @@ export default function StudioPage() {
                       <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{extraNote}</div>
                     </div>
                   )}
-                  <div className="flex justify-end mt-3">
+                  <div className="flex justify-between mt-3">
+                    <button onClick={surpriseMe} title="Random cinematic setup" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-violet-500/40 text-violet-300 hover:bg-violet-950/40 transition-colors text-sm">
+                      <Icon d={I.dice} size={16} /> Surprise me
+                    </button>
                     <button onClick={() => { setOpenCat(null); setStep('details') }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
                       Next <Icon d={I.arrowR} size={15} />
                     </button>
@@ -996,7 +1061,10 @@ export default function StudioPage() {
                       <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{extraNote}</div>
                     </div>
                   )}
-                  <div className="flex justify-end mt-3">
+                  <div className="flex justify-between mt-3">
+                    <button onClick={surpriseMe} title="Random cinematic setup" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-violet-500/40 text-violet-300 hover:bg-violet-950/40 transition-colors text-sm">
+                      <Icon d={I.dice} size={16} /> Surprise me
+                    </button>
                     <button onClick={() => { setOpenCat(null); setStep('confirm') }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
                       Next <Icon d={I.arrowR} size={15} />
                     </button>
@@ -1029,6 +1097,26 @@ export default function StudioPage() {
                       {extraRefs.length > 0 && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.upload} size={15} /></span> {extraRefs.map(r => r.title).join(', ')}</li>}
                       {extraNote && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.bolt} size={15} /></span> {extraNote.slice(0, 70)}</li>}
                     </ul>
+                  </div>
+
+                  {/* Director's script — the exact Seedance prompt */}
+                  <div className="mb-6">
+                    <button onClick={loadScript} className="flex items-center gap-2 text-sm text-violet-300 hover:text-violet-200 transition-colors">
+                      <Icon d={I.scroll} size={16} />
+                      {scriptLoading ? 'Writing the script…' : script ? 'Hide director\u2019s script' : 'Show director\u2019s script'}
+                    </button>
+                    {script && (
+                      <div className="mt-3 relative rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 fade-in-up">
+                        <p className="text-[13px] leading-relaxed text-zinc-300 font-mono whitespace-pre-wrap pr-10">{script}</p>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(script).catch(() => {}); setScriptCopied(true); setTimeout(() => setScriptCopied(false), 1500) }}
+                          title="Copy prompt"
+                          className="absolute top-3 right-3 p-2 rounded-lg text-zinc-500 hover:text-violet-300 hover:bg-violet-500/10 transition-all"
+                        >
+                          {scriptCopied ? <Icon d={I.check} size={15} /> : <Icon d={I.copy} size={15} />}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-4 mb-7">
