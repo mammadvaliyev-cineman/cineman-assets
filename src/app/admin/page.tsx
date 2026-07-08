@@ -175,11 +175,11 @@ async function cropFace(file: File, box: [number, number, number, number]): Prom
       const W = img.naturalWidth, H = img.naturalHeight
       const [x, y, w, h] = box
       const fw = Math.max(w * W, 1)
-      let cw = Math.min(W, fw * 2.4)
+      let cw = Math.min(W, fw * 1.75)
       let ch = Math.min(H, cw * 4 / 3)
       cw = Math.min(cw, ch * 3 / 4)
       const cx = Math.max(0, Math.min(W - cw, (x + w / 2) * W - cw / 2))
-      const cy = Math.max(0, Math.min(H - ch, (y + h / 2) * H - ch * 0.38))
+      const cy = Math.max(0, Math.min(H - ch, (y + h / 2) * H - ch * 0.42))
       const canvas = document.createElement('canvas')
       canvas.width = 480
       canvas.height = 640
