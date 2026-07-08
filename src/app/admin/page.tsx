@@ -165,6 +165,35 @@ async function toWebJpeg(file: File): Promise<File> {
   })
 }
 
+// ── Face-crop thumbnail: AI gives face_box at naming time, we cut
+// a 3:4 head-and-shoulders portrait for catalog/studio cards ──────
+async function cropFace(file: File, box: [number, number, number, number]): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const W = img.naturalWidth, H = img.naturalHeight
+      const [x, y, w, h] = box
+      const fw = Math.max(w * W, 1)
+      let cw = Math.min(W, fw * 2.4)
+      let ch = Math.min(H, cw * 4 / 3)
+      cw = Math.min(cw, ch * 3 / 4)
+      const cx = Math.max(0, Math.min(W - cw, (x + w / 2) * W - cw / 2))
+      const cy = Math.max(0, Math.min(H - ch, (y + h / 2) * H - ch * 0.38))
+      const canvas = document.createElement('canvas')
+      canvas.width = 480
+      canvas.height = 640
+      canvas.getContext('2d')!.drawImage(img, cx, cy, cw, ch, 0, 0, 480, 640)
+      canvas.toBlob(b => {
+        URL.revokeObjectURL(url)
+        b ? resolve(new File([b], 'face.jpg', { type: 'image/jpeg' })) : reject(new Error('crop failed'))
+      }, 'image/jpeg', 0.85)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('img load')) }
+    img.src = url
+  })
+}
+
 // ── Batch queue item ─────────────────────────────────────────
 type BatchItem = {
   id: string
@@ -176,6 +205,7 @@ type BatchItem = {
   status: 'pending' | 'uploading' | 'done' | 'error'
   errorMsg?: string
   aiLoading?: boolean
+  faceBox?: [number, number, number, number] | null
 }
 
 // ── Main Component ──────────────────────────────────────────
@@ -301,6 +331,7 @@ export default function AdminPage() {
                         tags:  ai.tags  || '',
                         type:  ai.type  || it.type,
                         description: ai.description || '',
+                        faceBox: ai.face_box || null,
                         aiLoading: false,
                       }
                     : it
@@ -352,7 +383,16 @@ export default function AdminPage() {
         if (fileErr) throw fileErr
 
         const isImage = item.file.type.startsWith('image/')
-        const thumbPath = isImage ? filePath : ''
+        let thumbPath = isImage ? filePath : ''
+        // Character sheets: upload a face-crop as the thumbnail
+        if (isImage && item.faceBox) {
+          try {
+            const faceFile = await cropFace(item.file, item.faceBox)
+            const fPath = filePath.replace(/\.[a-z0-9]+$/i, '') + '-face.jpg'
+            const { error: fErr } = await supabase.storage.from('assets').upload(fPath, faceFile, { cacheControl: '3600', upsert: false })
+            if (!fErr) thumbPath = fPath
+          } catch { /* fall back to full image */ }
+        }
 
         const { data: fileUrlData } = supabase.storage.from('assets').getPublicUrl(filePath)
         const thumbUrl = thumbPath
