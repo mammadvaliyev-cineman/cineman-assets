@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { CATEGORIES, STYLES, MOODS, LIGHTING, getSubcategoriesFor } from '@/config/categories'
+import { CATEGORIES, STYLES, MOODS, LIGHTING, Category, makeSubcategory } from '@/config/categories'
 
 // ── Types ───────────────────────────────────────────────────
 type AssetRow = {
@@ -51,6 +51,28 @@ function SpinnerIcon() {
       <path d="M21 12a9 9 0 1 1-6.219-8.56" />
     </svg>
   )
+}
+
+// ── Thin line icons — same style as the catalog ─────────────
+function LineIcon({ d, size = 18, color = 'currentColor' }: { d: string; size?: number; color?: string }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      {d.split('|').map((p, i) => <path key={i} d={p} />)}
+    </svg>
+  )
+}
+const TYPE_ICON: Record<string, string> = {
+  Character: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2|M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  Location: 'M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z|M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  Vehicle: 'M14 16H9m10 0h3v-3.15a1 1 0 0 0-.84-.99L16 11l-2.7-3.6a1 1 0 0 0-.8-.4H5.24a2 2 0 0 0-1.8 1.1l-.8 1.63A6 6 0 0 0 2 12.42V16h2|M6.5 18.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z|M16.5 18.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  Prop: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8z|M3.3 7l8.7 5 8.7-5|M12 22V12',
+  grid: 'M3 3h7v7H3z|M14 3h7v7h-7z|M14 14h7v7h-7z|M3 14h7v7H3z',
+  palette: 'M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3 3h-2a2 2 0 0 0-2 2c0 1 .5 1.5.5 2.5S13.5 21 12 21z|M7.5 11a1 1 0 1 0 0-2|M12 8a1 1 0 1 0 0-2|M16.5 11a1 1 0 1 0 0-2',
+  smile: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M8 14s1.5 2 4 2 4-2 4-2|M9 9h.01|M15 9h.01',
+  bulb: 'M9 18h6|M10 22h4|M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3h6c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z',
+  engine: 'M4 21v-7|M4 10V3|M12 21v-9|M12 8V3|M20 21v-5|M20 12V3|M1 14h6|M9 8h6|M17 16h6',
+  x: 'M18 6L6 18|M6 6l12 12',
+  plus: 'M12 5v14|M5 12h14',
 }
 
 
@@ -239,9 +261,47 @@ export default function AdminPage() {
   const [batchStyle, setBatchStyle] = useState('')
   const [batchMood, setBatchMood] = useState('')
 
+  // ── Live-editable taxonomy (Supabase-backed) ────────────
+  const [taxonomy, setTaxonomy] = useState<Category[]>(CATEGORIES)
+  const [catSaving, setCatSaving] = useState(false)
+  const [catSaved, setCatSaved] = useState(false)
+  const [newSub, setNewSub] = useState<Record<string, string>>({})
+
+  const subsFor = (catId: string) => taxonomy.find(c => c.id === catId)?.subcategories ?? []
+
+  const addSub = (catId: string) => {
+    const label = (newSub[catId] || '').trim()
+    if (!label) return
+    setTaxonomy(t => t.map(c => c.id === catId && !c.subcategories.some(s => s.label.toLowerCase() === label.toLowerCase())
+      ? { ...c, subcategories: [...c.subcategories, makeSubcategory(label)] }
+      : c))
+    setNewSub(s => ({ ...s, [catId]: '' }))
+    setCatSaved(false)
+  }
+
+  const removeSub = (catId: string, subId: string) => {
+    setTaxonomy(t => t.map(c => c.id === catId ? { ...c, subcategories: c.subcategories.filter(s => s.id !== subId) } : c))
+    setCatSaved(false)
+  }
+
+  const saveTaxonomy = async () => {
+    setCatSaving(true)
+    await fetch('/api/categories', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ categories: taxonomy }),
+    }).catch(() => {})
+    setCatSaving(false)
+    setCatSaved(true)
+  }
+
   // ── Load stats ──────────────────────────────────────────
   useEffect(() => {
     loadStats()
+    fetch('/api/categories')
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.categories) && d.categories.length) setTaxonomy(d.categories) })
+      .catch(() => {})
   }, [])
 
   async function loadStats() {
@@ -479,6 +539,13 @@ export default function AdminPage() {
             {tab}
           </button>
         ))}
+        <a
+          href="/engine"
+          className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all"
+          style={{ color: '#9765E0' }}
+        >
+          <LineIcon d={TYPE_ICON.engine} size={15} /> Engine
+        </a>
       </div>
 
       {/* ── Overview Tab ────────────────────────────────────── */}
@@ -596,21 +663,22 @@ export default function AdminPage() {
                         key={asset.id}
                         style={{ borderBottom: '1px solid var(--border)' }}
                       >
-                        {/* Thumbnail */}
+                        {/* Thumbnail — horizontal 16:9 preview of the full sheet */}
                         <td className="px-3 py-2">
-                          {asset.thumbnail_url ? (
+                          {asset.file_url || asset.thumbnail_url ? (
                             <img
-                              src={asset.thumbnail_url}
+                              src={asset.file_url || asset.thumbnail_url}
                               alt=""
                               className="rounded-lg object-cover"
-                              style={{ width: 52, height: 52 }}
+                              style={{ width: 96, height: 54 }}
+                              loading="lazy"
                             />
                           ) : (
                             <div
-                              className="rounded-lg flex items-center justify-center text-xl"
-                              style={{ width: 52, height: 52, backgroundColor: 'var(--bg-subtle)' }}
+                              className="rounded-lg flex items-center justify-center"
+                              style={{ width: 96, height: 54, backgroundColor: 'var(--bg-subtle)', color: 'var(--fg-subtle)' }}
                             >
-                              {asset.type === 'Character' ? '🎭' : '📍'}
+                              <LineIcon d={TYPE_ICON[asset.type] || TYPE_ICON.grid} size={20} />
                             </div>
                           )}
                         </td>
@@ -710,8 +778,8 @@ export default function AdminPage() {
                   value={batchCategory}
                   onChange={e => { setBatchCategory(e.target.value); setBatchSubcategory('') }}
                 >
-                  {CATEGORIES.map(c => (
-                    <option key={c.id} value={c.id}>{c.emoji} {c.label}</option>
+                  {taxonomy.map(c => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
                   ))}
                 </select>
               </div>
@@ -724,7 +792,7 @@ export default function AdminPage() {
                   onChange={e => setBatchSubcategory(e.target.value)}
                 >
                   <option value="">— All —</option>
-                  {getSubcategoriesFor(batchCategory).map(s => (
+                  {subsFor(batchCategory).map(s => (
                     <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
                 </select>
@@ -848,30 +916,74 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ── Categories Tab ──────────────────────────────────────── */}
+      {/* ── Categories Tab — live-editable taxonomy ─────────────── */}
       {activeTab === 'categories' && (
         <div>
-          <p className="text-sm mb-6" style={{ color: 'var(--fg-muted)' }}>
-            Full taxonomy used in batch uploads and catalog filters. To add categories, edit <code style={{ color: '#9765E0' }}>src/config/categories.ts</code>.
-          </p>
+          <div className="flex items-center justify-between mb-6">
+            <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+              Taxonomy mirrors your Dropbox folders: type → subcategories. Add or remove right here, then hit Save.
+            </p>
+            <button
+              onClick={saveTaxonomy}
+              disabled={catSaving}
+              className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-50"
+              style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)', boxShadow: '0 0 12px rgba(151,101,224,0.4)' }}
+            >
+              {catSaving ? 'Saving…' : catSaved ? 'Saved ✓' : 'Save'}
+            </button>
+          </div>
 
-          {/* Category grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-            {CATEGORIES.map(cat => (
+          {/* Editable category grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            {taxonomy.map(cat => (
               <div key={cat.id} className="card p-5" style={{ borderLeft: `3px solid ${cat.color}` }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-xl">{cat.emoji}</span>
+                <div className="flex items-center gap-2.5 mb-3">
+                  <span
+                    className="flex items-center justify-center rounded-lg"
+                    style={{ width: 32, height: 32, backgroundColor: `${cat.color}1a`, border: `1px solid ${cat.color}40`, color: cat.color }}
+                  >
+                    <LineIcon d={TYPE_ICON[cat.id] || TYPE_ICON.grid} size={16} />
+                  </span>
                   <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{cat.label}</span>
                   <span className="ml-auto text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: `${cat.color}22`, color: cat.color }}>
                     {cat.subcategories.length} sub
                   </span>
                 </div>
-                <div className="flex flex-wrap gap-1">
-                  {cat.subcategories.map(sub => (
-                    <span key={sub.id} className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--fg-muted)' }}>
-                      {sub.label}
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {cat.subcategories.map(s => (
+                    <span
+                      key={s.id}
+                      className="group flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                      style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--fg-muted)', border: '1px solid var(--border)' }}
+                    >
+                      {s.label}
+                      <button
+                        onClick={() => removeSub(cat.id, s.id)}
+                        title="Remove"
+                        className="opacity-40 hover:opacity-100 transition-opacity"
+                        style={{ color: '#ff5f5f' }}
+                      >
+                        <LineIcon d={TYPE_ICON.x} size={11} />
+                      </button>
                     </span>
                   ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={newSub[cat.id] || ''}
+                    onChange={e => setNewSub(s => ({ ...s, [cat.id]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && addSub(cat.id)}
+                    placeholder="New subcategory…"
+                    className="input-field flex-1 text-xs"
+                    style={{ padding: '6px 10px' }}
+                  />
+                  <button
+                    onClick={() => addSub(cat.id)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    style={{ backgroundColor: `${cat.color}1a`, color: cat.color, border: `1px solid ${cat.color}40` }}
+                  >
+                    <LineIcon d={TYPE_ICON.plus} size={12} /> Add
+                  </button>
                 </div>
               </div>
             ))}
@@ -880,13 +992,13 @@ export default function AdminPage() {
           {/* Style / Mood / Lighting */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { label: 'Styles', emoji: '🎨', items: STYLES, color: '#9765E0' },
-              { label: 'Moods', emoji: '🎭', items: MOODS, color: '#CE95FB' },
-              { label: 'Lighting', emoji: '💡', items: LIGHTING, color: '#00C2BA' },
+              { label: 'Styles', icon: TYPE_ICON.palette, items: STYLES, color: '#9765E0' },
+              { label: 'Moods', icon: TYPE_ICON.smile, items: MOODS, color: '#CE95FB' },
+              { label: 'Lighting', icon: TYPE_ICON.bulb, items: LIGHTING, color: '#00C2BA' },
             ].map(group => (
               <div key={group.label} className="card p-5" style={{ borderLeft: `3px solid ${group.color}` }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="text-lg">{group.emoji}</span>
+                <div className="flex items-center gap-2 mb-3" style={{ color: group.color }}>
+                  <LineIcon d={group.icon} size={16} />
                   <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{group.label}</span>
                 </div>
                 <div className="flex flex-col gap-1">
