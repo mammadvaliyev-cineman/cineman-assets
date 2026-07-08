@@ -86,11 +86,16 @@ async function polish(prompt: string, action: string): Promise<string> {
             text: `You are a film director writing a prompt for the Seedance 2.0 video model. Rewrite the draft below into ONE fluent English paragraph (max 120 words). RULES: keep every @imageN reference binding exactly as written; keep all camera, framing, atmosphere and style facts; translate any non-English action description to English; do not invent new major elements. Return ONLY the prompt text.\n\nDRAFT:\n${prompt}\n\nORIGINAL USER ACTION (may be non-English): ${action}`,
           }],
         }],
-        generationConfig: { temperature: 0.4, maxOutputTokens: 300 },
+        generationConfig: {
+          temperature: 0.4,
+          maxOutputTokens: 800,
+          thinkingConfig: { thinkingBudget: 0 },
+        },
       }),
     })
     const json = await res.json()
-    const out = json?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
+    const polishParts: Array<{ text?: string }> = json?.candidates?.[0]?.content?.parts || []
+    const out = polishParts.map(p => p.text || '').join('').trim()
     return out || prompt
   } catch {
     return prompt
