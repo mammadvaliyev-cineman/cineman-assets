@@ -48,11 +48,26 @@ function getFavs(): Set<string> {
   try { return new Set(JSON.parse(localStorage.getItem('cineman_favs') ?? '[]')) } catch { return new Set() }
 }
 
+function notifyStoreChanged() {
+  try { window.dispatchEvent(new Event('cineman-store-changed')) } catch { /* SSR */ }
+}
+
 function toggleFav(id: string): Set<string> {
   const favs = getFavs()
   if (favs.has(id)) favs.delete(id); else favs.add(id)
   localStorage.setItem('cineman_favs', JSON.stringify(Array.from(favs)))
+  notifyStoreChanged()
   return new Set(favs)
+}
+
+// ── Download history (localStorage, persisted) ───────────────
+function recordDownload(id: string) {
+  try {
+    const ids: string[] = JSON.parse(localStorage.getItem('cineman_dl_ids') ?? '[]')
+    if (!ids.includes(id)) ids.push(id)
+    localStorage.setItem('cineman_dl_ids', JSON.stringify(ids))
+    notifyStoreChanged()
+  } catch { /* ignore */ }
 }
 
 // ── Icons ────────────────────────────────────────────────────
@@ -374,6 +389,7 @@ export default function AssetGrid({
       const json = await res.json()
       if (json.url) {
         setFreeUsed(incrementFreeDownloads())
+        recordDownload(asset.id)
         window.location.href = json.url
       } else {
         alert(json.error || 'Download failed')
