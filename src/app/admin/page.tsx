@@ -142,6 +142,29 @@ async function toCleanJpeg(file: File): Promise<File> {
   })
 }
 
+// ── Web-size compress for upload: 1600px JPEG (~0.4MB vs 7MB PNG) ──
+// Originals stay in Dropbox as master archive; web + Seedance only
+// need reference-grade resolution. 20x faster uploads, 20x less storage.
+async function toWebJpeg(file: File): Promise<File> {
+  return new Promise(resolve => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const scale = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight))
+      canvas.width = Math.round(img.naturalWidth * scale)
+      canvas.height = Math.round(img.naturalHeight * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url)
+        resolve(blob ? new File([blob], 'image.jpg', { type: 'image/jpeg' }) : file)
+      }, 'image/jpeg', 0.85)
+    }
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+    img.src = url
+  })
+}
+
 // ── Batch queue item ─────────────────────────────────────────
 type BatchItem = {
   id: string
@@ -319,12 +342,13 @@ export default function AdminPage() {
       try {
         const ts = Date.now()
         const safeTitle = item.title.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
-        const ext = item.file.name.split('.').pop()
+        const ext = item.file.type.startsWith('image/') ? 'jpg' : item.file.name.split('.').pop()
         const filePath = `${item.type.toLowerCase().replace(/\s+/g, '-')}/${ts}-${safeTitle}.${ext}`
 
+        const uploadFile = item.file.type.startsWith('image/') ? await toWebJpeg(item.file) : item.file
         const { error: fileErr } = await supabase.storage
           .from('assets')
-          .upload(filePath, item.file, { cacheControl: '3600', upsert: false })
+          .upload(filePath, uploadFile, { cacheControl: '3600', upsert: false })
         if (fileErr) throw fileErr
 
         const isImage = item.file.type.startsWith('image/')
