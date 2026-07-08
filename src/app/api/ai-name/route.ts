@@ -1,18 +1,41 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { supabase } from '@/lib/supabase'
+import { CATEGORIES, Category } from '@/config/categories'
 
 export const maxDuration = 30
 
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
 
-const PROMPT = `You are a professional cinematographer and art director analyzing images for a high-end cinematic asset library called Cineman.
+// Live taxonomy (admin-editable) with code defaults as fallback
+async function loadTaxonomy(): Promise<Category[]> {
+  try {
+    const { data } = await supabase
+      .from('assets')
+      .select('description')
+      .eq('type', 'Config')
+      .eq('title', 'categories-config')
+      .limit(1)
+    const saved = data?.[0]?.description ? JSON.parse(data[0].description) : null
+    return Array.isArray(saved) && saved.length ? saved : CATEGORIES
+  } catch {
+    return CATEGORIES
+  }
+}
+
+function buildPrompt(taxonomy: Category[]): string {
+  const typeIds = taxonomy.map(c => c.id).join(' | ')
+  const catLines = taxonomy
+    .map(c => `  ${c.id}: ${c.subcategories.map(s => s.label).join(' | ')}`)
+    .join('\n')
+  return `You are a professional cinematographer and art director analyzing images for a high-end cinematic asset library called Cineman.
 
 TASK: Carefully study everything visible in this image — lighting, mood, environment, subjects, colors, textures, time of day, atmosphere — then return ONLY valid JSON (no markdown, no code block, no explanation) with exactly these fields:
 
 {
   "title": "Precise cinematic title based on WHAT YOU SEE (4-6 words, Title Case). Must describe the actual content, NOT generic. Examples: Rain-Soaked Tokyo Alley at Dawn, Weathered Fisherman Portrait Golden Hour, Brutalist Rooftop Sunset Moscow",
-  "type": "Location or Character — Location means places/environments/landscapes/architecture/interiors. Character means people/portraits/figures/faces",
-  "category": "Single category word: Urban | Nature | Portrait | Aerial | Interior | Desert | Forest | Industrial | Coastal | Mountain | Sci-Fi | Fantasy | Street | Architecture | Underwater | Studio",
+  "type": "EXACTLY one of: ${typeIds}. Location = places/environments/interiors. Character = people/creatures/figures. Vehicle = cars/aircraft/ships. Prop = objects/items",
+  "category": "EXACTLY one subcategory label from the list matching the chosen type:\n${catLines}",
   "description": "2-3 sentence cinematic description of EXACTLY what is in the frame. Describe: main subject, environment/setting, lighting quality and direction, mood/atmosphere, notable visual details. Write like a film director shot notes.",
   "tags": ["tag1", "..."] — exactly 12 lowercase tags specific to THIS image. For people ALWAYS include: gender (man/woman), age group (young/middle-aged/elderly), hair color, key wardrobe items, build, vibe. Also add: visual style, lighting, mood, color, genre, environment,
   "face_box": [x, y, width, height] — normalized 0-1 box around the clearest FRONTAL FACE (head only) in the image. If the sheet shows several views of one person, pick the view facing the camera. Use null if no clear frontal face
@@ -20,10 +43,12 @@ TASK: Carefully study everything visible in this image — lighting, mood, envir
 
 RULES:
 - Base title and description ONLY on what you actually see in the image
+- type and category MUST be picked from the allowed lists above, exactly as written
 - Title must be specific, never generic
 - Description must name concrete visual details: actual colors, light direction, textures you see
 - Tags must be specific to THIS image — never use generic tags like beautiful or nice
 - Return ONLY the JSON object, nothing else`
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,6 +66,8 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer()
     const base64 = Buffer.from(bytes).toString('base64')
     const mimeType = file.type || 'image/jpeg'
+    const taxonomy = await loadTaxonomy()
+    const PROMPT = buildPrompt(taxonomy)
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 20000)
@@ -89,9 +116,10 @@ export async function POST(req: NextRequest) {
     }
 
     const parsed = JSON.parse(jsonMatch[0])
+    const validTypes = taxonomy.map(c => c.id)
     return NextResponse.json({
       title: String(parsed.title ?? ''),
-      type: parsed.type === 'Character' ? 'Character' : 'Location',
+      type: validTypes.includes(parsed.type) ? parsed.type : 'Location',
       category: String(parsed.category ?? ''),
       description: String(parsed.description ?? ''),
       tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 12).join(', ') : '',
