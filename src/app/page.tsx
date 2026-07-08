@@ -55,14 +55,14 @@ export default function HomePage() {
               animationDelay: "0.08s",
             }}
           >
-            <LineIcon d={D.clapper} size={14} /> AI-Powered Cinematic Studio
+            <LineIcon d={D.clapper} size={14} /> Your Personal AI Film Studio
           </span>
 
           <h1
             className="text-5xl md:text-7xl font-bold mb-6 leading-tight fade-in-up"
             style={{ color: "var(--fg)", animationDelay: "0.16s" }}
           >
-            Premium AI Assets
+            Direct Films
             <br />
             <span
               style={{
@@ -71,7 +71,7 @@ export default function HomePage() {
                 WebkitTextFillColor: "transparent",
               }}
             >
-              for Filmmakers
+              with an AI Director
             </span>
           </h1>
 
@@ -79,8 +79,8 @@ export default function HomePage() {
             className="text-xl mb-10 max-w-2xl mx-auto fade-in-up"
             style={{ color: "var(--fg-muted)", animationDelay: "0.24s" }}
           >
-            AI-generated locations and characters for film, advertising, and creative production.
-            Commercial license included.
+            Tell Cineman your idea — he casts the heroes, picks the locations and shoots
+            cinematic video for films, ads and music videos. Commercial license included.
           </p>
 
           <div className="flex flex-wrap gap-4 justify-center fade-in-up" style={{ animationDelay: "0.32s" }}>
@@ -95,9 +95,9 @@ export default function HomePage() {
           {/* Stats */}
           <div className="mt-16 grid grid-cols-3 gap-8 max-w-lg mx-auto fade-in-up" style={{ animationDelay: "0.4s" }}>
             {[
-              ["2", "Asset Types"],
-              ["∞", "Inspiration"],
-              ["3", "Plans"],
+              ["1900+", "Ready Assets"],
+              ["7 steps", "Idea → Video"],
+              ["1", "AI Director"],
             ].map(([val, label]) => (
               <div key={label}>
                 <div className="text-3xl font-bold" style={{ color: "#9765E0" }}>
@@ -119,28 +119,28 @@ export default function HomePage() {
             Everything You Need
           </h2>
           <p style={{ color: "var(--fg-muted)" }}>
-            Professional-grade AI assets built for cinematic production
+            One studio: AI director, ready cast and locations, cinematic video generation
           </p>
         </div>
 
         <div className="grid md:grid-cols-3 gap-6">
           {[
             {
-              icon: D.location,
-              title: "AI Locations",
-              desc: "Cinematic AI-generated environments — interiors, exteriors, urban, nature. Ready for production.",
+              icon: D.clapper,
+              title: "AI Director Studio",
+              desc: "Chat with Cineman: pick the type, cast heroes, set the scene — he writes the prompt and shoots the video for you.",
               accent: "#9765E0",
             },
             {
               icon: D.character,
-              title: "AI Characters",
-              desc: "Photorealistic AI-generated characters for storyboards, lookbooks, and reference.",
+              title: "Ready Cast & Locations",
+              desc: "A curated base of consistent characters and cinematic locations. Search it, reuse it — or upload your own.",
               accent: "#CE95FB",
             },
             {
               icon: D.bolt,
-              title: "Instant Download",
-              desc: "No watermarks. Full commercial license. Download and use immediately in your projects.",
+              title: "Cinematic Video in Minutes",
+              desc: "Seedance-powered generation with face-consistent heroes. Draft fast, finalize in 1080p with audio. Commercial license.",
               accent: "#00C2BA",
             },
           ].map(({ icon, title, desc, accent }, i) => (
@@ -185,10 +185,10 @@ export default function HomePage() {
           <LineIcon d={D.sparkles} size={34} />
         </div>
         <h2 className="text-3xl font-bold mb-4" style={{ color: "var(--fg)" }}>
-          Ready to create?
+          Ready to shoot your first AI film?
         </h2>
         <p className="mb-8" style={{ color: "var(--fg-muted)" }}>
-          Get access to all cinematic AI assets starting at $9.99/mo
+          Chat with your AI director and get your first cinematic shot today. Plans from $9.99/mo
         </p>
         <Link href="/pricing" className="btn-primary btn-shimmer">
           Get Started
