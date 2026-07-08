@@ -85,6 +85,16 @@ const RU_EN: Record<string, string> = {
   'Эпично': 'epic grand', 'Тепло': 'warm golden', 'Драматично': 'dark dramatic', 'Неон': 'neon night', 'Минимализм': 'minimal clean',
 }
 
+const STEP_LABELS: { id: Step; label: string }[] = [
+  { id: 'type', label: 'Тип' },
+  { id: 'hero', label: 'Герой' },
+  { id: 'location', label: 'Локация' },
+  { id: 'action', label: 'Действие' },
+  { id: 'camera', label: 'Камера' },
+  { id: 'details', label: 'Атмосфера' },
+  { id: 'confirm', label: 'Финал' },
+]
+
 function Mascot({ size = 64 }: { size?: number }) {
   return (
     <>
@@ -101,14 +111,22 @@ function Mascot({ size = 64 }: { size?: number }) {
   )
 }
 
-function Robot({ line }: { line: string }) {
+function Robot({ line, typing }: { line: string; typing?: boolean }) {
   return (
     <div className="flex items-end gap-4 mb-8">
       <Mascot size={96} />
       <div className="pb-2">
         <p className="text-violet-400/80 text-xs font-medium mb-1.5 ml-1 tracking-wide">Cineman</p>
         <div className="bg-zinc-900/80 backdrop-blur border border-zinc-800 rounded-3xl rounded-bl-md px-5 py-3.5 text-zinc-100 text-[15px] leading-relaxed max-w-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
-          {line}
+          {typing ? (
+            <span className="flex items-center gap-1.5 py-1 px-0.5">
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+              <span className="typing-dot" />
+            </span>
+          ) : (
+            <span className="fade-in-up" style={{ display: 'block' }}>{line}</span>
+          )}
         </div>
       </div>
     </div>
@@ -195,8 +213,16 @@ export default function StudioPage() {
   const [videoUrl, setVideoUrl] = useState('')
   const [error, setError] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [typing, setTyping] = useState(false)
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
+
+  // Cineman "types" for a moment on every step change — chat feel
+  useEffect(() => {
+    setTyping(true)
+    const t = setTimeout(() => setTyping(false), 700)
+    return () => clearTimeout(t)
+  }, [step])
 
   const search = useCallback(async (assetType: 'Character' | 'Location', text: string, offset: number) => {
     setSearching(true)
@@ -310,20 +336,56 @@ export default function StudioPage() {
       <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(700px 420px at 50% -80px, rgba(124,58,237,0.16), transparent 70%)' }} />
 
       <div className="relative max-w-3xl mx-auto px-6 py-10">
-        {/* Segmented progress */}
+        {/* Step navigation — numbered, past steps clickable */}
         {stepIndex >= 0 && (
-          <div className="flex gap-1.5 justify-center mb-12">
-            {STEPS.map((s, i) => (
-              <div
-                key={s}
-                className="h-1.5 rounded-full transition-all duration-300"
-                style={{
-                  width: i === stepIndex ? 44 : 28,
-                  background: i <= stepIndex ? 'linear-gradient(90deg,#8b5cf6,#6d28d9)' : 'rgba(63,63,70,0.6)',
-                  boxShadow: i === stepIndex ? '0 0 12px rgba(139,92,246,0.5)' : 'none',
-                }}
-              />
-            ))}
+          <div className="flex flex-wrap gap-1.5 justify-center mb-6">
+            {STEP_LABELS.map((sl, i) => {
+              const isCurrent = i === stepIndex
+              const isPast = i < stepIndex
+              return (
+                <button
+                  key={sl.id}
+                  onClick={() => isPast && setStep(sl.id)}
+                  disabled={!isPast}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all"
+                  style={{
+                    background: isCurrent ? 'linear-gradient(135deg,#8b5cf6,#6d28d9)' : isPast ? 'rgba(139,92,246,0.12)' : 'rgba(39,39,42,0.5)',
+                    color: isCurrent ? '#fff' : isPast ? '#c4b5fd' : '#52525b',
+                    border: `1px solid ${isCurrent ? 'rgba(167,139,250,0.6)' : isPast ? 'rgba(139,92,246,0.25)' : 'rgba(63,63,70,0.5)'}`,
+                    boxShadow: isCurrent ? '0 0 16px rgba(139,92,246,0.4)' : 'none',
+                    cursor: isPast ? 'pointer' : 'default',
+                  }}
+                >
+                  <span
+                    className="flex items-center justify-center rounded-full text-[10px] font-bold"
+                    style={{ width: 16, height: 16, background: isCurrent ? 'rgba(255,255,255,0.25)' : isPast ? 'rgba(139,92,246,0.3)' : 'rgba(63,63,70,0.6)' }}
+                  >
+                    {isPast ? '✓' : i + 1}
+                  </span>
+                  {sl.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Live selections bar */}
+        {stepIndex >= 1 && (hero || location) && (
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-8 fade-in-up">
+            {hero && (
+              <span className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full bg-zinc-900/70 border border-zinc-800 text-xs text-zinc-300">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={hero.thumbnail_url || hero.file_url} alt="" className="w-6 h-6 rounded-full object-cover" style={{ objectPosition: 'center top' }} />
+                {(hero.title || 'Герой').slice(0, 24)}
+              </span>
+            )}
+            {location && (
+              <span className="flex items-center gap-2 pl-1 pr-3 py-1 rounded-full bg-zinc-900/70 border border-zinc-800 text-xs text-zinc-300">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={location.thumbnail_url || location.file_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                {(location.title || 'Локация').slice(0, 24)}
+              </span>
+            )}
           </div>
         )}
 
@@ -331,6 +393,7 @@ export default function StudioPage() {
           <div className="mb-6 px-4 py-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-sm">{error}</div>
         )}
 
+        <div key={step} className="fade-in-up">
         {/* STEP: type — welcome */}
         {step === 'type' && (
           <div className="text-center">
@@ -358,7 +421,7 @@ export default function StudioPage() {
         {/* STEP: hero */}
         {step === 'hero' && (
           <div>
-            <Robot line="Кто главный герой? Опиши его — я найду варианты в базе." />
+            <Robot typing={typing} line="Кто главный герой? Опиши его — я найду варианты в базе." />
             <div className="flex gap-2 mb-6">
               <div className="relative flex-1">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500"><Icon d={I.search} size={17} /></span>
@@ -414,7 +477,7 @@ export default function StudioPage() {
         {/* STEP: location */}
         {step === 'location' && (
           <div>
-            <Robot line="Где происходит действие? Опиши локацию." />
+            <Robot typing={typing} line="Где происходит действие? Опиши локацию." />
             <div className="flex gap-2 mb-6">
               <div className="relative flex-1">
                 <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500"><Icon d={I.search} size={17} /></span>
@@ -470,7 +533,7 @@ export default function StudioPage() {
         {/* STEP: action */}
         {step === 'action' && (
           <div>
-            <Robot line="Что происходит в кадре? Опиши действие своими словами." />
+            <Robot typing={typing} line="Что происходит в кадре? Опиши действие своими словами." />
             <textarea
               value={action}
               onChange={e => setAction(e.target.value)}
@@ -494,7 +557,7 @@ export default function StudioPage() {
         {/* STEP: camera */}
         {step === 'camera' && (
           <div>
-            <Robot line="Как работает камера? Выбери — или доверься мне." />
+            <Robot typing={typing} line="Как работает камера? Выбери — или доверься мне." />
             <SectionLabel icon={I.camera}>Движение</SectionLabel>
             <div className="flex flex-wrap gap-2 mb-6">
               {CAM_MOVES.map(m => <Chip key={m.id} active={camMove === m.id} onClick={() => setCamMove(m.id)}>{m.label}</Chip>)}
@@ -517,7 +580,7 @@ export default function StudioPage() {
         {/* STEP: details */}
         {step === 'details' && (
           <div>
-            <Robot line="Добавим атмосферу? Это по желанию — могу решить сам." />
+            <Robot typing={typing} line="Добавим атмосферу? Это по желанию — могу решить сам." />
             <SectionLabel icon={I.sun}>Погода</SectionLabel>
             <div className="flex flex-wrap gap-2 mb-6">
               {WEATHER.map(w => <Chip key={w} active={weather === w} onClick={() => setWeather(weather === w ? '' : w)}>{w}</Chip>)}
@@ -540,7 +603,7 @@ export default function StudioPage() {
         {/* STEP: confirm */}
         {step === 'confirm' && (
           <div>
-            <Robot line="Всё готово к съёмке! Проверь и жми «Снимаем»." />
+            <Robot typing={typing} line="Всё готово к съёмке! Проверь и жми «Снимаем»." />
             <div className="p-5 rounded-2xl bg-zinc-900/50 backdrop-blur border border-zinc-800 mb-7">
               <div className="flex gap-3 mb-5">
                 {hero && (
@@ -574,7 +637,7 @@ export default function StudioPage() {
 
             <div className="flex justify-between items-center">
               <button onClick={() => setStep('details')} className="flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 text-sm transition-colors"><Icon d={I.arrowL} size={15} /> Назад</button>
-              <button onClick={startRender} className="flex items-center gap-2.5 px-10 py-3.5 rounded-2xl text-white text-lg font-medium transition-all hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg,#8b5cf6,#6d28d9)', boxShadow: '0 8px 32px rgba(139,92,246,0.4)' }}>
+              <button onClick={startRender} className="btn-shimmer glow-pulse flex items-center gap-2.5 px-10 py-3.5 rounded-2xl text-white text-lg font-medium transition-all hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg,#8b5cf6,#6d28d9)' }}>
                 <Icon d={I.clapper} /> Снимаем!
               </button>
             </div>
@@ -597,7 +660,7 @@ export default function StudioPage() {
         {/* STEP: result */}
         {step === 'result' && (
           <div>
-            <Robot line="Готово! Вот твой ролик." />
+            <Robot typing={typing} line="Готово! Вот твой ролик." />
             <video src={videoUrl} controls autoPlay loop className="w-full rounded-2xl border border-zinc-800 mb-6 shadow-[0_8px_40px_rgba(0,0,0,0.5)]" />
             <div className="flex flex-wrap gap-3">
               <a href={videoUrl} download className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
@@ -615,6 +678,7 @@ export default function StudioPage() {
             <p className="text-zinc-600 text-xs mt-4">Ссылка на видео живёт ~24 часа — скачай сразу.</p>
           </div>
         )}
+        </div>
       </div>
     </div>
   )
