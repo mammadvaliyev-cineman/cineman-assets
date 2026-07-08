@@ -51,6 +51,68 @@ const I = {
   mic: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z|M19 10v2a7 7 0 0 1-14 0v-2|M12 19v4|M8 23h8',
   send: 'M22 2L11 13|M22 2l-7 20-4-9-9-4 20-7z',
   bolt: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 7v5l3 2',
+  cloud: 'M17.5 19a4.5 4.5 0 0 0 .42-8.98 7 7 0 0 0-13.42 1.9A4 4 0 0 0 6 19h11.5',
+  aperture: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M14.3 8L8.6 4.7|M9.7 8h6.9|M12 12l-3.5 6.1|M9.7 16L6.2 9.9|M14.3 16H7.4|M12 12l3.5-6.1|M15.4 9.9l3.4 5.8',
+  target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z|M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
+  palette: 'M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3 3h-2a2 2 0 0 0-2 2c0 1 .5 1.5.5 2.5S13.5 21 12 21z|M7.5 11a1 1 0 1 0 0-2|M12 8a1 1 0 1 0 0-2|M16.5 11a1 1 0 1 0 0-2',
+  sliders: 'M4 21v-7|M4 10V3|M12 21v-9|M12 8V3|M20 21v-5|M20 12V3|M1 14h6|M9 8h6|M17 16h6',
+  smile: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M8 14s1.5 2 4 2 4-2 4-2|M9 9h.01|M15 9h.01',
+  videoCam: 'M23 7l-7 5 7 5V7z|M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z',
+  frame: 'M3 7V5a2 2 0 0 1 2-2h2|M17 3h2a2 2 0 0 1 2 2v2|M21 17v2a2 2 0 0 1-2 2h-2|M7 21H5a2 2 0 0 1-2-2v-2|M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  compass: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M16 8l-2.5 5.5L8 16l2.5-5.5L16 8z',
+}
+
+// ── RU-названия значений движка (профи-термины остаются EN) ──
+const RU_VAL: Record<string, string> = {
+  // weather
+  'Clear': 'Ясно', 'Light breeze': 'Лёгкий бриз', 'Windy': 'Ветрено', 'Snow': 'Снег',
+  'Snowstorm': 'Метель', 'Rain': 'Дождь', 'Downpour': 'Ливень', 'Thunderstorm': 'Гроза',
+  'Fog': 'Туман', 'Heat haze': 'Марево', 'Overcast': 'Пасмурно', 'Drizzle': 'Морось',
+  'Dust in light': 'Пыль в лучах', 'Steam': 'Пар', 'God rays': 'Лучи света',
+  'Volumetric fog': 'Объёмный туман', 'Floating particles': 'Частицы', 'Embers': 'Искры',
+  'Falling leaves': 'Листопад',
+  // time
+  'Sunrise': 'Рассвет', 'Morning': 'Утро', 'Midday': 'Полдень', 'Afternoon': 'День',
+  'Golden hour': 'Золотой час', 'Sunset': 'Закат', 'Blue hour': 'Синий час',
+  'Night': 'Ночь', 'Midnight': 'Полночь', 'Dawn': 'Заря',
+  // genre
+  'Drama': 'Драма', 'Thriller': 'Триллер', 'Comedy': 'Комедия', 'Romance': 'Романтика',
+  'Horror': 'Хоррор', 'Action': 'Экшн', 'Noir': 'Нуар', 'Documentary': 'Доку',
+  'Fantasy': 'Фэнтези', 'Western': 'Вестерн', 'Commercial': 'Реклама', 'Poetic': 'Поэтика',
+  'Melancholic': 'Меланхолия', 'Nightmare': 'Кошмар', 'Catastrophic': 'Катастрофа',
+  'War': 'Война', 'Travel': 'Тревел', 'Sport': 'Спорт',
+  // shot size
+  'Extreme wide': 'Сверхобщий', 'Wide': 'Общий', 'Full shot': 'В полный рост',
+  'Medium': 'Средний', 'Medium close-up': 'Средне-крупный', 'Close-up': 'Крупный',
+  'Extreme close-up': 'Сверхкрупный', 'Insert / detail': 'Деталь',
+  'Over-the-shoulder': 'Через плечо', 'Two-shot': 'Двое в кадре',
+  // light (часть)
+  'Natural': 'Естественный', 'Soft key': 'Мягкий свет', 'Hard contrast': 'Жёсткий контраст',
+  'Neon practical': 'Неон', 'Backlit rim': 'Контровой', 'Window daylight': 'Свет из окна',
+  'Candlelight': 'Свечи', 'Silhouette': 'Силуэт', 'Lens flare': 'Блики',
+  'Warm sunlight': 'Тёплое солнце', 'Dark dramatic': 'Тёмный драматичный',
+  // camera (базовые)
+  'Static': 'Статика',
+}
+const ruVal = (label: string) => RU_VAL[label] || label
+
+// Иконки категорий движка для карточек
+const CAT_ICON: Record<string, string> = {
+  camera: 'M23 7l-7 5 7 5V7z|M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z',
+  shottype: 'M3 7V5a2 2 0 0 1 2-2h2|M17 3h2a2 2 0 0 1 2 2v2|M21 17v2a2 2 0 0 1-2 2h-2|M7 21H5a2 2 0 0 1-2-2v-2|M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  angle: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M16 8l-2.5 5.5L8 16l2.5-5.5L16 8z',
+  lens: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M14.3 8L8.6 4.7|M9.7 8h6.9|M12 12l-3.5 6.1|M9.7 16L6.2 9.9|M14.3 16H7.4|M12 12l3.5-6.1|M15.4 9.9l3.4 5.8',
+  focus: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z|M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
+  camtype: 'M19.8 3H4.2A1.2 1.2 0 0 0 3 4.2v15.6A1.2 1.2 0 0 0 4.2 21h15.6a1.2 1.2 0 0 0 1.2-1.2V4.2A1.2 1.2 0 0 0 19.8 3z|M7 3v18|M17 3v18|M3 7.5h4|M3 12h18|M3 16.5h4|M17 7.5h4|M17 16.5h4',
+  light: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z|M12 1v2|M12 21v2|M4.2 4.2l1.4 1.4|M18.4 18.4l1.4 1.4|M1 12h2|M21 12h2|M4.2 19.8l1.4-1.4|M18.4 5.6l1.4-1.4',
+  time: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 7v5l3 2',
+  weather: 'M17.5 19a4.5 4.5 0 0 0 .42-8.98 7 7 0 0 0-13.42 1.9A4 4 0 0 0 6 19h11.5',
+  genre: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M8 14s1.5 2 4 2 4-2 4-2|M9 9h.01|M15 9h.01',
+  styles: 'M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3 3h-2a2 2 0 0 0-2 2c0 1 .5 1.5.5 2.5S13.5 21 12 21z|M7.5 11a1 1 0 1 0 0-2|M12 8a1 1 0 1 0 0-2|M16.5 11a1 1 0 1 0 0-2',
+  colorgrade: 'M4 21v-7|M4 10V3|M12 21v-9|M12 8V3|M20 21v-5|M20 12V3|M1 14h6|M9 8h6|M17 16h6',
+  music: 'M9 18V5l12-2v13|M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z|M21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+  delivery: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z|M19 10v2a7 7 0 0 1-14 0v-2|M12 19v4|M8 23h8',
 }
 
 const VIDEO_TYPES = [
@@ -153,18 +215,35 @@ function Mascot({ size = 96, mood = 'neutral' }: { size?: number; mood?: string 
 
   const pick = blinking && avail.blink ? 'blink' : (avail[mood] ? mood : (avail.neutral ? 'neutral' : ''))
   const src = pick ? EXPR_SRC[pick] : FALLBACK_SRC
+  const amp = Math.max(6, Math.round(size * 0.14))
   return (
-    <>
-      <style>{`@keyframes cinemanFloat { 0%, 100% { transform: translateY(0) rotate(-2deg) } 50% { transform: translateY(-8px) rotate(2deg) } }`}</style>
+    <span className="relative inline-flex flex-col items-center shrink-0" style={{ width: size }}>
+      <style>{`
+        @keyframes cinemanFloat { 0%, 100% { transform: translateY(0) rotate(-3deg) } 25% { transform: translateY(-${Math.round(amp * 0.6)}px) rotate(0deg) } 50% { transform: translateY(-${amp}px) rotate(3deg) } 75% { transform: translateY(-${Math.round(amp * 0.5)}px) rotate(0.5deg) } }
+        @keyframes cinemanShadow { 0%, 100% { transform: scaleX(1); opacity: 0.5 } 50% { transform: scaleX(0.6); opacity: 0.22 } }
+      `}</style>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
         alt=""
         onError={e => { const el = e.target as HTMLImageElement; if (el.src.indexOf(FALLBACK_SRC) < 0) el.src = FALLBACK_SRC; else el.style.visibility = 'hidden' }}
         className="shrink-0 object-contain"
-        style={{ width: size, height: size, animation: 'cinemanFloat 3.5s ease-in-out infinite', filter: 'drop-shadow(0 10px 20px rgba(139,92,246,0.35))' }}
+        style={{ width: size, height: size, animation: 'cinemanFloat 2.6s ease-in-out infinite', filter: 'drop-shadow(0 10px 20px rgba(139,92,246,0.4))' }}
       />
-    </>
+      {size >= 60 && (
+        <span
+          aria-hidden
+          style={{
+            width: Math.round(size * 0.5),
+            height: Math.max(4, Math.round(size * 0.06)),
+            borderRadius: '50%',
+            background: 'radial-gradient(closest-side, rgba(139,92,246,0.5), transparent)',
+            animation: 'cinemanShadow 2.6s ease-in-out infinite',
+            marginTop: 3,
+          }}
+        />
+      )}
+    </span>
   )
 }
 
@@ -207,32 +286,74 @@ function AssetCard({ asset, selected, onClick, wide }: { asset: Asset; selected:
   )
 }
 
-// Engine chips block: one category = label + chips (top 8 + expand)
-function EngineChips({
-  catId, sel, onPick, expanded, onToggleExpand,
+// Категории движка — карточки с иконками (как в референсе), клик
+// открывает вопрос «Категория?» и варианты чипсами.
+function CategoryPicker({
+  cats, engineSel, onPick, openCat, setOpenCat, expanded, onToggleExpand,
 }: {
-  catId: string
-  sel?: string
-  onPick: (label: string) => void
-  expanded: boolean
-  onToggleExpand: () => void
+  cats: string[]
+  engineSel: Record<string, string>
+  onPick: (catId: string, label: string) => void
+  openCat: string | null
+  setOpenCat: (c: string | null) => void
+  expanded: Record<string, boolean>
+  onToggleExpand: (c: string) => void
 }) {
-  const cat = ENGINE_CATS[catId]
-  if (!cat) return null
-  const items = expanded ? cat.items : cat.items.slice(0, 8)
+  const open = openCat && cats.includes(openCat) ? openCat : null
+  const cat = open ? ENGINE_CATS[open] : null
+  const items = cat ? (expanded[open!] ? cat.items : cat.items.slice(0, 10)) : []
   return (
-    <div className="mb-5">
-      <p className="text-zinc-500 text-xs uppercase tracking-widest mb-2">{RU_CAT[catId] || cat.title}</p>
-      <div className="flex flex-wrap gap-1.5">
-        {items.map(([label]) => (
-          <Chip key={label} active={sel === label} onClick={() => onPick(sel === label ? '' : label)}>{label}</Chip>
-        ))}
-        {cat.items.length > 8 && (
-          <button onClick={onToggleExpand} className="px-3 py-1.5 rounded-full text-[13px] text-violet-400 hover:text-violet-300 transition-colors">
-            {expanded ? 'Свернуть' : `+${cat.items.length - 8} ещё`}
-          </button>
-        )}
+    <div>
+      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-6">
+        {cats.map(c => {
+          const sel = engineSel[c]
+          const isOpen = open === c
+          return (
+            <button
+              key={c}
+              onClick={() => setOpenCat(isOpen ? null : c)}
+              className={`p-4 rounded-2xl border text-center transition-all ${
+                isOpen
+                  ? 'border-violet-400/70 bg-violet-500/10 shadow-[0_0_20px_rgba(139,92,246,0.25)]'
+                  : sel
+                    ? 'border-violet-500/40 bg-violet-500/5'
+                    : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-600 hover:-translate-y-0.5'
+              }`}
+            >
+              <div className={`mx-auto mb-2.5 w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                isOpen || sel ? 'text-violet-300 bg-violet-500/15 border border-violet-500/30' : 'text-zinc-400 bg-zinc-800/60 border border-zinc-700/50'
+              }`}>
+                <Icon d={CAT_ICON[c] || CAT_ICON.camera} size={19} />
+              </div>
+              <div className="text-[13px] text-zinc-200 leading-tight">{RU_CAT[c] || c}</div>
+              {sel ? (
+                <div className="text-[11px] text-violet-300 mt-1 truncate">{ruVal(sel)}</div>
+              ) : (
+                <div className="text-[11px] text-zinc-600 mt-1">—</div>
+              )}
+            </button>
+          )
+        })}
       </div>
+      {open && cat && (
+        <div className="fade-in-up mb-2" key={open}>
+          <div className="inline-block bg-zinc-900/80 border border-zinc-800 rounded-2xl rounded-bl-md px-4 py-2 text-zinc-200 text-sm mb-3">
+            {RU_CAT[open] || open}?
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {items.map(([label]) => (
+              <Chip key={label} active={engineSel[open] === label} onClick={() => onPick(open, engineSel[open] === label ? '' : label)}>
+                {ruVal(label)}
+              </Chip>
+            ))}
+            {cat.items.length > 10 && (
+              <button onClick={() => onToggleExpand(open)} className="px-3 py-1.5 rounded-full text-[13px] text-violet-400 hover:text-violet-300 transition-colors">
+                {expanded[open] ? 'Свернуть' : `+${cat.items.length - 10} ещё`}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -269,7 +390,7 @@ export default function StudioPage() {
   const [locOffset, setLocOffset] = useState(0)
   const [heroMatched, setHeroMatched] = useState<number | null>(null)
   const [locMatched, setLocMatched] = useState<number | null>(null)
-  const [hero, setHero] = useState<Asset | null>(null)
+  const [heroes, setHeroes] = useState<Asset[]>([]) // cast: до 4 героев
   const [location, setLocation] = useState<Asset | null>(null)
   const [searching, setSearching] = useState(false)
   const [genState, setGenState] = useState<'idle' | 'working'>('idle')
@@ -280,6 +401,7 @@ export default function StudioPage() {
   const [engineSel, setEngineSel] = useState<Record<string, string>>({})
   const [expandedCat, setExpandedCat] = useState<Record<string, boolean>>({})
   const [engineCfg, setEngineCfg] = useState<EngineConfig>(DEFAULT_ENGINE_CONFIG)
+  const [openCat, setOpenCat] = useState<string | null>(null)
 
   // render
   const [quality, setQuality] = useState<'draft' | 'final'>('draft')
@@ -289,6 +411,7 @@ export default function StudioPage() {
   const [error, setError] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [typing, setTyping] = useState(false)
+  const [speaking, setSpeaking] = useState(false)
 
   // chat input + voice
   const [input, setInput] = useState('')
@@ -304,9 +427,12 @@ export default function StudioPage() {
 
   useEffect(() => {
     setTyping(true)
-    const t = setTimeout(() => setTyping(false), 650)
+    setSpeaking(false)
+    // печатает → говорит (рот двигается) → нейтральный
+    const t = setTimeout(() => { setTyping(false); setSpeaking(true) }, 650)
+    const t2 = setTimeout(() => setSpeaking(false), 2800)
     if (chatRef.current) chatRef.current.scrollTop = 0
-    return () => clearTimeout(t)
+    return () => { clearTimeout(t); clearTimeout(t2) }
   }, [step])
 
   const search = useCallback(async (assetType: 'Character' | 'Location', text: string, offset: number) => {
@@ -346,7 +472,7 @@ export default function StudioPage() {
           const j = await r.json()
           if (j.state === 'success' && j.asset) {
             clearInterval(iv)
-            if (assetType === 'Character') { setHero(j.asset); setHeroResults(prev => [j.asset, ...prev].slice(0, 4)); setHeroMatched(1) }
+            if (assetType === 'Character') { setHeroes(prev => [...prev, j.asset].slice(0, 4)); setHeroResults(prev => [j.asset, ...prev].slice(0, 4)); setHeroMatched(1) }
             else { setLocation(j.asset); setLocResults(prev => [j.asset, ...prev].slice(0, 4)); setLocMatched(1) }
             resolve()
           } else if (j.state === 'fail' || j.error) {
@@ -373,7 +499,7 @@ export default function StudioPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           videoType: videoType || 'other',
-          hero: hero ? { title: hero.title, description: hero.description } : null,
+          heroes: heroes.map(h => ({ title: h.title, description: h.description })),
           location: location ? { title: location.title, description: location.description } : null,
           action: fullAction,
           engine: engineSel,
@@ -383,7 +509,7 @@ export default function StudioPage() {
       const { prompt, error: cErr } = await compileRes.json()
       if (cErr) throw new Error(cErr)
 
-      const refs = [hero?.file_url, location?.file_url].filter(Boolean)
+      const refs = [...heroes.map(h => h.file_url), location?.file_url].filter(Boolean)
       const videoRes = await fetch('/api/studio/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -410,7 +536,7 @@ export default function StudioPage() {
       setError(e instanceof Error ? e.message : 'Ошибка')
       setStep('confirm')
     }
-  }, [videoType, hero, location, action, extraNote, engineSel, engineCfg.masterPreset, quality, duration])
+  }, [videoType, heroes, location, action, extraNote, engineSel, engineCfg.masterPreset, quality, duration])
 
   // ── chat input: контекстное действие по шагу ────────────────
   const submitInput = useCallback(() => {
@@ -446,24 +572,34 @@ export default function StudioPage() {
   const stepIndex = STEPS.indexOf(step)
 
   const mood = searching || genState === 'working' || step === 'render' ? 'thinking'
+    : speaking ? 'talking'
     : step === 'result' ? 'happy'
     : step === 'confirm' ? 'excited'
     : 'neutral'
+
+  // Живые подсказки: маскот ведёт за руку по шагам
+  let botLine = BOT_LINES[step]
+  if (step === 'hero' && heroResults.length > 0) botLine = heroes.length > 0
+    ? `Отлично, выбрано: ${heroes.length}. Можешь добавить ещё героев — или жми «Дальше», выберем локацию!`
+    : 'Выбери героя — можно сразу нескольких! Дальше выберем локацию.'
+  if (step === 'location' && locResults.length > 0) botLine = location
+    ? 'Локация выбрана! Жми «Дальше» — опишем действие.'
+    : 'Выбери локацию — и переходим к действию.'
 
   // История ответов — клик возвращает на шаг
   const history: { step: Step; q: string; a: string }[] = []
   if (stepIndex > 0 || step === 'render' || step === 'result') {
     const past = (s: Step) => STEPS.indexOf(s) < (stepIndex === -1 ? STEPS.length : stepIndex)
     if (past('hero') || stepIndex === -1) history.push({ step: 'type', q: BOT_LINES.type, a: customType || VIDEO_TYPES.find(t => t.id === videoType)?.label || '—' })
-    if (past('location')) history.push({ step: 'hero', q: BOT_LINES.hero, a: hero ? hero.title : 'Без героя' })
+    if (past('location')) history.push({ step: 'hero', q: BOT_LINES.hero, a: heroes.length ? heroes.map(h => h.title).join(', ') : 'Без героя' })
     if (past('action')) history.push({ step: 'location', q: BOT_LINES.location, a: location ? location.title : 'Пропущено' })
     if (past('camera')) history.push({ step: 'action', q: BOT_LINES.action, a: action.slice(0, 80) + (action.length > 80 ? '…' : '') })
     if (past('details')) {
-      const camSel = CAMERA_CATS.map(c => engineSel[c]).filter(Boolean).join(', ')
+      const camSel = CAMERA_CATS.map(c => engineSel[c]).filter(Boolean).map(ruVal).join(', ')
       history.push({ step: 'camera', q: BOT_LINES.camera, a: camSel || 'На усмотрение Cineman' })
     }
     if (past('confirm')) {
-      const detSel = DETAIL_CATS.map(c => engineSel[c]).filter(Boolean).join(', ')
+      const detSel = DETAIL_CATS.map(c => engineSel[c]).filter(Boolean).map(ruVal).join(', ')
       history.push({ step: 'details', q: BOT_LINES.details, a: detSel || 'На усмотрение Cineman' })
     }
   }
@@ -500,7 +636,7 @@ export default function StudioPage() {
           {/* Шапка экрана: маскот + имя + шаги */}
           <div className="px-6 pt-6 pb-4 border-b border-zinc-800/60" style={{ background: 'linear-gradient(180deg, rgba(139,92,246,0.07), transparent)' }}>
             <div className="flex items-center gap-4 mb-4">
-              <Mascot size={step === 'type' ? 120 : 88} mood={mood} />
+              <Mascot size={step === 'type' ? 180 : 132} mood={mood} />
               <div>
                 <p className="text-zinc-50 font-semibold text-lg leading-tight">Cineman</p>
                 <p className="text-violet-400/80 text-xs">AI-режиссёр · онлайн</p>
@@ -559,14 +695,14 @@ export default function StudioPage() {
 
             {/* Текущее сообщение бота */}
             <div className="flex items-end gap-3 mb-6" key={`bot-${step}`}>
-              <div className="w-10 h-10 shrink-0"><Mascot size={40} mood={mood} /></div>
+              <div className="w-14 h-14 shrink-0"><Mascot size={56} mood={mood} /></div>
               <div className="bg-zinc-900/80 backdrop-blur border border-zinc-800 rounded-3xl rounded-bl-md px-5 py-3.5 text-zinc-100 text-[15px] leading-relaxed max-w-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
                 {typing ? (
                   <span className="flex items-center gap-1.5 py-1 px-0.5">
                     <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
                   </span>
                 ) : (
-                  <span className="fade-in-up" style={{ display: 'block' }}>{BOT_LINES[step]}</span>
+                  <span className="fade-in-up" style={{ display: 'block' }}>{botLine}</span>
                 )}
               </div>
             </div>
@@ -598,14 +734,29 @@ export default function StudioPage() {
               {/* HERO */}
               {step === 'hero' && (
                 <div>
+                  {heroQuery && (
+                    <div className="flex justify-end mb-4">
+                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{heroQuery}</div>
+                    </div>
+                  )}
                   {noMatchBanner(heroMatched, 'Character', heroQuery)}
                   {heroResults.length > 0 && (
                     <>
                       <div className="grid grid-cols-4 gap-3 mb-4">
                         {heroResults.map(a => (
-                          <AssetCard key={a.id} asset={a} selected={hero?.id === a.id} onClick={() => setHero(a)} />
+                          <AssetCard
+                            key={a.id}
+                            asset={a}
+                            selected={heroes.some(h => h.id === a.id)}
+                            onClick={() => setHeroes(prev => prev.some(h => h.id === a.id) ? prev.filter(h => h.id !== a.id) : [...prev, a].slice(0, 4))}
+                          />
                         ))}
                       </div>
+                      {heroes.length > 0 && (
+                        <p className="text-violet-300/90 text-sm mb-4 fade-in-up">
+                          В касте: {heroes.map(h => h.title).join(' · ')} ({heroes.length}/4)
+                        </p>
+                      )}
                       <div className="flex gap-5 mb-6 text-sm">
                         <button onClick={() => search('Character', heroQuery, heroOffset + 4)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors" disabled={searching}>
                           <Icon d={I.refresh} size={15} /> Ещё варианты
@@ -621,8 +772,8 @@ export default function StudioPage() {
                   )}
                   {searching && <p className="text-violet-300/80 text-sm mb-6 fade-in-up">Ищу в базе…</p>}
                   <div className="flex justify-end gap-3 items-center">
-                    <button onClick={() => { setHero(null); setStep('location') }} className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">Без героя</button>
-                    <button onClick={() => setStep('location')} disabled={!hero} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-30 transition-colors">
+                    <button onClick={() => { setHeroes([]); setStep('location') }} className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">Без героя</button>
+                    <button onClick={() => setStep('location')} disabled={heroes.length === 0} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-30 transition-colors">
                       Дальше <Icon d={I.arrowR} size={15} />
                     </button>
                   </div>
@@ -632,6 +783,11 @@ export default function StudioPage() {
               {/* LOCATION */}
               {step === 'location' && (
                 <div>
+                  {locQuery && (
+                    <div className="flex justify-end mb-4">
+                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{locQuery}</div>
+                    </div>
+                  )}
                   {noMatchBanner(locMatched, 'Location', locQuery)}
                   {locResults.length > 0 && (
                     <>
@@ -667,7 +823,9 @@ export default function StudioPage() {
               {step === 'action' && (
                 <div>
                   {action && (
-                    <div className="mb-5 p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800 text-zinc-200 text-sm">{action}</div>
+                    <div className="flex justify-end mb-5">
+                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2.5 text-violet-100 text-sm max-w-lg">{action}</div>
+                    </div>
                   )}
                   <p className="text-zinc-600 text-sm mb-6">Напиши в строке ниже или нажми на микрофон и надиктуй.</p>
                   {action && (
@@ -680,42 +838,50 @@ export default function StudioPage() {
                 </div>
               )}
 
-              {/* CAMERA — чипсы из Engine */}
+              {/* CAMERA — карточки категорий движка */}
               {step === 'camera' && (
                 <div>
-                  {visibleCameraCats.map(c => (
-                    <EngineChips
-                      key={c}
-                      catId={c}
-                      sel={engineSel[c]}
-                      onPick={label => setEngineSel(s => ({ ...s, [c]: label }))}
-                      expanded={!!expandedCat[c]}
-                      onToggleExpand={() => setExpandedCat(s => ({ ...s, [c]: !s[c] }))}
-                    />
-                  ))}
-                  <div className="flex justify-end mt-2">
-                    <button onClick={() => setStep('details')} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
+                  <CategoryPicker
+                    cats={visibleCameraCats}
+                    engineSel={engineSel}
+                    onPick={(c, label) => setEngineSel(s => ({ ...s, [c]: label }))}
+                    openCat={openCat}
+                    setOpenCat={setOpenCat}
+                    expanded={expandedCat}
+                    onToggleExpand={c => setExpandedCat(s => ({ ...s, [c]: !s[c] }))}
+                  />
+                  {extraNote && (
+                    <div className="flex justify-end my-3">
+                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{extraNote}</div>
+                    </div>
+                  )}
+                  <div className="flex justify-end mt-3">
+                    <button onClick={() => { setOpenCat(null); setStep('details') }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
                       Дальше <Icon d={I.arrowR} size={15} />
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* DETAILS — чипсы из Engine */}
+              {/* DETAILS — карточки категорий движка */}
               {step === 'details' && (
                 <div>
-                  {visibleDetailCats.map(c => (
-                    <EngineChips
-                      key={c}
-                      catId={c}
-                      sel={engineSel[c]}
-                      onPick={label => setEngineSel(s => ({ ...s, [c]: label }))}
-                      expanded={!!expandedCat[c]}
-                      onToggleExpand={() => setExpandedCat(s => ({ ...s, [c]: !s[c] }))}
-                    />
-                  ))}
-                  <div className="flex justify-end mt-2">
-                    <button onClick={() => setStep('confirm')} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
+                  <CategoryPicker
+                    cats={visibleDetailCats}
+                    engineSel={engineSel}
+                    onPick={(c, label) => setEngineSel(s => ({ ...s, [c]: label }))}
+                    openCat={openCat}
+                    setOpenCat={setOpenCat}
+                    expanded={expandedCat}
+                    onToggleExpand={c => setExpandedCat(s => ({ ...s, [c]: !s[c] }))}
+                  />
+                  {extraNote && (
+                    <div className="flex justify-end my-3">
+                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{extraNote}</div>
+                    </div>
+                  )}
+                  <div className="flex justify-end mt-3">
+                    <button onClick={() => { setOpenCat(null); setStep('confirm') }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
                       Дальше <Icon d={I.arrowR} size={15} />
                     </button>
                   </div>
@@ -726,23 +892,23 @@ export default function StudioPage() {
               {step === 'confirm' && (
                 <div>
                   <div className="p-5 rounded-2xl bg-zinc-900/50 backdrop-blur border border-zinc-800 mb-6">
-                    <div className="flex gap-3 mb-5">
-                      {hero && (
+                    <div className="flex gap-3 mb-5 flex-wrap">
+                      {heroes.map(h => (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={hero.thumbnail_url || hero.file_url} alt="hero" className="h-36 w-28 object-cover rounded-xl border border-zinc-800" style={{ objectPosition: 'center top' }} />
-                      )}
+                        <img key={h.id} src={h.thumbnail_url || h.file_url} alt={h.title} className="h-36 w-28 object-cover rounded-xl border border-zinc-800" style={{ objectPosition: 'center top' }} />
+                      ))}
                       {location && (
                         /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={location.thumbnail_url || location.file_url} alt="location" className="h-36 flex-1 object-cover rounded-xl border border-zinc-800" />
+                        <img src={location.thumbnail_url || location.file_url} alt="location" className="h-36 flex-1 min-w-[200px] object-cover rounded-xl border border-zinc-800" />
                       )}
                     </div>
                     <ul className="text-sm text-zinc-300 space-y-2.5">
                       <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.film} size={15} /></span> {customType || VIDEO_TYPES.find(t => t.id === videoType)?.label || 'Видео'}</li>
-                      {hero && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.user} size={15} /></span> {hero.title || 'Герой выбран'}</li>}
+                      {heroes.length > 0 && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.user} size={15} /></span> {heroes.map(h => h.title).join(', ')}</li>}
                       {location && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.pin} size={15} /></span> {location.title || 'Локация выбрана'}</li>}
                       <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.wand} size={15} /></span> {action.slice(0, 70)}{action.length > 70 ? '…' : ''}</li>
                       {Object.entries(engineSel).filter(([, v]) => v).length > 0 && (
-                        <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5"><Icon d={I.camera} size={15} /></span> {Object.entries(engineSel).filter(([, v]) => v).map(([, v]) => v).join(' · ')}</li>
+                        <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5"><Icon d={I.camera} size={15} /></span> {Object.entries(engineSel).filter(([, v]) => v).map(([, v]) => ruVal(v)).join(' · ')}</li>
                       )}
                       {extraNote && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.bolt} size={15} /></span> {extraNote.slice(0, 70)}</li>}
                     </ul>
