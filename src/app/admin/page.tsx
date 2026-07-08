@@ -127,13 +127,15 @@ async function toCleanJpeg(file: File): Promise<File> {
     const url = URL.createObjectURL(file)
     img.onload = () => {
       const canvas = document.createElement('canvas')
-      canvas.width = img.naturalWidth
-      canvas.height = img.naturalHeight
-      canvas.getContext('2d')!.drawImage(img, 0, 0)
+      // Downscale to max 1024px so /api/ai-name payload stays under Vercel's 4.5MB limit
+      const scale = Math.min(1, 1024 / Math.max(img.naturalWidth, img.naturalHeight))
+      canvas.width = Math.round(img.naturalWidth * scale)
+      canvas.height = Math.round(img.naturalHeight * scale)
+      canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height)
       canvas.toBlob(blob => {
         URL.revokeObjectURL(url)
         resolve(new File([blob!], 'image.jpg', { type: 'image/jpeg' }))
-      }, 'image/jpeg', 0.92)
+      }, 'image/jpeg', 0.85)
     }
     img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
     img.src = url
@@ -247,8 +249,9 @@ export default function AdminPage() {
     // Fire Gemini AI naming for each image in parallel
     const isGeminiReady = true // will fail gracefully if key not set
     if (isGeminiReady) {
-      await Promise.all(
-        newItems.map(async item => {
+      // Limited concurrency (4 at a time) — safe for 1000+ file drops
+      const queue = [...newItems]
+      const nameOne = async (item: BatchItem) => {
           if (!item.file.type.startsWith('image/')) {
             // Non-image: skip AI, keep filename-based name
             setBatchItems(prev =>
@@ -290,8 +293,15 @@ export default function AdminPage() {
               prev.map(it => it.id === item.id ? { ...it, aiLoading: false } : it)
             )
           }
-        })
-      )
+      }
+      const worker = async () => {
+        for (;;) {
+          const item = queue.shift()
+          if (!item) return
+          await nameOne(item)
+        }
+      }
+      await Promise.all(Array.from({ length: 4 }, () => worker()))
     }
   }
 
