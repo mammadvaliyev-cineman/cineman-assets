@@ -188,7 +188,7 @@ export default function CatalogPage() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const q = supabase.from('assets').select('*')
+      const q = supabase.from('assets').select('*').neq('type', 'Config')
       const { data, error } = await q.order('created_at', { ascending: sortBy === 'oldest' })
       if (data && !error) setAssets(data.map(toAsset))
       setLoading(false)
