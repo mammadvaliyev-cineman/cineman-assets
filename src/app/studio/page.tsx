@@ -90,8 +90,23 @@ function AssetCard({ asset, selected, onClick, wide }: { asset: Asset; selected:
         selected ? 'border-purple-500 shadow-lg shadow-purple-900/40' : 'border-zinc-800 hover:border-zinc-600'
       }`}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={asset.thumbnail_url || asset.file_url} alt={asset.title} className={wide ? 'w-full aspect-video object-cover' : 'w-full aspect-[3/4] object-cover'} style={wide ? undefined : { objectPosition: 'center top' }} loading="lazy" />
+      {wide ? (
+        /* eslint-disable-next-line @next/next/no-img-element */
+        <img src={asset.thumbnail_url || asset.file_url} alt={asset.title} className="w-full aspect-video object-cover" loading="lazy" />
+      ) : (
+        /* Character sheets contain 3 angles — zoom into the middle
+           figure, top-aligned, so the card reads as a face portrait */
+        <div className="relative w-full aspect-[3/4] overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={asset.thumbnail_url || asset.file_url}
+            alt={asset.title}
+            className="absolute top-0 left-1/2 -translate-x-1/2"
+            style={{ width: '300%', maxWidth: 'none' }}
+            loading="lazy"
+          />
+        </div>
+      )}
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2">
         <p className="text-xs text-zinc-200 line-clamp-2">{asset.title}</p>
       </div>
