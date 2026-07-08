@@ -184,6 +184,25 @@ export default function CatalogPage() {
   const [viewMode, setViewMode]       = useState<'grid' | 'list'>('grid')
   const [sortBy, setSortBy]           = useState<'recent' | 'oldest'>('recent')
   const [previewSize, setPreviewSize] = useState(100)
+  const [quickView, setQuickView]     = useState<'all' | 'fav' | 'dl'>('all')
+  const [storeTick, setStoreTick]     = useState(0)
+
+  // Favorites / download history live in localStorage (written by
+  // the card buttons); re-read whenever they change
+  useEffect(() => {
+    const bump = () => setStoreTick(t => t + 1)
+    window.addEventListener('cineman-store-changed', bump)
+    return () => window.removeEventListener('cineman-store-changed', bump)
+  }, [])
+
+  const favIds = useMemo(() => {
+    void storeTick
+    try { return new Set<string>(JSON.parse(localStorage.getItem('cineman_favs') ?? '[]')) } catch { return new Set<string>() }
+  }, [storeTick])
+  const dlIds = useMemo(() => {
+    void storeTick
+    try { return new Set<string>(JSON.parse(localStorage.getItem('cineman_dl_ids') ?? '[]')) } catch { return new Set<string>() }
+  }, [storeTick])
 
   useEffect(() => {
     async function load() {
@@ -200,6 +219,8 @@ export default function CatalogPage() {
 
   const filtered = useMemo(() => {
     return assets.filter(a => {
+      if (quickView === 'fav' && !favIds.has(a.id)) return false
+      if (quickView === 'dl' && !dlIds.has(a.id)) return false
       const q = search.toLowerCase()
       const matchSearch =
         !q ||
@@ -214,7 +235,7 @@ export default function CatalogPage() {
       const matchLighting = activeLighting === 'All' || a.tags.some(t => t.toLowerCase().includes(activeLighting.toLowerCase()))
       return matchSearch && matchCat && matchType && matchStyle && matchMood && matchLighting
     })
-  }, [assets, search, activeCat, activeType, activeStyle, activeMood, activeLighting])
+  }, [assets, search, activeCat, activeType, activeStyle, activeMood, activeLighting, quickView, favIds, dlIds])
 
   const hasFilters = activeCat !== 'All' || activeType !== 'All' || activeStyle !== 'All' || activeMood !== 'All' || activeLighting !== 'All' || search !== ''
   const activeFilterCount = [activeCat !== 'All', activeType !== 'All', activeStyle !== 'All', activeMood !== 'All', activeLighting !== 'All'].filter(Boolean).length
@@ -269,9 +290,9 @@ export default function CatalogPage() {
 
         {/* Quick nav */}
         <div style={{ paddingTop: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
-          <SidebarItem iconD={CAT_ICONS.grid} label="All Assets" count={assets.length} active={activeCat === 'All' && !search} color="#9765E0" onClick={() => { setActiveCat('All'); setSearch('') }} />
-          <SidebarItem iconD={CAT_ICONS.heart} label="Favorites" active={false} color="#CE95FB" onClick={() => {}} />
-          <SidebarItem iconD={CAT_ICONS.download} label="Downloads" active={false} color="#00C2BA" onClick={() => {}} />
+          <SidebarItem iconD={CAT_ICONS.grid} label="All Assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search} color="#9765E0" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch('') }} />
+          <SidebarItem iconD={CAT_ICONS.heart} label="Favorites" count={favIds.size} active={quickView === 'fav'} color="#CE95FB" onClick={() => setQuickView(quickView === 'fav' ? 'all' : 'fav')} />
+          <SidebarItem iconD={CAT_ICONS.download} label="Downloads" count={dlIds.size} active={quickView === 'dl'} color="#00C2BA" onClick={() => setQuickView(quickView === 'dl' ? 'all' : 'dl')} />
         </div>
 
         {/* Categories */}
