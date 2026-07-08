@@ -58,8 +58,15 @@ const RU_EN: Record<string, string> = {
 function Robot({ line }: { line: string }) {
   return (
     <div className="flex items-start gap-3 mb-6">
+      <style>{`@keyframes cinemanFloat { 0%, 100% { transform: translateY(0) rotate(-2deg) } 50% { transform: translateY(-7px) rotate(2deg) } }`}</style>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/cineman-mascot.png" alt="" onError={e => { (e.target as HTMLImageElement).style.visibility = 'hidden' }} className="shrink-0 w-14 h-14 rounded-full object-cover border border-zinc-700 shadow-lg shadow-purple-900/30 bg-zinc-900" />
+      <img
+        src="/cineman-mascot.png"
+        alt=""
+        onError={e => { (e.target as HTMLImageElement).style.visibility = 'hidden' }}
+        className="shrink-0 w-16 h-16 object-contain"
+        style={{ animation: 'cinemanFloat 3.5s ease-in-out infinite', filter: 'drop-shadow(0 10px 14px rgba(0,212,255,0.25))' }}
+      />
       <div className="bg-zinc-800/80 border border-zinc-700 rounded-2xl rounded-tl-sm px-4 py-3 text-zinc-100 max-w-xl">
         {line}
       </div>
