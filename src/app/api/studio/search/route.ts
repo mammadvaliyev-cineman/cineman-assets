@@ -76,17 +76,25 @@ type AssetRow = {
   thumbnail_url: string | null
 }
 
+// Word-level matching. Never substring: "woman" must NOT match "man".
+function words(s: string): string[] {
+  return s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
+}
+
 function scoreAsset(a: AssetRow, keywords: string[]): number {
   let score = 0
   const tags = (a.tags || []).map(t => String(t).toLowerCase())
-  const title = (a.title || '').toLowerCase()
-  const desc = (a.description || '').toLowerCase()
+  const tagWords = new Set(tags.flatMap(words))
+  const titleWords = new Set(words(a.title || ''))
+  const descWords = new Set(words(a.description || ''))
   for (const kw of keywords) {
-    const k = kw.toLowerCase()
-    if (tags.some(t => t === k)) score += 5
-    else if (tags.some(t => t.includes(k) || k.includes(t))) score += 3
-    if (title.includes(k)) score += 2
-    if (desc.includes(k)) score += 1
+    const k = kw.toLowerCase().trim()
+    const kws = words(k)
+    if (!kws.length) continue
+    if (tags.includes(k)) score += 5
+    else if (kws.every(w => tagWords.has(w))) score += 3
+    if (kws.every(w => titleWords.has(w))) score += 2
+    if (kws.every(w => descWords.has(w))) score += 1
   }
   return score
 }
