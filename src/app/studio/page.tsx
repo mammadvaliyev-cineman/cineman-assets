@@ -204,7 +204,8 @@ function probeExpressions(): Promise<Record<string, boolean>> {
 function Mascot({ size = 96, mood = 'neutral' }: { size?: number; mood?: string }) {
   const [avail, setAvail] = useState<Record<string, boolean>>(exprCache || {})
   const [blinking, setBlinking] = useState(false)
-  useEffect(() => { probeExpressions().then(setAvail) }, [])
+  // Expression set disabled — using the approved Cineman mascot (bowler hat + mustache)
+  useEffect(() => { /* probeExpressions().then(setAvail) */ }, [])
   useEffect(() => {
     if (!avail.blink) return
     let alive = true
