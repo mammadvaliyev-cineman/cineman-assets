@@ -6,15 +6,15 @@ import { ThemeProvider } from '@/components/ThemeProvider'
 import { AuthProvider } from '@/components/AuthProvider'
 
 export const metadata: Metadata = {
-  title: 'Cineman Assets — AI-Generated Cinematic Content',
+  title: 'Cineman AI — Direct Films with an AI Director',
   description:
-    'Premium AI-generated cinematic assets for filmmakers, directors, and content creators. Video clips, LUTs, sound design, and motion graphics.',
-  keywords: ['AI assets', 'cinematic', 'video generation', 'LUT', 'motion graphics', 'sound design'],
+    'Your personal AI film studio: chat with Cineman, cast consistent heroes and locations from a curated base, and generate cinematic video for films, ads and music videos.',
+  keywords: ['AI film studio', 'AI director', 'video generation', 'Seedance', 'cinematic', 'AI assets'],
   openGraph: {
-    title: 'Cineman Assets',
-    description: 'Premium AI-generated cinematic assets',
+    title: 'Cineman AI',
+    description: 'Direct films with an AI director — from idea to cinematic shot',
     url: 'https://cineman.ai',
-    siteName: 'Cineman Assets',
+    siteName: 'Cineman AI',
     type: 'website',
   },
 }
