@@ -64,13 +64,7 @@ export default function HomePage() {
           >
             Direct Films with
             <br />
-            <span
-              style={{
-                background: "linear-gradient(135deg, #CE95FB, #9765E0 45%, #00C2BA)",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-              }}
-            >
+            <span className="gradient-animate">
               CINEMAN AI
             </span>
           </h1>
