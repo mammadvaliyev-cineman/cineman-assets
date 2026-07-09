@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { parseAssetAttrs, desiredAttrs, attrConflict } from '@/lib/attrs'
 
 export const maxDuration = 30
 
@@ -81,37 +82,19 @@ function words(s: string): string[] {
   return s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean)
 }
 
-// Gender guard: "девушка" must never surface male characters
-const FEMALE = new Set(['woman', 'women', 'girl', 'female', 'lady', 'she'])
-const MALE = new Set(['man', 'men', 'boy', 'male', 'guy', 'he'])
-// Age guard: "парень 17 лет" must never surface elderly characters
-const YOUNG = new Set(['young', 'teen', 'teenager', 'boy', 'girl', 'kid', 'child', 'youth', 'adolescent'])
-const OLD = new Set(['elderly', 'old', 'senior', 'aged', 'grandfather', 'grandmother'])
-
+// Fuzzy relevance score over free (non-prefixed) tags, title, desc.
+// Hard attribute filtering (gender/age/ethnicity/place/time) happens
+// separately in the POST handler via @/lib/attrs — see attrConflict.
 function scoreAsset(a: AssetRow, keywords: string[]): number {
   let score = 0
-  const tags = (a.tags || []).map(t => String(t).toLowerCase())
+  // Ignore prefixed attribute tokens (g:/age:/eth:/place:/time:) in
+  // the fuzzy layer — they're handled by the hard filter.
+  const tags = (a.tags || [])
+    .map(t => String(t).toLowerCase())
+    .filter(t => !/^(g|age|eth|place|time):/.test(t))
   const tagWords = new Set(tags.flatMap(words))
   const titleWords = new Set(words(a.title || ''))
   const descWords = new Set(words(a.description || ''))
-  const assetWords: string[] = []
-  tagWords.forEach(w => assetWords.push(w))
-  titleWords.forEach(w => assetWords.push(w))
-
-  const kwWords = keywords.flatMap(k => words(k))
-  const wantsFemale = kwWords.some(w => FEMALE.has(w))
-  const wantsMale = kwWords.some(w => MALE.has(w))
-  const isFemale = assetWords.some(w => FEMALE.has(w))
-  const isMale = assetWords.some(w => MALE.has(w))
-  if (wantsFemale && !wantsMale && isMale && !isFemale) return 0
-  if (wantsMale && !wantsFemale && isFemale && !isMale) return 0
-
-  const wantsYoung = kwWords.some(w => YOUNG.has(w))
-  const wantsOld = kwWords.some(w => OLD.has(w))
-  const isYoung = assetWords.some(w => YOUNG.has(w))
-  const isOld = assetWords.some(w => OLD.has(w))
-  if (wantsYoung && !wantsOld && isOld && !isYoung) return 0
-  if (wantsOld && !wantsYoung && isYoung && !isOld) return 0
 
   keywords.forEach((kw, idx) => {
     const k = kw.toLowerCase().trim()
@@ -145,7 +128,17 @@ export async function POST(req: NextRequest) {
       .limit(2000)
     if (error) throw error
 
-    const rows = (data || []) as AssetRow[]
+    const allRows = (data || []) as AssetRow[]
+
+    // ── Hard attribute filter FIRST ──────────────────────────────
+    // "парень 17" → g:man + age:young → drop every woman / senior
+    // before scoring. Ethnicity + interior/exterior + time-of-day
+    // work the same way. Assets with no attribute info are kept.
+    const want = desiredAttrs(assetType, keywords)
+    const rows = Object.keys(want).length
+      ? allRows.filter(a => !attrConflict(want, parseAssetAttrs(assetType, (a.tags || []).map(String))))
+      : allRows
+
     // Threshold 3 = at least one word-level TAG hit. Title/desc-only
     // grazes (score 1-2) are noise — they made "баку" return random.
     const scored = rows
@@ -160,8 +153,9 @@ export async function POST(req: NextRequest) {
       ? rows.some(a => scoreAsset(a, subjectKws) > 0)
       : scored.length > 0
 
-    // If nothing matched, return best-effort similar / most recent
-    const pool = scored.length ? scored.map(s => s.asset) : rows
+    // If nothing scored, fall back to the attribute-filtered pool
+    // (already the right gender/age/etc.) then to all rows.
+    const pool = scored.length ? scored.map(s => s.asset) : (rows.length ? rows : allRows)
     const page = pool.slice(offset, offset + 4)
 
     return NextResponse.json({
@@ -169,6 +163,7 @@ export async function POST(req: NextRequest) {
       total: pool.length,
       matched: subjectHit ? scored.length : 0,
       keywords,
+      attrs: want,
       ...(debug ? { _debug: debug } : {}),
     })
   } catch (err) {
