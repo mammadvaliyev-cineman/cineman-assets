@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ENGINE_CATS, CAM_GROUPS, DEFAULT_ENGINE_CONFIG, EngineConfig } from '@/lib/engine'
 import { supabase } from '@/lib/supabase'
+import { adminHeaders } from '@/components/AdminGate'
 
 // ─────────────────────────────────────────────────────────────
 // CINEMAN AI STUDIO — chat-first director agent.
@@ -539,7 +540,7 @@ export default function StudioPage() {
     try {
       const res = await fetch('/api/studio/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) },
         body: JSON.stringify({ assetType, description }),
       })
       const { taskId, error: err } = await res.json()
@@ -589,12 +590,16 @@ export default function StudioPage() {
       if (cErr) throw new Error(cErr)
 
       const refs = [...heroes.map(h => h.file_url), location?.file_url, ...extraRefs.map(r => r.file_url)].filter(Boolean)
+      const authHdr = await adminHeaders()
       const videoRes = await fetch('/api/studio/video', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHdr },
         body: JSON.stringify({ prompt, referenceImageUrls: refs, quality, duration }),
       })
-      const { taskId, error: vErr } = await videoRes.json()
+      const videoJson = await videoRes.json()
+      const { taskId, error: vErr } = videoJson
+      if (videoJson.code === 'auth') { setError('Sign in to generate videos.'); setStep('confirm'); return }
+      if (videoJson.code === 'quota') { setError(videoJson.error || 'Daily limit reached — upgrade for more renders.'); setStep('confirm'); return }
       if (vErr) throw new Error(vErr)
 
       pollRef.current = setInterval(async () => {
@@ -673,7 +678,7 @@ export default function StudioPage() {
       try {
         const fd = new FormData()
         fd.append('file', new File([blob], 'upload.jpg', { type: 'image/jpeg' }))
-        meta = await (await fetch('/api/ai-name', { method: 'POST', body: fd })).json()
+        meta = await (await fetch('/api/ai-name', { method: 'POST', headers: await adminHeaders(), body: fd })).json()
       } catch { /* best-effort naming */ }
       const assetType = step === 'location' ? 'Location' : step === 'hero' ? 'Character' : 'Prop'
       // Server-mediated write: the browser never touches storage/DB directly
@@ -684,7 +689,7 @@ export default function StudioPage() {
       fd2.append('category', meta.category || 'User Upload')
       fd2.append('description', meta.description || '')
       fd2.append('tags', typeof meta.tags === 'string' ? meta.tags : '')
-      const upRes = await fetch('/api/user-upload', { method: 'POST', body: fd2 })
+      const upRes = await fetch('/api/user-upload', { method: 'POST', headers: await adminHeaders(), body: fd2 })
       const upJson = await upRes.json()
       if (!upRes.ok || !upJson.asset) throw new Error(upJson.error || 'Upload failed')
       const asset = upJson.asset as Asset
