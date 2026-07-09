@@ -422,7 +422,7 @@ function AdminDashboard() {
             const cleanFile = await toCleanJpeg(item.file)
             const fd = new FormData()
             fd.append('file', cleanFile)
-            const res = await fetch('/api/ai-name', { method: 'POST', body: fd })
+            const res = await fetch('/api/ai-name', { method: 'POST', headers: await adminHeaders(), body: fd })
             if (res.ok) {
               const ai = await res.json()
               setBatchItems(prev =>
