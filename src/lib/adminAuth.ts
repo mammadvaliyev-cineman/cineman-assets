@@ -29,7 +29,7 @@ export async function requireAdmin(req: NextRequest): Promise<{ ok: true } | { o
 }
 
 // Any signed-in user (for user-facing writes like own uploads)
-export async function requireUser(req: NextRequest): Promise<{ ok: true; userId: string } | { ok: false; error: string; status: number }> {
+export async function requireUser(req: NextRequest): Promise<{ ok: true; userId: string; email: string | null } | { ok: false; error: string; status: number }> {
   const auth = req.headers.get('authorization') || ''
   const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
   if (!token) return { ok: false, error: 'Sign in required', status: 401 }
@@ -37,7 +37,7 @@ export async function requireUser(req: NextRequest): Promise<{ ok: true; userId:
     const admin = supabaseAdmin()
     const { data, error } = await admin.auth.getUser(token)
     if (error || !data.user) return { ok: false, error: 'Invalid session', status: 401 }
-    return { ok: true, userId: data.user.id }
+    return { ok: true, userId: data.user.id, email: data.user.email ?? null }
   } catch {
     return { ok: false, error: 'Auth check failed', status: 500 }
   }
