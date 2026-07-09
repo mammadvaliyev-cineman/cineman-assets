@@ -181,6 +181,15 @@ export default function CatalogPage() {
   const [activeStyle, setActiveStyle] = useState('All')
   const [activeMood, setActiveMood]   = useState('All')
   const [activeLighting, setActiveLighting] = useState('All')
+  // Character-specific filters (tag-based)
+  const [activeGender, setActiveGender] = useState('All')
+  const [activeAge, setActiveAge] = useState('All')
+  const [activeEthnicity, setActiveEthnicity] = useState('All')
+  // Location-specific filters
+  const [activeSetting, setActiveSetting] = useState('All')
+  const [activeTime, setActiveTime] = useState('All')
+  // Subcategory filter (contextual for any selected type)
+  const [activeSubcat, setActiveSubcat] = useState('All')
   const [viewMode, setViewMode]       = useState<'grid' | 'list'>('grid')
   const [sortBy, setSortBy]           = useState<'recent' | 'oldest'>('recent')
   const [previewSize, setPreviewSize] = useState(100)
@@ -233,16 +242,42 @@ export default function CatalogPage() {
       const matchStyle = activeStyle === 'All' || a.tags.some(t => t.toLowerCase().includes(activeStyle.toLowerCase()))
       const matchMood = activeMood === 'All' || a.tags.some(t => t.toLowerCase().includes(activeMood.toLowerCase()))
       const matchLighting = activeLighting === 'All' || a.tags.some(t => t.toLowerCase().includes(activeLighting.toLowerCase()))
-      return matchSearch && matchCat && matchType && matchStyle && matchMood && matchLighting
+      const tagsLower = a.tags.map(t => t.toLowerCase())
+      const AGE_MAP: Record<string, string[]> = {
+        'Kids': ['kid', 'child', 'teen', 'teenager'],
+        'Young': ['young', 'young adult'],
+        'Middle-aged': ['middle-aged', 'middle aged'],
+        'Elderly': ['elderly', 'old', 'senior'],
+      }
+      const matchGender = activeGender === 'All' || tagsLower.includes(activeGender.toLowerCase())
+      const matchAge = activeAge === 'All' || (AGE_MAP[activeAge] || []).some(x => tagsLower.includes(x))
+      const matchEthnicity = activeEthnicity === 'All' || tagsLower.some(t => t.includes(activeEthnicity.toLowerCase()))
+      const SETTING_MAP: Record<string, string[]> = {
+        'Interior': ['interior', 'indoor', 'indoors', 'room'],
+        'Exterior': ['exterior', 'outdoor', 'outdoors', 'street', 'aerial', 'landscape'],
+      }
+      const TIME_MAP: Record<string, string[]> = {
+        'Day': ['day', 'daylight', 'midday', 'afternoon', 'morning'],
+        'Golden Hour': ['golden hour', 'sunset', 'sunrise', 'dusk'],
+        'Evening': ['evening'],
+        'Night': ['night', 'midnight', 'neon'],
+      }
+      const blob = (tagsLower.join(' ') + ' ' + a.category.toLowerCase() + ' ' + a.title.toLowerCase())
+      const matchSetting = activeSetting === 'All' || (SETTING_MAP[activeSetting] || []).some(x => blob.includes(x))
+      const matchTime = activeTime === 'All' || (TIME_MAP[activeTime] || []).some(x => blob.includes(x))
+      const matchSubcat = activeSubcat === 'All' || a.category.toLowerCase() === activeSubcat.toLowerCase()
+      return matchSearch && matchCat && matchType && matchStyle && matchMood && matchLighting && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat
     })
-  }, [assets, search, activeCat, activeType, activeStyle, activeMood, activeLighting, quickView, favIds, dlIds])
+  }, [assets, search, activeCat, activeType, activeStyle, activeMood, activeLighting, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeSubcat, quickView, favIds, dlIds])
 
-  const hasFilters = activeCat !== 'All' || activeType !== 'All' || activeStyle !== 'All' || activeMood !== 'All' || activeLighting !== 'All' || search !== ''
+  const hasFilters = activeCat !== 'All' || activeType !== 'All' || activeStyle !== 'All' || activeMood !== 'All' || activeLighting !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== ''
   const activeFilterCount = [activeCat !== 'All', activeType !== 'All', activeStyle !== 'All', activeMood !== 'All', activeLighting !== 'All'].filter(Boolean).length
 
   function clearAll() {
     setActiveCat('All'); setActiveType('All'); setActiveStyle('All')
     setActiveMood('All'); setActiveLighting('All'); setSearch('')
+    setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
+    setActiveSetting('All'); setActiveTime('All'); setActiveSubcat('All')
   }
 
   const activeCatObj = CATEGORIES.find(c => c.id === activeCat)
@@ -384,9 +419,29 @@ export default function CatalogPage() {
             {types.length > 2 && (
               <FilterChip label="Asset Type" value={activeType} options={types} onChange={setActiveType} />
             )}
-            <FilterChip label="Style"    value={activeStyle}    options={['All', ...STYLES]}   onChange={setActiveStyle} />
-            <FilterChip label="Lighting" value={activeLighting} options={['All', ...LIGHTING]}  onChange={setActiveLighting} />
-            <FilterChip label="Mood"     value={activeMood}     options={['All', ...MOODS]}     onChange={setActiveMood} />
+            {(activeCat === 'Character' || activeType === 'Character') ? (
+              <>
+                {/* Character-specific filters */}
+                <FilterChip label="Category"  value={activeSubcat}    options={['All', ...(CATEGORIES.find(c => c.id === 'Character')?.subcategories.map(x => x.label) ?? [])]} onChange={setActiveSubcat} />
+                <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} />
+                <FilterChip label="Age"       value={activeAge}       options={['All', 'Kids', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
+                <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern']} onChange={setActiveEthnicity} />
+              </>
+            ) : (activeCat === 'Location' || activeType === 'Location') ? (
+              <>
+                {/* Location-specific filters */}
+                <FilterChip label="Category" value={activeSubcat}  options={['All', ...(CATEGORIES.find(c => c.id === 'Location')?.subcategories.map(x => x.label) ?? [])]} onChange={setActiveSubcat} />
+                <FilterChip label="Setting"  value={activeSetting} options={['All', 'Interior', 'Exterior']} onChange={setActiveSetting} />
+                <FilterChip label="Time"     value={activeTime}    options={['All', 'Day', 'Golden Hour', 'Evening', 'Night']} onChange={setActiveTime} />
+                <FilterChip label="Mood"     value={activeMood}    options={['All', ...MOODS]} onChange={setActiveMood} />
+              </>
+            ) : (
+              <>
+                <FilterChip label="Style"    value={activeStyle}    options={['All', ...STYLES]}   onChange={setActiveStyle} />
+                <FilterChip label="Lighting" value={activeLighting} options={['All', ...LIGHTING]}  onChange={setActiveLighting} />
+                <FilterChip label="Mood"     value={activeMood}     options={['All', ...MOODS]}     onChange={setActiveMood} />
+              </>
+            )}
             {hasFilters && (
               <button
                 onClick={clearAll}
