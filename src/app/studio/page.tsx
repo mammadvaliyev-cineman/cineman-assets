@@ -592,7 +592,7 @@ export default function StudioPage() {
       if (vErr) throw new Error(vErr)
 
       pollRef.current = setInterval(async () => {
-        const r = await fetch(`/api/studio/video?taskId=${taskId}`)
+        const r = await fetch(`/api/studio/video?taskId=${taskId}&quality=${quality}`)
         const j = await r.json()
         setProgress(j.progress || 0)
         if (j.state === 'success' && j.resultUrls?.length) {
@@ -1180,7 +1180,7 @@ export default function StudioPage() {
                       New video
                     </button>
                   </div>
-                  <p className="text-zinc-600 text-xs mt-4">Video link lives ~24 hours — download it right away.</p>
+                  <p className="text-zinc-600 text-xs mt-4">Saved to your Cineman library — this link is permanent.</p>
                 </div>
               )}
             </div>
