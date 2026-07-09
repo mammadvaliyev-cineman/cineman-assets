@@ -49,7 +49,7 @@ export default function AdminGate({ children }: { children: ReactNode }) {
     <div className="min-h-[70vh] flex items-center justify-center px-6">
       <div className="card p-10 max-w-md w-full text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/cineman-mascot.png" alt="" width={80} height={80} className="mx-auto mb-4 object-contain" />
+        <img src="/cineman-neutral.png" alt="" width={80} height={80} className="mx-auto mb-4 object-contain" />
         <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Admin access</h1>
 
         {user ? (
