@@ -432,17 +432,26 @@ export default function AssetGrid({
           ))}
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${Math.round(300 * previewSize / 100)}px, 1fr))`, gap: 16 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
           {assets.map(asset => (
-            <AssetCard
+            <div
               key={asset.id}
-              asset={asset}
-              isFav={favs.has(asset.id)}
-              isDownloading={downloading === asset.id}
-              onFav={() => handleFav(asset.id)}
-              onDownload={() => handleDownload(asset)}
-              viewMode="grid"
-            />
+              style={{
+                flexGrow: 1,
+                flexBasis: Math.round(300 * previewSize / 100),
+                maxWidth: Math.round(300 * previewSize / 100 * 1.5),
+                transition: 'flex-basis .45s cubic-bezier(.16,1,.3,1), max-width .45s cubic-bezier(.16,1,.3,1)',
+              }}
+            >
+              <AssetCard
+                asset={asset}
+                isFav={favs.has(asset.id)}
+                isDownloading={downloading === asset.id}
+                onFav={() => handleFav(asset.id)}
+                onDownload={() => handleDownload(asset)}
+                viewMode="grid"
+              />
+            </div>
           ))}
         </div>
       )}
