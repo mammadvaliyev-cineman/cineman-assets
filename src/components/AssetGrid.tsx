@@ -437,10 +437,12 @@ export default function AssetGrid({
             <div
               key={asset.id}
               style={{
-                flexGrow: 1,
-                flexBasis: Math.round(300 * previewSize / 100),
-                maxWidth: Math.round(300 * previewSize / 100 * 1.5),
-                transition: 'flex-basis .45s cubic-bezier(.16,1,.3,1), max-width .45s cubic-bezier(.16,1,.3,1)',
+                // fixed equal width for every card — smooth resize, no
+                // uneven stretching on incomplete rows
+                width: Math.round(300 * previewSize / 100),
+                flexGrow: 0,
+                flexShrink: 0,
+                transition: 'width .45s cubic-bezier(.16,1,.3,1)',
               }}
             >
               <AssetCard
