@@ -124,14 +124,16 @@ export default function HomePage() {
             { n: "2", title: "Cineman sets the scene", desc: "He casts consistent heroes and locations from the base and directs camera, light and mood." },
             { n: "3", title: "Hit Generate", desc: "A cinematic Seedance shot with your exact cast — draft in minutes, final in 1080p with audio." },
           ].map(({ n, title, desc }, i) => (
-            <div key={n} className="relative card p-7 fade-in-up" style={{ animationDelay: `${0.08 + i * 0.1}s` }}>
-              <div
-                className="absolute -top-4 left-7 flex items-center justify-center rounded-xl font-bold text-white"
-                style={{ width: 34, height: 34, background: "linear-gradient(135deg, #9765E0, #534FA5)", boxShadow: "0 6px 18px rgba(151,101,224,0.45)" }}
-              >
-                {n}
+            <div key={n} className="card p-7 fade-in-up" style={{ animationDelay: `${0.08 + i * 0.1}s` }}>
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="flex items-center justify-center rounded-xl font-bold text-white shrink-0"
+                  style={{ width: 34, height: 34, background: "linear-gradient(135deg, #9765E0, #534FA5)", boxShadow: "0 6px 18px rgba(151,101,224,0.45)" }}
+                >
+                  {n}
+                </div>
+                <h3 className="text-base font-bold" style={{ color: "var(--fg)" }}>{title}</h3>
               </div>
-              <h3 className="text-base font-bold mb-2 mt-3" style={{ color: "var(--fg)" }}>{title}</h3>
               <p className="text-sm leading-relaxed" style={{ color: "var(--fg-muted)" }}>{desc}</p>
             </div>
           ))}
