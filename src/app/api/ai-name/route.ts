@@ -6,7 +6,7 @@ import { normalizeAttr } from '@/lib/attrs'
 export const maxDuration = 30
 
 const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent'
 
 // Live taxonomy (admin-editable) with code defaults as fallback
 async function loadTaxonomy(): Promise<Category[]> {
