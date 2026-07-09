@@ -60,3 +60,5 @@
 - Голос (Whisper/TTS) — v2 по плану.
 
 <!-- redeploy: ARK_API_KEY enabled -->
+
+<!-- redeploy: ark key updated -->
