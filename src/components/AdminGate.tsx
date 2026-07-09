@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, ReactNode } from 'react'
-import { useAuth } from '@/components/AuthProvider'
+import { useAuth, GOOGLE_AUTH_ENABLED } from '@/components/AuthProvider'
 import { supabase } from '@/lib/supabase'
 
 // ─────────────────────────────────────────────────────────────
@@ -87,9 +87,14 @@ export default function AdminGate({ children }: { children: ReactNode }) {
                 Send link
               </button>
             </div>
-            <button onClick={signInGoogle} className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
-              or continue with Google
-            </button>
+            {GOOGLE_AUTH_ENABLED && (
+              <button onClick={signInGoogle} className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+                or continue with Google
+              </button>
+            )}
+            <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+              A sign-in link will arrive by email — open it on this device.
+            </p>
             {err && <p className="text-xs mt-3" style={{ color: '#ff5f5f' }}>{err}</p>}
           </>
         )}

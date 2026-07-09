@@ -9,10 +9,15 @@ import type { User } from '@supabase/supabase-js'
 // enabled in the Supabase Dashboard (Auth → Providers → Google).
 // ─────────────────────────────────────────────────────────────
 
+// Flip to true once the Google provider is enabled in Supabase
+// (Dashboard → Authentication → Providers → Google)
+export const GOOGLE_AUTH_ENABLED = false
+
 type AuthCtxType = {
   user: User | null
   loading: boolean
   signInGoogle: () => void
+  signInEmail: (email: string) => Promise<string | null>
   signOut: () => void
 }
 
@@ -20,6 +25,7 @@ const AuthCtx = createContext<AuthCtxType>({
   user: null,
   loading: true,
   signInGoogle: () => {},
+  signInEmail: async () => null,
   signOut: () => {},
 })
 
@@ -47,10 +53,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })
   }
 
+  // Magic link — works out of the box, no provider setup needed
+  const signInEmail = async (email: string): Promise<string | null> => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: typeof window !== 'undefined' ? window.location.href : undefined },
+    })
+    return error ? error.message : null
+  }
+
   const signOut = () => { supabase.auth.signOut() }
 
   return (
-    <AuthCtx.Provider value={{ user, loading, signInGoogle, signOut }}>
+    <AuthCtx.Provider value={{ user, loading, signInGoogle, signInEmail, signOut }}>
       {children}
     </AuthCtx.Provider>
   )

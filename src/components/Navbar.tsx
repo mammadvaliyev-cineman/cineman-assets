@@ -51,7 +51,7 @@ function MenuIcon() {
 // ── Navbar ───────────────────────────────────────────────────
 export default function Navbar() {
   useTheme() // keeps dark theme applied; light mode disabled for now
-  const { user, signInGoogle } = useAuth()
+  const { user } = useAuth()
 
   return (
     <nav
@@ -122,13 +122,13 @@ export default function Navbar() {
               )}
             </Link>
           ) : (
-            <button
-              onClick={signInGoogle}
+            <Link
+              href="/account"
               className="text-sm font-medium px-4 py-2 rounded-lg transition-colors"
               style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }}
             >
               Sign in
-            </button>
+            </Link>
           )}
           <Link href="/pricing" className="btn-primary text-sm px-4 py-2">
             Get Started
