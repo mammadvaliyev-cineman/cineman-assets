@@ -355,7 +355,7 @@ function AdminDashboard() {
     const { data } = await supabase
       .from('assets')
       .select('*')
-      .neq('type', 'Config') // system config rows are not assets
+      .neq('type', 'Config').neq('type', 'Usage') // system rows are not assets
       .order('created_at', { ascending: false })
     if (data) setAssets(data as AssetRow[])
     setLoadingAssets(false)
