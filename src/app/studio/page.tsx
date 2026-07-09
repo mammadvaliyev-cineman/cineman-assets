@@ -150,7 +150,7 @@ const RU_CAT: Record<string, string> = {
 
 const BOT_LINES: Record<Step, string> = {
   type: 'What are we shooting today? Pick a type — or describe your own.',
-  hero: "Who is the hero? Describe them — I'll find options in the base.",
+  hero: "Who's in the cast? Describe the first hero — you can add up to 4 (and more later on the final step).",
   location: 'Where does the action happen? Describe the location.',
   action: 'What happens in the frame? Type it or dictate with the mic.',
   camera: 'How does the camera move? Pick options — or trust me.',
@@ -1119,6 +1119,19 @@ export default function StudioPage() {
                     )}
                   </div>
 
+                  {/* Quick-add: вернуться и дополнить сцену */}
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    <button onClick={() => setStep('hero')} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-zinc-700 text-zinc-300 hover:border-violet-500/60 hover:text-violet-200 transition-colors text-sm">
+                      <Icon d={I.user} size={15} /> {heroes.length ? 'Add / change heroes' : 'Add a hero'}
+                    </button>
+                    <button onClick={() => setStep('location')} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-zinc-700 text-zinc-300 hover:border-violet-500/60 hover:text-violet-200 transition-colors text-sm">
+                      <Icon d={I.pin} size={15} /> {location ? 'Change location' : 'Add a location'}
+                    </button>
+                    <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-zinc-700 text-zinc-300 hover:border-violet-500/60 hover:text-violet-200 transition-colors text-sm">
+                      <Icon d={I.upload} size={15} /> Add a prop
+                    </button>
+                  </div>
+
                   <div className="flex flex-wrap items-center gap-4 mb-7">
                     <div className="flex gap-2">
                       <Chip active={quality === 'draft'} onClick={() => setQuality('draft')}>Draft · 720p</Chip>
@@ -1175,7 +1188,7 @@ export default function StudioPage() {
 
           {/* Строка ввода — как в Claude/GPT: текст + голос */}
           {canSend && (
-            <div className="px-5 pb-5 pt-3 border-t border-zinc-800/60" style={{ background: 'linear-gradient(0deg, rgba(139,92,246,0.05), transparent)' }}>
+            <div className="px-6 pb-8 pt-4 border-t border-zinc-800/60" style={{ background: 'linear-gradient(0deg, rgba(139,92,246,0.05), transparent)' }}>
               <div className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur border border-zinc-800 focus-within:border-violet-500/70 rounded-2xl px-4 py-2 transition-colors shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }} />
                 <button
