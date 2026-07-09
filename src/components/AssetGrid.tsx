@@ -278,14 +278,6 @@ function AssetCard({
           </div>
         )}
 
-        {/* Type badge (top-left) */}
-        <span
-          className="absolute top-2 left-2 badge text-xs font-semibold"
-          style={{ backgroundColor: typeStyle.bg, color: typeStyle.color, backdropFilter: 'blur(6px)', zIndex: 3 }}
-        >
-          {asset.type}
-        </span>
-
         {/* Heart button (top-right) */}
         <button
           onClick={e => { e.stopPropagation(); onFav() }}
@@ -337,8 +329,11 @@ function AssetCard({
 
       {/* Info */}
       <div className="p-4 flex flex-col flex-1">
-        <h3 className="font-semibold mb-1 truncate text-sm" style={{ color: 'var(--fg)' }}>{asset.title}</h3>
-        <p className="text-xs mb-3" style={{ color: 'var(--fg-muted)' }}>{asset.category}</p>
+        <h3 className="font-semibold mb-1.5 truncate text-sm" style={{ color: 'var(--fg)' }}>{asset.title}</h3>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="badge text-[11px] font-semibold" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
+          <p className="text-xs truncate" style={{ color: 'var(--fg-muted)' }}>{asset.category}</p>
+        </div>
         {asset.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-auto">
             {asset.tags.slice(0, 3).map(tag => (
