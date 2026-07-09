@@ -2,18 +2,47 @@ import { NextRequest, NextResponse } from 'next/server'
 import { kieCreateTask, kieGetTask, KIE_MODELS } from '@/lib/kie'
 import { arkCreateVideoTask, arkGetVideoTask, arkEnabled } from '@/lib/ark'
 import { supabaseAdmin } from '@/lib/supabase'
+import { checkUsage, incrementUsage } from '@/lib/usage'
 
 export const maxDuration = 30
 
 // ─────────────────────────────────────────────────────────────
 // VIDEO — the ONLY mandatory paid step of the whole flow.
+// Auth-gated + daily quota to protect the ModelArk budget.
 // Provider selection: BytePlus ModelArk (official Seedance home)
 // when ARK_API_KEY is set, kie.ai otherwise. Task ids returned to
 // the client are prefixed with the provider so GET routes back.
 // ─────────────────────────────────────────────────────────────
 
+// Resolve the signed-in user from the bearer token (studio sends it)
+async function getUser(req: NextRequest): Promise<{ id: string; email: string | null } | null> {
+  const auth = req.headers.get('authorization') || ''
+  const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+  if (!token) return null
+  try {
+    const { data } = await supabaseAdmin().auth.getUser(token)
+    return data.user ? { id: data.user.id, email: data.user.email ?? null } : null
+  } catch {
+    return null
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
+    // 1) Must be signed in — rendering costs money
+    const user = await getUser(req)
+    if (!user) {
+      return NextResponse.json({ error: 'Sign in to generate videos', code: 'auth' }, { status: 401 })
+    }
+    // 2) Daily quota — protects the render budget
+    const usage = await checkUsage(user.id, user.email)
+    if (usage.remaining <= 0) {
+      return NextResponse.json(
+        { error: `Daily limit reached (${usage.limit} renders). Upgrade for more.`, code: 'quota', usage },
+        { status: 402 },
+      )
+    }
+
     const { prompt, referenceImageUrls = [], quality = 'draft', duration } = await req.json()
     if (!prompt) {
       return NextResponse.json({ error: 'prompt is required' }, { status: 400 })
@@ -21,6 +50,7 @@ export async function POST(req: NextRequest) {
 
     if (arkEnabled()) {
       const id = await arkCreateVideoTask({ prompt, referenceImageUrls, quality, duration })
+      await incrementUsage(user.id)
       return NextResponse.json({ taskId: `ark:${id}`, provider: 'modelark' })
     }
 
@@ -37,6 +67,7 @@ export async function POST(req: NextRequest) {
     if (duration) input.duration = Number(duration)
 
     const taskId = await kieCreateTask(model, input)
+    await incrementUsage(user.id)
     return NextResponse.json({ taskId, provider: 'kie' })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Video task failed'
