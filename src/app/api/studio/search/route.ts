@@ -153,9 +153,16 @@ export async function POST(req: NextRequest) {
       ? rows.some(a => scoreAsset(a, subjectKws) > 0)
       : scored.length > 0
 
-    // If nothing scored, fall back to the attribute-filtered pool
-    // (already the right gender/age/etc.) then to all rows.
-    const pool = scored.length ? scored.map(s => s.asset) : (rows.length ? rows : allRows)
+    // Fallback pool. `rows` is already attribute-filtered, so it is
+    // always the right gender/age/place. If the query specified hard
+    // attributes and nothing survives, return EMPTY rather than the
+    // opposite gender — showing men for "young woman" is worse than
+    // an honest "nothing here, generate one". Only when the query had
+    // no hard attributes do we fall all the way back to everything.
+    const hadAttrs = Object.keys(want).length > 0
+    const pool = scored.length
+      ? scored.map(s => s.asset)
+      : (rows.length ? rows : (hadAttrs ? [] : allRows))
     const page = pool.slice(offset, offset + 4)
 
     return NextResponse.json({
