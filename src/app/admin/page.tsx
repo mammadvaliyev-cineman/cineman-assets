@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import AdminGate, { adminHeaders } from '@/components/AdminGate'
 import { CATEGORIES, STYLES, MOODS, LIGHTING, Category, makeSubcategory } from '@/config/categories'
 
 // ── Types ───────────────────────────────────────────────────
@@ -243,7 +244,7 @@ type BatchItem = {
 }
 
 // ── Main Component ──────────────────────────────────────────
-export default function AdminPage() {
+function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories'>('overview')
   const [stats, setStats] = useState<Stats>({ total: 0, byType: {}, byPlan: {} })
   const [assets, setAssets] = useState<AssetRow[]>([])
@@ -313,7 +314,7 @@ export default function AdminPage() {
     setCatSaving(true)
     await fetch('/api/categories', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
       body: JSON.stringify({ categories: taxonomy, styles: stylesList, moods: moodsList, lighting: lightingList }),
     }).catch(() => {})
     setCatSaving(false)
@@ -368,18 +369,18 @@ export default function AdminPage() {
   async function deleteAsset(asset: AssetRow) {
     if (!confirm(`Delete "${asset.title}"? This cannot be undone.`)) return
     setDeletingId(asset.id)
-    // Remove from Storage
-    if (asset.file_url) {
-      const path = asset.file_url.split('/assets/')[1]
-      if (path) await supabase.storage.from('assets').remove([path])
+    // All writes go through the authenticated server route
+    const res = await fetch(`/api/admin/assets?id=${encodeURIComponent(asset.id)}`, {
+      method: 'DELETE',
+      headers: await adminHeaders(),
+    })
+    if (res.ok) {
+      setAssets(prev => prev.filter(a => a.id !== asset.id))
+      setStats(prev => ({ ...prev, total: prev.total - 1 }))
+    } else {
+      const j = await res.json().catch(() => ({}))
+      alert(j.error || 'Delete failed')
     }
-    if (asset.thumbnail_url && asset.thumbnail_url.includes('/assets/')) {
-      const tPath = asset.thumbnail_url.split('/assets/')[1]
-      if (tPath) await supabase.storage.from('assets').remove([tPath])
-    }
-    await supabase.from('assets').delete().eq('id', asset.id)
-    setAssets(prev => prev.filter(a => a.id !== asset.id))
-    setStats(prev => ({ ...prev, total: prev.total - 1 }))
     setDeletingId(null)
   }
 
@@ -480,44 +481,53 @@ export default function AdminPage() {
         const filePath = `${item.type.toLowerCase().replace(/\s+/g, '-')}/${ts}-${safeTitle}.${ext}`
 
         const uploadFile = item.file.type.startsWith('image/') ? await toWebJpeg(item.file) : item.file
-        const { error: fileErr } = await supabase.storage
-          .from('assets')
-          .upload(filePath, uploadFile, { cacheControl: '3600', upsert: false })
-        if (fileErr) throw fileErr
+        const headers = await adminHeaders()
+        const uploadOne = async (f: File | Blob, path: string): Promise<string> => {
+          const fd = new FormData()
+          fd.append('file', f)
+          fd.append('path', path)
+          const r = await fetch('/api/admin/upload', { method: 'POST', headers, body: fd })
+          const j = await r.json()
+          if (!r.ok || !j.url) throw new Error(j.error || 'Storage upload failed')
+          return j.url
+        }
+
+        const fileUrl = await uploadOne(uploadFile, filePath)
 
         const isImage = item.file.type.startsWith('image/')
-        let thumbPath = isImage ? filePath : ''
+        let thumbUrl = isImage ? fileUrl : ''
         // Character sheets: upload a face-crop as the thumbnail
         if (isImage && item.faceBox) {
           try {
             const faceFile = await cropFace(item.file, item.faceBox)
             const fPath = filePath.replace(/\.[a-z0-9]+$/i, '') + '-face.jpg'
-            const { error: fErr } = await supabase.storage.from('assets').upload(fPath, faceFile, { cacheControl: '3600', upsert: false })
-            if (!fErr) thumbPath = fPath
+            thumbUrl = await uploadOne(faceFile, fPath)
           } catch { /* fall back to full image */ }
         }
-
-        const { data: fileUrlData } = supabase.storage.from('assets').getPublicUrl(filePath)
-        const thumbUrl = thumbPath
-          ? supabase.storage.from('assets').getPublicUrl(thumbPath).data.publicUrl
-          : ''
 
         const baseTags = item.tags.split(',').map(t => t.trim()).filter(Boolean)
         // Append style/mood/subcategory as structured tags
         const extraTags = [batchSubcategory, batchStyle, batchMood].filter(Boolean)
         const tags = Array.from(new Set([...baseTags, ...extraTags]))
 
-        const { error: dbErr } = await supabase.from('assets').insert({
-          title: item.title.trim(),
-          type: item.type,
-          category: batchCategory || item.type,
-          plan: batchPlan,
-          tags,
-          description: item.description || '',
-          file_url: fileUrlData.publicUrl,
-          thumbnail_url: thumbUrl,
+        const insRes = await fetch('/api/admin/assets', {
+          method: 'POST',
+          headers: { ...headers, 'content-type': 'application/json' },
+          body: JSON.stringify({
+            title: item.title.trim(),
+            type: item.type,
+            category: batchCategory || item.type,
+            plan: batchPlan,
+            tags,
+            description: item.description || '',
+            file_url: fileUrl,
+            thumbnail_url: thumbUrl,
+          }),
         })
-        if (dbErr) throw dbErr
+        if (!insRes.ok) {
+          const j = await insRes.json().catch(() => ({}))
+          throw new Error(j.error || 'DB insert failed')
+        }
 
         updateBatchItem(item.id, { status: 'done' })
       } catch (err: unknown) {
@@ -1077,5 +1087,13 @@ export default function AdminPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function AdminPage() {
+  return (
+    <AdminGate>
+      <AdminDashboard />
+    </AdminGate>
   )
 }
