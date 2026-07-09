@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES, Category } from '@/config/categories'
+import { normalizeAttr } from '@/lib/attrs'
 
 export const maxDuration = 30
 
@@ -37,7 +38,12 @@ TASK: Carefully study everything visible in this image — lighting, mood, envir
   "type": "EXACTLY one of: ${typeIds}. Location = places/environments/interiors. Character = people/creatures/figures. Vehicle = cars/aircraft/ships. Prop = objects/items",
   "category": "EXACTLY one subcategory label from the list matching the chosen type:\n${catLines}",
   "description": "2-3 sentence cinematic description of EXACTLY what is in the frame. Describe: main subject, environment/setting, lighting quality and direction, mood/atmosphere, notable visual details. Write like a film director shot notes.",
-  "tags": ["tag1", "..."] — exactly 12 lowercase tags specific to THIS image. For people ALWAYS include: gender (man/woman), age group (young/young adult/middle-aged/elderly), ethnicity descriptor (white/black/east asian/south asian/latino/middle eastern/mixed), hair color, key wardrobe items, build, vibe. Also add: visual style, lighting, mood, color, genre, environment,
+  "tags": ["tag1", "..."] — exactly 12 lowercase descriptive tags specific to THIS image: hair color, key wardrobe items, build, vibe, visual style, lighting, mood, color, genre, environment, textures. Do NOT put gender/age/ethnicity here — those go in the structured fields below.
+  "gender": "for a PERSON exactly one of: man | woman. Empty string if not a person.",
+  "age": "for a PERSON exactly one of: child | teen | young | adult | senior (young = ~18-29, adult = ~30-55). Empty string if not a person.",
+  "ethnicity": "for a PERSON exactly one of: white | black | asian | south-asian | latino | mena | mixed. Empty string if unclear or not a person.",
+  "place": "for a LOCATION exactly one of: interior | exterior. Empty string if not a location.",
+  "time": "for a LOCATION exactly one of: dawn | day | golden | night. Empty string if unclear or not a location.",
   "face_box": [x, y, width, height] — normalized 0-1 box around the clearest FRONTAL FACE (head only) in the image. If the sheet shows several views of one person, pick the view facing the camera. Use null if no clear frontal face
 }
 
@@ -117,12 +123,33 @@ export async function POST(req: NextRequest) {
 
     const parsed = JSON.parse(jsonMatch[0])
     const validTypes = taxonomy.map(c => c.id)
+    const type = validTypes.includes(parsed.type) ? parsed.type : 'Location'
+
+    // Structured attributes → prefixed tokens, prepended to tags so
+    // search can hard-filter on them (g:/age:/eth: | place:/time:).
+    const attrTokens: string[] = []
+    const pushAttr = (key: 'g' | 'age' | 'eth' | 'place' | 'time', raw: unknown) => {
+      const code = normalizeAttr(key, String(raw ?? ''))
+      if (code) attrTokens.push(`${key}:${code}`)
+    }
+    if (type === 'Character') {
+      pushAttr('g', parsed.gender)
+      pushAttr('age', parsed.age)
+      pushAttr('eth', parsed.ethnicity)
+    } else if (type === 'Location') {
+      pushAttr('place', parsed.place)
+      pushAttr('time', parsed.time)
+    }
+    const freeTags = Array.isArray(parsed.tags) ? parsed.tags.slice(0, 12).map(String) : []
+    const allTags = [...attrTokens, ...freeTags]
+
     return NextResponse.json({
       title: String(parsed.title ?? ''),
-      type: validTypes.includes(parsed.type) ? parsed.type : 'Location',
+      type,
       category: String(parsed.category ?? ''),
       description: String(parsed.description ?? ''),
-      tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 12).join(', ') : '',
+      tags: allTags.join(', '),
+      attrs: attrTokens,
       face_box: Array.isArray(parsed.face_box) && parsed.face_box.length === 4 ? parsed.face_box.map(Number) : null,
     })
   } catch (err) {
