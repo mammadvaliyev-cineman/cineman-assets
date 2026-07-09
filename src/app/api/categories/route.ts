@@ -1,14 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
-import { CATEGORIES, Category } from '@/config/categories'
+import { CATEGORIES, STYLES, MOODS, LIGHTING, Category } from '@/config/categories'
 
 // ─────────────────────────────────────────────────────────────
-// CATEGORIES CONFIG — live-editable taxonomy. Stored as a Config
-// row in the assets table (no DB migration needed). GET returns
-// the saved taxonomy or the code defaults; POST saves.
+// CATEGORIES CONFIG — live-editable taxonomy + styles/moods/
+// lighting. Stored as a Config row in the assets table (no DB
+// migration needed). GET returns saved config merged with code
+// defaults; POST saves the whole thing.
 // ─────────────────────────────────────────────────────────────
 
 const ROW = { type: 'Config', title: 'categories-config' }
+
+type TaxonomyConfig = {
+  categories: Category[]
+  styles: string[]
+  moods: string[]
+  lighting: string[]
+}
+
+const DEFAULTS: TaxonomyConfig = {
+  categories: CATEGORIES,
+  styles: STYLES,
+  moods: MOODS,
+  lighting: LIGHTING,
+}
 
 export async function GET() {
   try {
@@ -18,20 +33,35 @@ export async function GET() {
       .eq('type', ROW.type)
       .eq('title', ROW.title)
       .limit(1)
-    const saved: Category[] | null = data?.[0]?.description ? JSON.parse(data[0].description) : null
-    return NextResponse.json({ categories: Array.isArray(saved) && saved.length ? saved : CATEGORIES })
+    const saved = data?.[0]?.description ? JSON.parse(data[0].description) : null
+    if (Array.isArray(saved) && saved.length) {
+      // legacy shape: plain categories array
+      return NextResponse.json({ ...DEFAULTS, categories: saved })
+    }
+    if (saved && typeof saved === 'object') {
+      return NextResponse.json({
+        categories: Array.isArray(saved.categories) && saved.categories.length ? saved.categories : CATEGORIES,
+        styles: Array.isArray(saved.styles) && saved.styles.length ? saved.styles : STYLES,
+        moods: Array.isArray(saved.moods) && saved.moods.length ? saved.moods : MOODS,
+        lighting: Array.isArray(saved.lighting) && saved.lighting.length ? saved.lighting : LIGHTING,
+      })
+    }
+    return NextResponse.json(DEFAULTS)
   } catch {
-    return NextResponse.json({ categories: CATEGORIES })
+    return NextResponse.json(DEFAULTS)
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { categories } = await req.json()
-    if (!Array.isArray(categories) || !categories.length) {
-      return NextResponse.json({ error: 'categories array is required' }, { status: 400 })
+    const body = await req.json()
+    const config: TaxonomyConfig = {
+      categories: Array.isArray(body.categories) && body.categories.length ? body.categories : CATEGORIES,
+      styles: Array.isArray(body.styles) ? body.styles : STYLES,
+      moods: Array.isArray(body.moods) ? body.moods : MOODS,
+      lighting: Array.isArray(body.lighting) ? body.lighting : LIGHTING,
     }
-    const body = JSON.stringify(categories)
+    const payload = JSON.stringify(config)
     const { data } = await supabase
       .from('assets')
       .select('id')
@@ -39,7 +69,7 @@ export async function POST(req: NextRequest) {
       .eq('title', ROW.title)
       .limit(1)
     if (data?.length) {
-      const { error } = await supabase.from('assets').update({ description: body }).eq('id', data[0].id)
+      const { error } = await supabase.from('assets').update({ description: payload }).eq('id', data[0].id)
       if (error) throw error
     } else {
       const { error } = await supabase.from('assets').insert({
@@ -47,7 +77,7 @@ export async function POST(req: NextRequest) {
         category: 'System',
         plan: 'free',
         tags: ['config'],
-        description: body,
+        description: payload,
         file_url: 'config://categories',
         thumbnail_url: 'config://categories',
       })
