@@ -18,6 +18,7 @@ type AuthCtxType = {
   loading: boolean
   signInGoogle: () => void
   signInEmail: (email: string) => Promise<string | null>
+  signInPassword: (email: string, password: string) => Promise<string | null>
   signOut: () => void
 }
 
@@ -26,6 +27,7 @@ const AuthCtx = createContext<AuthCtxType>({
   loading: true,
   signInGoogle: () => {},
   signInEmail: async () => null,
+  signInPassword: async () => null,
   signOut: () => {},
 })
 
@@ -62,10 +64,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return error ? error.message : null
   }
 
+  // Password sign-in — no email needed (owner sets password in Supabase)
+  const signInPassword = async (email: string, password: string): Promise<string | null> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    return error ? error.message : null
+  }
+
   const signOut = () => { supabase.auth.signOut() }
 
   return (
-    <AuthCtx.Provider value={{ user, loading, signInGoogle, signInEmail, signOut }}>
+    <AuthCtx.Provider value={{ user, loading, signInGoogle, signInEmail, signInPassword, signOut }}>
       {children}
     </AuthCtx.Provider>
   )

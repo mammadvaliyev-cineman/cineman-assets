@@ -23,10 +23,18 @@ export async function adminHeaders(): Promise<Record<string, string>> {
 }
 
 export default function AdminGate({ children }: { children: ReactNode }) {
-  const { user, loading, signInGoogle, signOut } = useAuth()
+  const { user, loading, signInGoogle, signInPassword, signOut } = useAuth()
   const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [sent, setSent] = useState(false)
   const [err, setErr] = useState('')
+
+  const signInWithPassword = async () => {
+    setErr('')
+    if (!isAdminEmail(email)) { setErr('This email has no admin access'); return }
+    const e = await signInPassword(email, password)
+    if (e) setErr(e)
+  }
 
   const sendLink = async () => {
     setErr('')
@@ -49,7 +57,7 @@ export default function AdminGate({ children }: { children: ReactNode }) {
     <div className="min-h-[70vh] flex items-center justify-center px-6">
       <div className="card p-10 max-w-md w-full text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/cineman-neutral.png" alt="" width={80} height={80} className="mx-auto mb-4 object-contain" />
+        <img src="/cineman-mascot.png" alt="" width={80} height={80} className="mx-auto mb-4 object-contain" />
         <h1 className="text-xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Admin access</h1>
 
         {user ? (
@@ -70,31 +78,36 @@ export default function AdminGate({ children }: { children: ReactNode }) {
             <p className="text-sm mb-6" style={{ color: 'var(--fg-muted)' }}>
               Sign in with the owner account to continue.
             </p>
-            <div className="flex gap-2 mb-3">
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && sendLink()}
-                placeholder="admin email"
-                className="input-field flex-1"
-              />
-              <button
-                onClick={sendLink}
-                className="px-4 py-2 rounded-xl text-sm font-semibold text-white"
-                style={{ background: 'linear-gradient(135deg,#9765E0,#534FA5)' }}
-              >
-                Send link
-              </button>
-            </div>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="admin email"
+              className="input-field w-full mb-2"
+            />
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && signInWithPassword()}
+              placeholder="password"
+              className="input-field w-full mb-3"
+            />
+            <button
+              onClick={signInWithPassword}
+              className="w-full px-4 py-2.5 rounded-xl text-sm font-semibold text-white mb-3"
+              style={{ background: 'linear-gradient(135deg,#9765E0,#534FA5)' }}
+            >
+              Sign in
+            </button>
+            <button onClick={sendLink} className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+              or email me a magic link
+            </button>
             {GOOGLE_AUTH_ENABLED && (
-              <button onClick={signInGoogle} className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+              <button onClick={signInGoogle} className="text-xs block mx-auto mt-2" style={{ color: 'var(--fg-subtle)' }}>
                 or continue with Google
               </button>
             )}
-            <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
-              A sign-in link will arrive by email — open it on this device.
-            </p>
             {err && <p className="text-xs mt-3" style={{ color: '#ff5f5f' }}>{err}</p>}
           </>
         )}
