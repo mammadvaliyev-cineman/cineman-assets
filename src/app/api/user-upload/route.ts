@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireUser } from '@/lib/adminAuth'
 
 // ─────────────────────────────────────────────────────────────
 // USER UPLOAD — studio users add their own hero/location/prop.
@@ -15,6 +16,8 @@ const TYPES = ['Character', 'Location', 'Prop', 'Vehicle']
 
 export async function POST(req: NextRequest) {
   try {
+    const gate = await requireUser(req)
+    if (!gate.ok) return NextResponse.json({ error: gate.error, code: 'auth' }, { status: gate.status })
     const form = await req.formData()
     const file = form.get('file') as File | null
     const assetType = String(form.get('type') || 'Prop')
