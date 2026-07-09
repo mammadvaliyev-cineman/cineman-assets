@@ -133,7 +133,7 @@ function buildDeterministicPrompt(s: SceneState): string {
 }
 
 const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent'
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent'
 
 async function polish(prompt: string, action: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
