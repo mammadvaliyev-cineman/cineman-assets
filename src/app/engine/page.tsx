@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { ENGINE_CATS, DEFAULT_ENGINE_CONFIG, EngineConfig } from '@/lib/engine'
+import AdminGate, { adminHeaders } from '@/components/AdminGate'
 
 // ─────────────────────────────────────────────────────────────
 // ENGINE CONTROL ROOM — тут решается, какие категории движка
@@ -26,7 +27,7 @@ const RU_TITLES: Record<string, string> = {
   colorgrade: 'Color Grading',
 }
 
-export default function EnginePage() {
+function EngineDashboard() {
   const [config, setConfig] = useState<EngineConfig>(DEFAULT_ENGINE_CONFIG)
   const [open, setOpen] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -48,7 +49,7 @@ export default function EnginePage() {
     setSaving(true)
     await fetch('/api/engine', {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
       body: JSON.stringify({ config }),
     }).catch(() => {})
     setSaving(false)
@@ -132,5 +133,13 @@ export default function EnginePage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function EnginePage() {
+  return (
+    <AdminGate>
+      <EngineDashboard />
+    </AdminGate>
   )
 }
