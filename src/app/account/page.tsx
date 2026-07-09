@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useAuth } from '@/components/AuthProvider'
+import { useAuth, GOOGLE_AUTH_ENABLED } from '@/components/AuthProvider'
 import { supabase } from '@/lib/supabase'
 
 // ─────────────────────────────────────────────────────────────
@@ -31,7 +31,10 @@ function GoogleIcon() {
 }
 
 export default function AccountPage() {
-  const { user, loading, signInGoogle, signOut } = useAuth()
+  const { user, loading, signInGoogle, signInEmail, signOut } = useAuth()
+  const [email, setEmail] = useState('')
+  const [sent, setSent] = useState(false)
+  const [authErr, setAuthErr] = useState('')
   const [generations, setGenerations] = useState<Row[]>([])
   const [favorites, setFavorites] = useState<Row[]>([])
 
@@ -71,16 +74,44 @@ export default function AccountPage() {
           <p className="text-sm mb-8" style={{ color: 'var(--fg-muted)' }}>
             Sign in to keep your generations, favorites and downloads in one place.
           </p>
-          <button
-            onClick={signInGoogle}
-            className="w-full flex items-center justify-center gap-3 py-3 rounded-xl font-semibold text-sm transition-all hover:-translate-y-0.5"
-            style={{ backgroundColor: '#fff', color: '#1a1a2e', boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}
-          >
-            <GoogleIcon /> Continue with Google
-          </button>
-          <p className="text-xs mt-4" style={{ color: 'var(--fg-subtle)' }}>
-            One click — no passwords.
-          </p>
+          {sent ? (
+            <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+              Magic link sent to <strong style={{ color: '#9765E0' }}>{email}</strong> — open it from this device.
+            </p>
+          ) : (
+            <>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && email.includes('@') && signInEmail(email).then(er => er ? setAuthErr(er) : setSent(true))}
+                  placeholder="your@email.com"
+                  className="input-field flex-1"
+                />
+                <button
+                  onClick={() => email.includes('@') && signInEmail(email).then(er => er ? setAuthErr(er) : setSent(true))}
+                  className="px-5 py-2 rounded-xl text-sm font-semibold text-white"
+                  style={{ background: 'linear-gradient(135deg,#9765E0,#534FA5)' }}
+                >
+                  Send link
+                </button>
+              </div>
+              {GOOGLE_AUTH_ENABLED && (
+                <button
+                  onClick={signInGoogle}
+                  className="w-full flex items-center justify-center gap-3 py-3 rounded-xl font-semibold text-sm transition-all hover:-translate-y-0.5 mb-3"
+                  style={{ backgroundColor: '#fff', color: '#1a1a2e', boxShadow: '0 8px 24px rgba(0,0,0,0.35)' }}
+                >
+                  <GoogleIcon /> Continue with Google
+                </button>
+              )}
+              <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>
+                No passwords — a sign-in link arrives by email.
+              </p>
+              {authErr && <p className="text-xs mt-2" style={{ color: '#ff5f5f' }}>{authErr}</p>}
+            </>
+          )}
         </div>
       </div>
     )
