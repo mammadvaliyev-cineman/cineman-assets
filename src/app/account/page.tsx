@@ -69,7 +69,7 @@ export default function AccountPage() {
       <div className="min-h-[70vh] flex items-center justify-center px-6">
         <div className="card p-10 max-w-md w-full text-center fade-in-up">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/cineman-mascot.png" alt="" width={90} height={90} className="mx-auto mb-5 object-contain" style={{ filter: 'drop-shadow(0 10px 20px rgba(139,92,246,0.35))' }} />
+          <img src="/cineman-neutral.png" alt="" width={90} height={90} className="mx-auto mb-5 object-contain" style={{ filter: 'drop-shadow(0 10px 20px rgba(139,92,246,0.35))' }} />
           <h1 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Welcome to Cineman</h1>
           <p className="text-sm mb-8" style={{ color: 'var(--fg-muted)' }}>
             Sign in to keep your generations, favorites and downloads in one place.
