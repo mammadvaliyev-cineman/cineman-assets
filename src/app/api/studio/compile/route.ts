@@ -63,11 +63,13 @@ const CUTS: Record<string, string> = {
 function buildDeterministicPrompt(s: SceneState): string {
   const parts: string[] = []
 
-  // Reference bindings — Seedance 2.0 reads reference images in order
+  // Reference bindings — Seedance 2.0 reads reference images in order.
+  // With several people, identity MUST be pinned per slot or the model
+  // blends faces together.
   const cast = (s.heroes && s.heroes.length ? s.heroes : (s.hero ? [s.hero] : []))
   cast.forEach((h, i) => {
     const role = i === 0 ? 'The main character' : `Character ${i + 1}`
-    parts.push(`${role} is the person from reference image ${i + 1} (@image${i + 1}): ${h.title || ''}. Keep their face, hair and outfit perfectly consistent.`)
+    parts.push(`${role} is the distinct person from reference image ${i + 1} (@image${i + 1}): ${h.title || ''}. Keep their face, hair and outfit perfectly consistent, and do not merge them with the other characters.`)
   })
   if (s.location) parts.push(`The scene takes place in the environment from reference image ${cast.length + 1} (@image${cast.length + 1}): ${s.location.title || ''}.`)
 
@@ -119,8 +121,11 @@ function buildDeterministicPrompt(s: SceneState): string {
   const weatherSel = engineSel.weather
   const weatherLabel = Array.isArray(weatherSel) ? weatherSel[0] : weatherSel
   const ph = weatherLabel ? PHYS[weatherLabel] : (s.details?.weather ? PHYS[s.details.weather] : undefined)
+  const multi = cast.length > 1
   parts.push(
-    'Consistency: keep the same character, same clothing, same hairstyle, no face changes, no flicker, high consistency' +
+    (multi
+      ? `Consistency: keep each of the ${cast.length} characters as their own distinct person from their reference image, same faces, same clothing, same hairstyles, never blend or swap identities between them, no flicker, high consistency`
+      : 'Consistency: keep the same character, same clothing, same hairstyle, no face changes, no flicker, high consistency') +
     (ph ? `. Realistic ${ph} physics` : '') + '.',
   )
 
