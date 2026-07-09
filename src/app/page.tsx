@@ -59,19 +59,19 @@ export default function HomePage() {
           </span>
 
           <h1
-            className="text-5xl md:text-7xl font-bold mb-6 leading-tight fade-in-up"
+            className="text-6xl md:text-8xl font-bold mb-6 leading-[1.05] tracking-tight fade-in-up"
             style={{ color: "var(--fg)", animationDelay: "0.16s" }}
           >
-            Direct Films
+            Direct Films with
             <br />
             <span
               style={{
-                background: "linear-gradient(135deg, #9765E0, #00C2BA)",
+                background: "linear-gradient(135deg, #CE95FB, #9765E0 45%, #00C2BA)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
               }}
             >
-              with an AI Director
+              CINEMAN AI
             </span>
           </h1>
 
