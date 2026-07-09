@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIES, Category } from '@/config/categories'
 import { normalizeAttr } from '@/lib/attrs'
+import { requireUser } from '@/lib/adminAuth'
 
 export const maxDuration = 30
 
@@ -58,6 +59,8 @@ RULES:
 
 export async function POST(req: NextRequest) {
   try {
+    const gate = await requireUser(req)
+    if (!gate.ok) return NextResponse.json({ error: gate.error, code: 'auth' }, { status: gate.status })
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) {
       return NextResponse.json({ error: 'GEMINI_API_KEY not configured' }, { status: 500 })
