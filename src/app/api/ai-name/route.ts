@@ -37,7 +37,7 @@ TASK: Carefully study everything visible in this image — lighting, mood, envir
   "type": "EXACTLY one of: ${typeIds}. Location = places/environments/interiors. Character = people/creatures/figures. Vehicle = cars/aircraft/ships. Prop = objects/items",
   "category": "EXACTLY one subcategory label from the list matching the chosen type:\n${catLines}",
   "description": "2-3 sentence cinematic description of EXACTLY what is in the frame. Describe: main subject, environment/setting, lighting quality and direction, mood/atmosphere, notable visual details. Write like a film director shot notes.",
-  "tags": ["tag1", "..."] — exactly 12 lowercase tags specific to THIS image. For people ALWAYS include: gender (man/woman), age group (young/middle-aged/elderly), hair color, key wardrobe items, build, vibe. Also add: visual style, lighting, mood, color, genre, environment,
+  "tags": ["tag1", "..."] — exactly 12 lowercase tags specific to THIS image. For people ALWAYS include: gender (man/woman), age group (young/young adult/middle-aged/elderly), ethnicity descriptor (white/black/east asian/south asian/latino/middle eastern/mixed), hair color, key wardrobe items, build, vibe. Also add: visual style, lighting, mood, color, genre, environment,
   "face_box": [x, y, width, height] — normalized 0-1 box around the clearest FRONTAL FACE (head only) in the image. If the sheet shows several views of one person, pick the view facing the camera. Use null if no clear frontal face
 }
 
