@@ -34,7 +34,7 @@ export default function HomePage() {
             <style>{`@keyframes cinemanFloatHome { 0%, 100% { transform: translateY(0) rotate(-2deg) } 50% { transform: translateY(-10px) rotate(2deg) } }`}</style>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/cineman-neutral.png"
+              src="/cineman-mascot.png"
               alt="Cineman"
               width={150}
               height={150}
