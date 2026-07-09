@@ -54,6 +54,7 @@ const I = {
   bolt: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
   upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4|M17 8l-5-5-5 5|M12 3v12',
   dice: 'M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z|M8.5 8.5h.01|M15.5 8.5h.01|M12 12h.01|M8.5 15.5h.01|M15.5 15.5h.01',
+  library: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20|M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
   scroll: 'M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4|M19 17V5a2 2 0 0 0-2-2H4|M13 7h4|M13 11h4',
   copy: 'M20 9h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2z|M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 7v5l3 2',
@@ -486,6 +487,10 @@ export default function StudioPage() {
   const [input, setInput] = useState('')
   const [micOn, setMicOn] = useState(false)
   const [uploading, setUploading] = useState(false)
+  // «My library» — герои/локации/пропсы из Favorites и Downloads юзера
+  const [libFor, setLibFor] = useState<'hero' | 'location' | 'prop' | null>(null)
+  const [libAssets, setLibAssets] = useState<Asset[]>([])
+  const [libLoading, setLibLoading] = useState(false)
   const [extraRefs, setExtraRefs] = useState<Asset[]>([])
   const fileRef = useRef<HTMLInputElement | null>(null)
   const recRef = useRef<SpeechRec | null>(null)
@@ -611,6 +616,37 @@ export default function StudioPage() {
     }
   }, [videoType, heroes, location, action, extraNote, extraRefs, engineSel, engineCfg.masterPreset, quality, duration])
 
+  const openLibrary = useCallback(async (kind: 'hero' | 'location' | 'prop') => {
+    setLibFor(kind)
+    setLibLoading(true)
+    try {
+      const favs: string[] = JSON.parse(localStorage.getItem('cineman_favs') ?? '[]')
+      const dls: string[] = JSON.parse(localStorage.getItem('cineman_dl_ids') ?? '[]')
+      const idSet = new Set<string>()
+      favs.forEach(x => idSet.add(x))
+      dls.forEach(x => idSet.add(x))
+      const ids: string[] = []
+      idSet.forEach(x => ids.push(x))
+      ids.splice(60)
+      if (!ids.length) { setLibAssets([]); return }
+      const { data } = await supabase
+        .from('assets')
+        .select('id,title,type,tags,description,file_url,thumbnail_url')
+        .in('id', ids)
+      const wantType = kind === 'hero' ? 'Character' : kind === 'location' ? 'Location' : null
+      const list = (data || []).filter(a => !wantType || a.type === wantType) as Asset[]
+      setLibAssets(list)
+    } catch { setLibAssets([]) }
+    finally { setLibLoading(false) }
+  }, [])
+
+  const pickFromLibrary = useCallback((a: Asset) => {
+    if (libFor === 'hero') setHeroes(prev => prev.some(h => h.id === a.id) ? prev : [...prev, a].slice(0, 4))
+    else if (libFor === 'location') setLocation(a)
+    else setExtraRefs(prev => prev.some(r => r.id === a.id) ? prev : [...prev, a].slice(0, 3))
+    setLibFor(null)
+  }, [libFor])
+
   // ── User uploads: own character / location / prop ───────────
   const toJpeg = (file: File, max = 1600, q = 0.85): Promise<Blob> => new Promise((resolve, reject) => {
     const img = new Image()
@@ -639,23 +675,18 @@ export default function StudioPage() {
         meta = await (await fetch('/api/ai-name', { method: 'POST', body: fd })).json()
       } catch { /* best-effort naming */ }
       const assetType = step === 'location' ? 'Location' : step === 'hero' ? 'Character' : 'Prop'
-      const path = `user/${Date.now()}-upload.jpg`
-      const { error: upErr } = await supabase.storage.from('assets').upload(path, blob, { contentType: 'image/jpeg' })
-      if (upErr) throw upErr
-      const url = supabase.storage.from('assets').getPublicUrl(path).data.publicUrl
-      const tags = typeof meta.tags === 'string' && meta.tags ? meta.tags.split(',').map(t => t.trim()) : []
-      const { data, error: dbErr } = await supabase.from('assets').insert({
-        title: meta.title || file.name.replace(/\.[^.]+$/, ''),
-        type: assetType,
-        category: meta.category || 'User Upload',
-        plan: 'free',
-        tags: [...tags, 'user-upload'],
-        description: meta.description || '',
-        file_url: url,
-        thumbnail_url: url,
-      }).select().single()
-      if (dbErr) throw dbErr
-      const asset = data as Asset
+      // Server-mediated write: the browser never touches storage/DB directly
+      const fd2 = new FormData()
+      fd2.append('file', new File([blob], 'upload.jpg', { type: 'image/jpeg' }))
+      fd2.append('type', assetType)
+      fd2.append('title', meta.title || file.name.replace(/\.[^.]+$/, ''))
+      fd2.append('category', meta.category || 'User Upload')
+      fd2.append('description', meta.description || '')
+      fd2.append('tags', typeof meta.tags === 'string' ? meta.tags : '')
+      const upRes = await fetch('/api/user-upload', { method: 'POST', body: fd2 })
+      const upJson = await upRes.json()
+      if (!upRes.ok || !upJson.asset) throw new Error(upJson.error || 'Upload failed')
+      const asset = upJson.asset as Asset
       if (assetType === 'Character') { setHeroes(prev => [...prev, asset].slice(0, 4)); setHeroResults([asset]); setHeroMatched(1) }
       else if (assetType === 'Location') { setLocation(asset); setLocResults([asset]); setLocMatched(1) }
       else setExtraRefs(prev => [...prev, asset].slice(0, 3))
@@ -863,6 +894,35 @@ export default function StudioPage() {
               <div className="mb-5 px-4 py-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-sm">{error}</div>
             )}
 
+            {/* My library picker (Favorites + Downloads) */}
+            {libFor && (
+              <div className="mb-6 rounded-2xl border border-violet-500/40 bg-zinc-900/70 p-4 fade-in-up">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm text-zinc-200 flex items-center gap-2">
+                    <Icon d={I.library} size={16} /> My library — {libFor === 'hero' ? 'characters' : libFor === 'location' ? 'locations' : 'any asset as a prop'}
+                  </p>
+                  <button onClick={() => setLibFor(null)} className="text-zinc-500 hover:text-zinc-300 text-sm">Close</button>
+                </div>
+                {libLoading ? (
+                  <p className="text-zinc-500 text-sm py-4">Loading your library…</p>
+                ) : libAssets.length === 0 ? (
+                  <p className="text-zinc-500 text-sm py-4">Nothing here yet — add favorites or download assets in the catalog first.</p>
+                ) : (
+                  <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto pr-1">
+                    {libAssets.map(a => (
+                      <button key={a.id} onClick={() => pickFromLibrary(a)} className="relative rounded-xl overflow-hidden border border-zinc-800 hover:border-violet-500/70 transition-all text-left group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={a.thumbnail_url || a.file_url} alt={a.title} className="w-full aspect-square object-cover" style={{ objectPosition: 'center top' }} loading="lazy" />
+                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-1.5">
+                          <p className="text-[10px] text-zinc-200 line-clamp-1">{a.title}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div key={step} className="fade-in-up">
               {/* TYPE */}
               {step === 'type' && (
@@ -915,6 +975,12 @@ export default function StudioPage() {
                           className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-[3/4] flex flex-col items-center justify-center gap-2 transition-all text-xs"
                         >
                           <Icon d={I.upload} size={20} /> Add your own
+                        </button>
+                        <button
+                          onClick={() => openLibrary('hero')}
+                          className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-[3/4] flex flex-col items-center justify-center gap-2 transition-all text-xs"
+                        >
+                          <Icon d={I.library} size={20} /> My library
                         </button>
                       </div>
                       {heroes.length > 0 && (
@@ -972,6 +1038,12 @@ export default function StudioPage() {
                           className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-video flex flex-col items-center justify-center gap-2 transition-all text-xs"
                         >
                           <Icon d={I.upload} size={20} /> Add your own
+                        </button>
+                        <button
+                          onClick={() => openLibrary('location')}
+                          className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-video flex flex-col items-center justify-center gap-2 transition-all text-xs"
+                        >
+                          <Icon d={I.library} size={20} /> My library
                         </button>
                       </div>
                       <div className="flex gap-5 mb-6 text-sm">
@@ -1129,6 +1201,9 @@ export default function StudioPage() {
                     </button>
                     <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-zinc-700 text-zinc-300 hover:border-violet-500/60 hover:text-violet-200 transition-colors text-sm">
                       <Icon d={I.upload} size={15} /> Add a prop
+                    </button>
+                    <button onClick={() => openLibrary('prop')} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-zinc-700 text-zinc-300 hover:border-violet-500/60 hover:text-violet-200 transition-colors text-sm">
+                      <Icon d={I.library} size={15} /> From my library
                     </button>
                   </div>
 
