@@ -263,9 +263,34 @@ export default function AdminPage() {
 
   // ── Live-editable taxonomy (Supabase-backed) ────────────
   const [taxonomy, setTaxonomy] = useState<Category[]>(CATEGORIES)
+  const [stylesList, setStylesList] = useState<string[]>(STYLES)
+  const [moodsList, setMoodsList] = useState<string[]>(MOODS)
+  const [lightingList, setLightingList] = useState<string[]>(LIGHTING)
   const [catSaving, setCatSaving] = useState(false)
   const [catSaved, setCatSaved] = useState(false)
   const [newSub, setNewSub] = useState<Record<string, string>>({})
+  const [newItem, setNewItem] = useState<Record<string, string>>({})
+
+  const LIST_SETTERS: Record<string, [string[], (v: string[]) => void]> = {
+    Styles: [stylesList, setStylesList],
+    Moods: [moodsList, setMoodsList],
+    Lighting: [lightingList, setLightingList],
+  }
+
+  const addListItem = (group: string) => {
+    const label = (newItem[group] || '').trim()
+    if (!label) return
+    const [list, set] = LIST_SETTERS[group]
+    if (!list.some(x => x.toLowerCase() === label.toLowerCase())) set([...list, label])
+    setNewItem(v => ({ ...v, [group]: '' }))
+    setCatSaved(false)
+  }
+
+  const removeListItem = (group: string, label: string) => {
+    const [list, set] = LIST_SETTERS[group]
+    set(list.filter(x => x !== label))
+    setCatSaved(false)
+  }
 
   const subsFor = (catId: string) => taxonomy.find(c => c.id === catId)?.subcategories ?? []
 
@@ -289,7 +314,7 @@ export default function AdminPage() {
     await fetch('/api/categories', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ categories: taxonomy }),
+      body: JSON.stringify({ categories: taxonomy, styles: stylesList, moods: moodsList, lighting: lightingList }),
     }).catch(() => {})
     setCatSaving(false)
     setCatSaved(true)
@@ -300,7 +325,12 @@ export default function AdminPage() {
     loadStats()
     fetch('/api/categories')
       .then(r => r.json())
-      .then(d => { if (Array.isArray(d.categories) && d.categories.length) setTaxonomy(d.categories) })
+      .then(d => {
+        if (Array.isArray(d.categories) && d.categories.length) setTaxonomy(d.categories)
+        if (Array.isArray(d.styles) && d.styles.length) setStylesList(d.styles)
+        if (Array.isArray(d.moods) && d.moods.length) setMoodsList(d.moods)
+        if (Array.isArray(d.lighting) && d.lighting.length) setLightingList(d.lighting)
+      })
       .catch(() => {})
   }, [])
 
@@ -802,7 +832,7 @@ export default function AdminPage() {
                 <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Style</label>
                 <select className="input-field" value={batchStyle} onChange={e => setBatchStyle(e.target.value)}>
                   <option value="">— None —</option>
-                  {STYLES.map(s => <option key={s} value={s}>{s}</option>)}
+                  {stylesList.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               {/* Mood */}
@@ -810,7 +840,7 @@ export default function AdminPage() {
                 <label className="text-xs font-semibold uppercase tracking-wider block mb-2" style={{ color: 'var(--fg-muted)' }}>Mood</label>
                 <select className="input-field" value={batchMood} onChange={e => setBatchMood(e.target.value)}>
                   <option value="">— None —</option>
-                  {MOODS.map(m => <option key={m} value={m}>{m}</option>)}
+                  {moodsList.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
             </div>
@@ -989,22 +1019,56 @@ export default function AdminPage() {
             ))}
           </div>
 
-          {/* Style / Mood / Lighting */}
+          {/* Style / Mood / Lighting — editable */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {[
-              { label: 'Styles', icon: TYPE_ICON.palette, items: STYLES, color: '#9765E0' },
-              { label: 'Moods', icon: TYPE_ICON.smile, items: MOODS, color: '#CE95FB' },
-              { label: 'Lighting', icon: TYPE_ICON.bulb, items: LIGHTING, color: '#00C2BA' },
+              { label: 'Styles', icon: TYPE_ICON.palette, items: stylesList, color: '#9765E0' },
+              { label: 'Moods', icon: TYPE_ICON.smile, items: moodsList, color: '#CE95FB' },
+              { label: 'Lighting', icon: TYPE_ICON.bulb, items: lightingList, color: '#00C2BA' },
             ].map(group => (
               <div key={group.label} className="card p-5" style={{ borderLeft: `3px solid ${group.color}` }}>
                 <div className="flex items-center gap-2 mb-3" style={{ color: group.color }}>
                   <LineIcon d={group.icon} size={16} />
                   <span className="font-semibold text-sm" style={{ color: 'var(--fg)' }}>{group.label}</span>
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: `${group.color}22`, color: group.color }}>
+                    {group.items.length}
+                  </span>
                 </div>
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-wrap gap-1.5 mb-3">
                   {group.items.map(item => (
-                    <span key={item} className="text-xs" style={{ color: 'var(--fg-muted)' }}>· {item}</span>
+                    <span
+                      key={item}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
+                      style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--fg-muted)', border: '1px solid var(--border)' }}
+                    >
+                      {item}
+                      <button
+                        onClick={() => removeListItem(group.label, item)}
+                        title="Remove"
+                        className="opacity-40 hover:opacity-100 transition-opacity"
+                        style={{ color: '#ff5f5f' }}
+                      >
+                        <LineIcon d={TYPE_ICON.x} size={11} />
+                      </button>
+                    </span>
                   ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={newItem[group.label] || ''}
+                    onChange={e => setNewItem(v => ({ ...v, [group.label]: e.target.value }))}
+                    onKeyDown={e => e.key === 'Enter' && addListItem(group.label)}
+                    placeholder={`New ${group.label.toLowerCase().slice(0, -1)}…`}
+                    className="input-field flex-1 text-xs"
+                    style={{ padding: '6px 10px' }}
+                  />
+                  <button
+                    onClick={() => addListItem(group.label)}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                    style={{ backgroundColor: `${group.color}1a`, color: group.color, border: `1px solid ${group.color}40` }}
+                  >
+                    <LineIcon d={TYPE_ICON.plus} size={12} /> Add
+                  </button>
                 </div>
               </div>
             ))}
