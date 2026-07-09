@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { kieCreateTask, kieGetTask, KIE_MODELS } from '@/lib/kie'
 import { supabaseAdmin } from '@/lib/supabase'
+import { requireUser } from '@/lib/adminAuth'
+import { checkUsage, incrementUsage } from '@/lib/usage'
 
 export const maxDuration = 60
 
@@ -22,6 +24,10 @@ const STYLE: Record<string, string> = {
 
 export async function POST(req: NextRequest) {
   try {
+    const gate = await requireUser(req)
+    if (!gate.ok) return NextResponse.json({ error: gate.error, code: 'auth' }, { status: gate.status })
+    const usage = await checkUsage(gate.userId, gate.email)
+    if (usage.remaining <= 0) return NextResponse.json({ error: `Daily limit reached (${usage.limit}). Upgrade for more.`, code: 'quota', usage }, { status: 402 })
     const { assetType, description } = await req.json()
     if (!assetType || !description) {
       return NextResponse.json({ error: 'assetType and description are required' }, { status: 400 })
@@ -31,6 +37,7 @@ export async function POST(req: NextRequest) {
       prompt,
       output_format: 'png',
     })
+    await incrementUsage(gate.userId)
     return NextResponse.json({ taskId })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Generation failed'
