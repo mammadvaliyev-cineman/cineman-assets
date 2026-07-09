@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { kieCreateTask, kieGetTask, KIE_MODELS } from '@/lib/kie'
 import { arkCreateVideoTask, arkGetVideoTask, arkEnabled } from '@/lib/ark'
+import { supabaseAdmin } from '@/lib/supabase'
 
 export const maxDuration = 30
 
@@ -43,17 +44,61 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// ── Permanent storage: provider URLs expire in ~24h, so on
+// success we re-host the video into Supabase Storage once and
+// keep a Generation record. Users never lose their renders.
+async function rehostVideo(taskId: string, url: string, quality: string): Promise<string> {
+  try {
+    const admin = supabaseAdmin()
+    const safe = taskId.replace(/[^a-zA-Z0-9_-]/g, '').slice(-48) || `gen-${Date.now()}`
+    const { data: existing } = await admin
+      .from('assets')
+      .select('file_url')
+      .eq('type', 'Generation')
+      .eq('title', safe)
+      .limit(1)
+    if (existing?.length) return existing[0].file_url
+    const res = await fetch(url)
+    if (!res.ok) return url
+    const buf = Buffer.from(await res.arrayBuffer())
+    const path = `generations/${safe}.mp4`
+    const { error } = await admin.storage.from('assets').upload(path, buf, { contentType: 'video/mp4', upsert: true })
+    if (error) return url
+    const pub = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
+    await admin.from('assets').insert({
+      title: safe,
+      type: 'Generation',
+      category: quality === 'final' ? 'Final Video' : 'Draft Video',
+      plan: 'free',
+      tags: ['generation', 'video', quality],
+      description: `Generated in Cineman Studio (${new Date().toISOString().slice(0, 10)})`,
+      file_url: pub,
+      thumbnail_url: pub,
+    })
+    return pub
+  } catch {
+    return url
+  }
+}
+
 export async function GET(req: NextRequest) {
   try {
     const taskId = req.nextUrl.searchParams.get('taskId')
     if (!taskId) {
       return NextResponse.json({ error: 'taskId is required' }, { status: 400 })
     }
+    const quality = req.nextUrl.searchParams.get('quality') || 'draft'
     if (taskId.startsWith('ark:')) {
       const info = await arkGetVideoTask(taskId.slice(4))
+      if (info.state === 'success' && info.resultUrls?.length) {
+        info.resultUrls = [await rehostVideo(taskId, info.resultUrls[0], quality)]
+      }
       return NextResponse.json(info)
     }
     const info = await kieGetTask(taskId)
+    if (info.state === 'success' && info.resultUrls?.length) {
+      info.resultUrls = [await rehostVideo(taskId, info.resultUrls[0], quality)]
+    }
     return NextResponse.json(info)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Status check failed'
