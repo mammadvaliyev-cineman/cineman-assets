@@ -173,6 +173,7 @@ function toAsset(a: Record<string, unknown>): Asset {
     plan: (a.plan as Asset['plan']) ?? 'starter',
     tags: Array.isArray(a.tags) ? a.tags : [],
     fileUrl: String(a.file_url ?? ''),
+    creditCost: Number(a.credit_cost ?? 5),
   }
 }
 
