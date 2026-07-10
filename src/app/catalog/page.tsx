@@ -182,6 +182,8 @@ function Skeleton() {
 export default function CatalogPage() {
   const [assets, setAssets]           = useState<Asset[]>([])
   const [loading, setLoading]         = useState(true)
+  const PER_PAGE = 100
+  const [page, setPage] = useState(1)
   const [search, setSearch]           = useState('')
   const [activeCat, setActiveCat]     = useState('All')   // CATEGORIES[].id or 'All'
   const [activeType, setActiveType]   = useState('All')   // Asset type filter
@@ -302,6 +304,10 @@ export default function CatalogPage() {
       return matchSearch && matchCat && matchType && matchStyle && matchMood && matchLighting && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat
     })
   }, [assets, search, activeCat, activeType, activeStyle, activeMood, activeLighting, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeSubcat, quickView, favIds, dlIds])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
+  const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
+  useEffect(() => { setPage(1) }, [search, activeCat, activeType, activeSubcat, activeStyle, activeMood, activeLighting, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, quickView])
 
   const hasFilters = activeCat !== 'All' || activeType !== 'All' || activeStyle !== 'All' || activeMood !== 'All' || activeLighting !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== ''
   const activeFilterCount = [activeCat !== 'All', activeType !== 'All', activeStyle !== 'All', activeMood !== 'All', activeLighting !== 'All'].filter(Boolean).length
@@ -567,7 +573,31 @@ export default function CatalogPage() {
         )}
 
         {/* Content */}
-        {loading ? <Skeleton /> : <AssetGrid assets={filtered} viewMode={viewMode} previewSize={previewSize} />}
+        {loading ? <Skeleton /> : <AssetGrid assets={paged} viewMode={viewMode} previewSize={previewSize} />}
+
+        {/* Pagination */}
+        {!loading && totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, marginTop: 32, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => { setPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+              disabled={page === 1}
+              style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: page === 1 ? 'default' : 'pointer', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: page === 1 ? 'var(--fg-subtle)' : 'var(--fg)', opacity: page === 1 ? 0.5 : 1 }}
+            >‹ Prev</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(n => n === 1 || n === totalPages || Math.abs(n - page) <= 2)
+              .reduce<(number | string)[]>((acc, n, i, arr) => { if (i > 0 && n - (arr[i - 1] as number) > 1) acc.push('…'); acc.push(n); return acc }, [])
+              .map((n, i) => typeof n === 'string'
+                ? <span key={'e' + i} style={{ color: 'var(--fg-subtle)', padding: '0 4px' }}>…</span>
+                : <button key={n} onClick={() => { setPage(n); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+                    style={{ minWidth: 36, padding: '8px 10px', borderRadius: 8, fontSize: 13, cursor: 'pointer', border: '1px solid ' + (n === page ? '#9765E0' : 'var(--border)'), background: n === page ? 'linear-gradient(135deg,#9765E0,#534FA5)' : 'var(--bg-subtle)', color: n === page ? '#fff' : 'var(--fg)', fontWeight: n === page ? 600 : 400 }}
+                  >{n}</button>)}
+            <button
+              onClick={() => { setPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+              disabled={page === totalPages}
+              style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: page === totalPages ? 'default' : 'pointer', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: page === totalPages ? 'var(--fg-subtle)' : 'var(--fg)', opacity: page === totalPages ? 0.5 : 1 }}
+            >Next ›</button>
+          </div>
+        )}
       </main>
     </div>
   )
