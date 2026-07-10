@@ -240,6 +240,17 @@ export default function CatalogPage() {
   // config) so the filter values always match a.category exactly.
   const charSubcats = useMemo(() => ['All', ...Array.from(new Set(assets.filter(a => String(a.type) === 'Character').map(a => a.category).filter(Boolean))).sort()], [assets])
   const locSubcats  = useMemo(() => ['All', ...Array.from(new Set(assets.filter(a => String(a.type) === 'Location').map(a => a.category).filter(Boolean))).sort()], [assets])
+  const subcatsForType = useMemo(() => {
+    const m: Record<string, string[]> = {}
+    for (const a of assets) {
+      const t = String(a.type), c = a.category
+      if (!t || !c) continue
+      ;(m[t] ||= []).push(c)
+    }
+    const out: Record<string, string[]> = {}
+    for (const t in m) out[t] = Array.from(new Set(m[t])).sort()
+    return out
+  }, [assets])
 
   const filtered = useMemo(() => {
     return assets.filter(a => {
@@ -352,14 +363,35 @@ export default function CatalogPage() {
           </p>
           <SidebarItem iconD={CAT_ICONS.grid} label="All Categories" active={activeCat === 'All'} color="#9765E0" onClick={() => setActiveCat('All')} />
           {CATEGORIES.map(cat => (
-            <SidebarItem
-              key={cat.id}
-              iconD={CAT_ICONS[cat.id] ?? CAT_ICONS.grid}
-              label={cat.label}
-              active={activeCat === cat.id}
-              color={cat.color}
-              onClick={() => setActiveCat(cat.id)}
-            />
+            <div key={cat.id}>
+              <SidebarItem
+                iconD={CAT_ICONS[cat.id] ?? CAT_ICONS.grid}
+                label={cat.label}
+                active={activeCat === cat.id && activeSubcat === 'All'}
+                color={cat.color}
+                onClick={() => { setActiveCat(cat.id); setActiveSubcat('All') }}
+              />
+              {activeCat === cat.id && (subcatsForType[cat.id] || []).length > 0 && (
+                <div style={{ marginLeft: 20, borderLeft: '1px solid var(--border)', paddingLeft: 6, marginBottom: 4 }}>
+                  {(subcatsForType[cat.id] || []).map(sub => (
+                    <button
+                      key={sub}
+                      onClick={() => { setActiveCat(cat.id); setActiveSubcat(activeSubcat === sub ? 'All' : sub) }}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '5px 12px', fontSize: 12.5, borderRadius: 6, cursor: 'pointer',
+                        color: activeSubcat === sub ? 'var(--fg)' : 'var(--fg-muted)',
+                        background: activeSubcat === sub ? 'rgba(151,101,224,0.14)' : 'transparent',
+                        fontWeight: activeSubcat === sub ? 600 : 400,
+                        border: 'none',
+                      }}
+                    >
+                      {sub}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
 
