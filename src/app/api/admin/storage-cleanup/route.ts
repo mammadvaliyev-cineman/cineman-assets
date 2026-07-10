@@ -18,9 +18,9 @@ export const dynamic = 'force-dynamic'
 
 const BUCKET = 'assets'
 
-async function listAllFiles(prefix = ''): Promise<string[]> {
+async function listAllFiles(prefix = ''): Promise<Array<{ path: string; size: number }>> {
   const admin = supabaseAdmin()
-  const out: string[] = []
+  const out: Array<{ path: string; size: number }> = []
   let page = 0
   for (;;) {
     const { data, error } = await admin.storage.from(BUCKET)
@@ -32,7 +32,8 @@ async function listAllFiles(prefix = ''): Promise<string[]> {
       if ((item as { id?: string | null }).id == null || item.metadata == null) {
         out.push(...await listAllFiles(path)) // folder — recurse
       } else {
-        out.push(path)
+        const size = Number((item.metadata as { size?: number })?.size || 0)
+        out.push({ path, size })
       }
     }
     if (data.length < 1000) break
@@ -66,7 +67,8 @@ async function referencedPaths(): Promise<Set<string>> {
 }
 
 async function report() {
-  const [files, refs] = await Promise.all([listAllFiles(), referencedPaths()])
+  const [entries, refs] = await Promise.all([listAllFiles(), referencedPaths()])
+  const files = entries.map(e => e.path)
   const fileSet = new Set(files)
   const orphans = files.filter(p => !refs.has(p) && !p.startsWith('config'))
   const broken = Array.from(refs).filter(p => !fileSet.has(p) && !p.startsWith('config'))
@@ -77,6 +79,13 @@ export async function GET(req: NextRequest) {
   const gate = await requireAdmin(req)
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
   try {
+    // ?sizes=1 → map of storage path → bytes (for the admin table sort)
+    if (req.nextUrl.searchParams.get('sizes')) {
+      const entries = await listAllFiles()
+      const sizes: Record<string, number> = {}
+      for (const e of entries) sizes[e.path] = e.size
+      return NextResponse.json({ sizes })
+    }
     const r = await report()
     return NextResponse.json({
       dryRun: true,
