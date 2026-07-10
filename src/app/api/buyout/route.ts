@@ -45,7 +45,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Asset not available' }, { status: 404 })
     }
 
-    const cost = Number(asset.exclusive_price ?? 50)
+    // NULL exclusive_price = follows pricing_defaults.exclusive
+    let cost = asset.exclusive_price == null ? NaN : Number(asset.exclusive_price)
+    if (!Number.isFinite(cost)) {
+      const { data: pd } = await admin.from('pricing_defaults').select('credits').eq('tier', 'exclusive').single()
+      cost = Number(pd?.credits ?? 50)
+    }
     const { data: remaining, error: rpcErr } = await admin.rpc('spend_credits', { p_user: userId, p_cost: cost })
     if (rpcErr) return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
     if (typeof remaining === 'number' && remaining < 0) {
