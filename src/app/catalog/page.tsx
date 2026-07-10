@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Asset } from '@/lib/mock-data'
-import { CATEGORIES, STYLES, MOODS, LIGHTING } from '@/config/categories'
+import { CATEGORIES } from '@/config/categories'
 import AssetGrid from '@/components/AssetGrid'
 
 // ── Icons ────────────────────────────────────────────────────
@@ -190,9 +190,9 @@ export default function CatalogPage() {
   const [search, setSearch]           = useState('')
   const [activeCat, setActiveCat]     = useState('All')   // CATEGORIES[].id or 'All'
   const [activeType, setActiveType]   = useState('All')   // Asset type filter
-  const [activeStyle, setActiveStyle] = useState('All')
-  const [activeMood, setActiveMood]   = useState('All')
-  const [activeLighting, setActiveLighting] = useState('All')
+  // Vehicle-specific filters (tag-based: brand:/color:)
+  const [activeBrand, setActiveBrand] = useState('All')
+  const [activeColor, setActiveColor] = useState('All')
   // Character-specific filters (tag-based)
   const [activeGender, setActiveGender] = useState('All')
   const [activeAge, setActiveAge] = useState('All')
@@ -252,6 +252,24 @@ export default function CatalogPage() {
   // config) so the filter values always match a.category exactly.
   const charSubcats = useMemo(() => ['All', ...Array.from(new Set(assets.filter(a => String(a.type) === 'Character').map(a => a.category).filter(Boolean))).sort()], [assets])
   const locSubcats  = useMemo(() => ['All', ...Array.from(new Set(assets.filter(a => String(a.type) === 'Location').map(a => a.category).filter(Boolean))).sort()], [assets])
+  const vehSubcats  = useMemo(() => ['All', ...Array.from(new Set(assets.filter(a => String(a.type) === 'Vehicle').map(a => a.category).filter(Boolean))).sort()], [assets])
+  // Brand/Color options come from the ACTUAL prefix tags (brand:/color:)
+  const vehBrands = useMemo(() => {
+    const set = new Set<string>()
+    for (const a of assets) {
+      if (String(a.type) !== 'Vehicle') continue
+      for (const t of a.tags) if (t.startsWith('brand:')) set.add(t.slice(6))
+    }
+    return ['All', ...Array.from(set).sort()]
+  }, [assets])
+  const vehColors = useMemo(() => {
+    const set = new Set<string>()
+    for (const a of assets) {
+      if (String(a.type) !== 'Vehicle') continue
+      for (const t of a.tags) if (t.startsWith('color:')) set.add(t.slice(6))
+    }
+    return ['All', ...Array.from(set).sort()]
+  }, [assets])
   const subcatsForType = useMemo(() => {
     const m: Record<string, string[]> = {}
     for (const a of assets) {
@@ -277,10 +295,10 @@ export default function CatalogPage() {
       // Sidebar category ₒ filters by a.type (main category)
       const matchCat = activeCat === 'All' || a.type === activeCat
       const matchType = activeType === 'All' || a.type === activeType
-      const matchStyle = activeStyle === 'All' || a.tags.some(t => t.toLowerCase().includes(activeStyle.toLowerCase()))
-      const matchMood = activeMood === 'All' || a.tags.some(t => t.toLowerCase().includes(activeMood.toLowerCase()))
-      const matchLighting = activeLighting === 'All' || a.tags.some(t => t.toLowerCase().includes(activeLighting.toLowerCase()))
       const tagsLower = a.tags.map(t => t.toLowerCase())
+      // Vehicle filters — exact prefix-tag match (brand:bmw / color:dark-blue)
+      const matchBrand = activeBrand === 'All' || tagsLower.includes(`brand:${activeBrand.toLowerCase()}`)
+      const matchColor = activeColor === 'All' || tagsLower.includes(`color:${activeColor.toLowerCase()}`)
       const AGE_MAP: Record<string, string[]> = {
         'Kids': ['kid', 'child', 'teen', 'teenager'],
         'Young': ['young', 'young adult'],
@@ -304,20 +322,20 @@ export default function CatalogPage() {
       const matchSetting = activeSetting === 'All' || (SETTING_MAP[activeSetting] || []).some(x => blob.includes(x))
       const matchTime = activeTime === 'All' || (TIME_MAP[activeTime] || []).some(x => blob.includes(x))
       const matchSubcat = activeSubcat === 'All' || a.category.toLowerCase() === activeSubcat.toLowerCase()
-      return matchSearch && matchCat && matchType && matchStyle && matchMood && matchLighting && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat
+      return matchSearch && matchCat && matchType && matchBrand && matchColor && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat
     })
-  }, [assets, search, activeCat, activeType, activeStyle, activeMood, activeLighting, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeSubcat, quickView, favIds, dlIds])
+  }, [assets, search, activeCat, activeType, activeBrand, activeColor, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeSubcat, quickView, favIds, dlIds])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  useEffect(() => { setPage(1) }, [search, activeCat, activeType, activeSubcat, activeStyle, activeMood, activeLighting, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, quickView])
+  useEffect(() => { setPage(1) }, [search, activeCat, activeType, activeSubcat, activeBrand, activeColor, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, quickView])
 
-  const hasFilters = activeCat !== 'All' || activeType !== 'All' || activeStyle !== 'All' || activeMood !== 'All' || activeLighting !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== ''
-  const activeFilterCount = [activeCat !== 'All', activeType !== 'All', activeStyle !== 'All', activeMood !== 'All', activeLighting !== 'All'].filter(Boolean).length
+  const hasFilters = activeCat !== 'All' || activeType !== 'All' || activeBrand !== 'All' || activeColor !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== ''
+  const activeFilterCount = [activeCat !== 'All', activeType !== 'All', activeBrand !== 'All', activeColor !== 'All'].filter(Boolean).length
 
   function clearAll() {
-    setActiveType('All'); setActiveStyle('All')
-    setActiveMood('All'); setActiveLighting('All'); setSearch('')
+    setActiveType('All'); setSearch('')
+    setActiveBrand('All'); setActiveColor('All')
     setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
     setActiveSetting('All'); setActiveTime('All'); setActiveSubcat('All')
   }
@@ -496,15 +514,15 @@ export default function CatalogPage() {
                 <FilterChip label="Category" value={activeSubcat}  options={locSubcats} onChange={setActiveSubcat} />
                 <FilterChip label="Setting"  value={activeSetting} options={['All', 'Interior', 'Exterior']} onChange={setActiveSetting} />
                 <FilterChip label="Time"     value={activeTime}    options={['All', 'Day', 'Golden Hour', 'Evening', 'Night']} onChange={setActiveTime} />
-                <FilterChip label="Mood"     value={activeMood}    options={['All', ...MOODS]} onChange={setActiveMood} />
               </>
-            ) : (
+            ) : (activeCat === 'Vehicle' || activeType === 'Vehicle') ? (
               <>
-                <FilterChip label="Style"    value={activeStyle}    options={['All', ...STYLES]}   onChange={setActiveStyle} />
-                <FilterChip label="Lighting" value={activeLighting} options={['All', ...LIGHTING]}  onChange={setActiveLighting} />
-                <FilterChip label="Mood"     value={activeMood}     options={['All', ...MOODS]}     onChange={setActiveMood} />
+                {/* Vehicle-specific filters — driven by brand:/color: tags */}
+                {vehSubcats.length > 2 && <FilterChip label="Category" value={activeSubcat} options={vehSubcats} onChange={setActiveSubcat} />}
+                {vehBrands.length > 2 && <FilterChip label="Brand" value={activeBrand} options={vehBrands} onChange={setActiveBrand} />}
+                {vehColors.length > 2 && <FilterChip label="Color" value={activeColor} options={vehColors} onChange={setActiveColor} />}
               </>
-            )}
+            ) : null}
             {hasFilters && (
               <button
                 onClick={clearAll}
