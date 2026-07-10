@@ -23,14 +23,34 @@ const sub = (label: string): Subcategory => ({
 
 export const CATEGORIES: Category[] = [
   {
-    id: 'Character',
-    label: 'Characters',
+    id: 'People',
+    label: 'People',
     emoji: '',
     color: '#CE95FB',
+    subcategories: ['Men', 'Women', 'Kids'].map(sub),
+  },
+  {
+    id: 'Animal',
+    label: 'Animals',
+    emoji: '',
+    color: '#00C264',
     subcategories: [
-      'Aliens', 'Animals', 'Celebrities', 'Characters', 'Creatures', 'Monsters',
-      'People — Kids', 'People — Men', 'People — Women', 'Prehistoric',
+      'Pets', 'Predators', 'Wild Mammals', 'Birds', 'Fish & Sea', 'Insects', 'Reptiles',
     ].map(sub),
+  },
+  {
+    id: 'Creature',
+    label: 'Creatures',
+    emoji: '',
+    color: '#DC5050',
+    subcategories: ['Monsters', 'Aliens', 'Dinosaurs', 'Beasts'].map(sub),
+  },
+  {
+    id: 'Robot',
+    label: 'Robots',
+    emoji: '',
+    color: '#00C2BA',
+    subcategories: ['Humanoid', 'Android', 'Mech', 'Endoskeleton'].map(sub),
   },
   {
     id: 'Location',
