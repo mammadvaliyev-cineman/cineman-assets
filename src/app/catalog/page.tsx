@@ -156,6 +156,9 @@ const CLASS_MAP: Record<string, string> = {
   'Pets': 'pets', 'Predators': 'predators', 'Wild Mammals': 'wild-mammals',
   'Birds': 'birds', 'Fish & Sea': 'fish-sea', 'Insects': 'insects', 'Reptiles': 'reptiles',
 }
+const STYLE_MAP: Record<string, string> = {
+  'Realistic': 'realistic', 'Cartoon': 'cartoon', 'Anime': 'anime', '3D': '3d',
+}
 const RTYPE_MAP: Record<string, string> = {
   'Humanoid': 'humanoid', 'Android': 'android', 'Mech': 'mech', 'Endoskeleton': 'endoskeleton',
 }
@@ -218,6 +221,9 @@ export default function CatalogPage() {
   const [activeTime, setActiveTime] = useState('All')
   // Subcategory filter (contextual for any selected type)
   const [activeSubcat, setActiveSubcat] = useState('All')
+  // Style is orthogonal to sections (cartoon People, cartoon Locations…):
+  // a style: tag, NOT a category. No tag = realistic (no backfill needed).
+  const [activeStyle, setActiveStyle] = useState('All')
 
   // Human-only filters (Gender/Age/Ethnicity) make sense only for people —
   // not for Animals / Aliens / Creatures / Monsters / Robots
@@ -331,6 +337,14 @@ export default function CatalogPage() {
     for (const a of assets) for (const t of a.tags) if (String(t).startsWith('rtype:')) present.add(String(t).slice(6))
     return ['All', ...Object.keys(RTYPE_MAP).filter(label => present.has(RTYPE_MAP[label]))]
   }, [assets])
+  // Style chip appears only when styled assets actually exist —
+  // a one-option "Realistic" chip is noise
+  const styleOptions = useMemo(() => {
+    const present = new Set<string>()
+    for (const a of assets) for (const t of a.tags) if (String(t).toLowerCase().startsWith('style:')) present.add(String(t).toLowerCase().slice(6))
+    const extra = Object.keys(STYLE_MAP).filter(l => l !== 'Realistic' && present.has(STYLE_MAP[l]))
+    return extra.length > 0 ? ['All', 'Realistic', ...extra] : ['All']
+  }, [assets])
   const subcatsForType = useMemo(() => {
     const m: Record<string, string[]> = {}
     for (const a of assets) {
@@ -379,6 +393,12 @@ export default function CatalogPage() {
       const matchAge = activeAge === 'All' || (AGE_MAP[activeAge] || []).some(x => tagsLower.includes(x))
       const matchEthnicity = activeEthnicity === 'All' || tagsLower.includes(ETH_MAP[activeEthnicity] || '')
       // Animal class / Robot type — exact prefix-tag match
+      // Style: absence of a style: tag means realistic (default)
+      const hasStyleTag = tagsLower.some(t => t.startsWith('style:'))
+      const matchStyle = activeStyle === 'All'
+        || (activeStyle === 'Realistic'
+          ? (!hasStyleTag || tagsLower.includes('style:realistic'))
+          : tagsLower.includes(`style:${STYLE_MAP[activeStyle] || ''}`))
       const matchClass = activeClass === 'All' || tagsLower.includes(`class:${CLASS_MAP[activeClass] || ''}`)
       const matchRType = activeRType === 'All' || tagsLower.includes(`rtype:${RTYPE_MAP[activeRType] || ''}`)
       // Location filters: prefix tags first (place:/time:), word fallback
@@ -402,15 +422,15 @@ export default function CatalogPage() {
         || tagsLower.includes(TIME_TAG[activeTime] || '')
         || (TIME_MAP[activeTime] || []).some(x => blob.includes(x))
       const matchSubcat = activeSubcat === 'All' || a.category.toLowerCase() === activeSubcat.toLowerCase()
-      return matchSearch && matchCat && matchType && matchBrand && matchColor && matchClass && matchRType && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat
+      return matchSearch && matchCat && matchType && matchBrand && matchColor && matchClass && matchRType && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat && matchStyle
     })
-  }, [assets, search, activeCat, activeType, activeBrand, activeColor, activeClass, activeRType, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeSubcat, quickView, favIds, dlIds])
+  }, [assets, search, activeCat, activeType, activeBrand, activeColor, activeClass, activeRType, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeSubcat, activeStyle, quickView, favIds, dlIds])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  useEffect(() => { setPage(1) }, [search, activeCat, activeType, activeSubcat, activeBrand, activeColor, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, quickView])
+  useEffect(() => { setPage(1) }, [search, activeCat, activeType, activeSubcat, activeBrand, activeColor, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeStyle, quickView])
 
-  const hasFilters = activeCat !== 'All' || activeType !== 'All' || activeBrand !== 'All' || activeColor !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== ''
+  const hasFilters = activeStyle !== 'All' || activeCat !== 'All' || activeType !== 'All' || activeBrand !== 'All' || activeColor !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== ''
   const activeFilterCount = [activeCat !== 'All', activeType !== 'All', activeBrand !== 'All', activeColor !== 'All'].filter(Boolean).length
 
   function clearAll() {
@@ -418,6 +438,7 @@ export default function CatalogPage() {
     setActiveBrand('All'); setActiveColor('All')
     setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
     setActiveSetting('All'); setActiveTime('All'); setActiveSubcat('All')
+    setActiveStyle('All')
   }
 
   const activeCatObj = CATEGORIES.find(c => c.id === activeCat)
@@ -579,6 +600,9 @@ export default function CatalogPage() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {types.length > 2 && (
               <FilterChip label="Asset Type" value={activeType} options={types} onChange={setActiveType} />
+            )}
+            {styleOptions.length > 2 && (
+              <FilterChip label="Style" value={activeStyle} options={styleOptions} onChange={setActiveStyle} />
             )}
             {(() => {
               // Contextual filters: one Category chip per section + filters
