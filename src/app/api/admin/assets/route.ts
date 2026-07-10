@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
   try {
     const row = await req.json()
-    const allowed = ['title', 'type', 'category', 'plan', 'tags', 'description', 'file_url', 'thumbnail_url', 'is_public']
+    const allowed = ['title', 'type', 'category', 'plan', 'tags', 'description', 'file_url', 'thumbnail_url', 'is_public', 'credit_cost', 'exclusive_price']
     const clean: Record<string, unknown> = {}
     for (const k of allowed) if (k in row) clean[k] = row[k]
     // Copyright-sensitive categories are hidden by default on ingest
@@ -39,7 +39,7 @@ export async function PATCH(req: NextRequest) {
   try {
     const { id, ...rest } = await req.json()
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
-    const allowed = ['title', 'type', 'category', 'plan', 'tags', 'description', 'file_url', 'thumbnail_url', 'is_public']
+    const allowed = ['title', 'type', 'category', 'plan', 'tags', 'description', 'file_url', 'thumbnail_url', 'is_public', 'credit_cost', 'exclusive_price']
     const clean: Record<string, unknown> = {}
     for (const k of allowed) if (k in rest) clean[k] = rest[k]
     const { error } = await supabaseAdmin().from('assets').update(clean).eq('id', id)
