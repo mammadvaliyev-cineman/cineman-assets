@@ -100,6 +100,15 @@ function CloseIcon() {
   )
 }
 
+function EyeOffIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  )
+}
+
 function MoveIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -199,7 +208,7 @@ function EmptyState() {
 
 // ── Card component ────────────────────────────────────────────
 function AssetCard({
-  asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete, onMove,
+  asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete, onMove, onHide,
   displayCfg = DEFAULT_CATALOG_CONFIG,
 }: {
   asset: Asset
@@ -212,6 +221,7 @@ function AssetCard({
   isDeleting?: boolean
   onDelete?: () => void
   onMove?: () => void
+  onHide?: () => void
   displayCfg?: CatalogConfig
 }) {
   const typeStyle = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
@@ -366,6 +376,19 @@ function AssetCard({
                 }}
               >
                 <MoveIcon />
+              </button>
+            )}
+            {onHide && (
+              <button
+                onClick={e => { e.stopPropagation(); onHide() }}
+                title="Hide from catalog — reversible in Admin (admin)"
+                style={{
+                  padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer',
+                  backgroundColor: 'rgba(255,170,60,0.55)', color: 'rgba(255,255,255,0.9)',
+                  backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <EyeOffIcon />
               </button>
             )}
           </div>
@@ -577,6 +600,21 @@ export default function AssetGrid({
     }
   }
 
+  // Hide (reversible) — the main admin action; PATCH is_public=false
+  async function handleHide(asset: Asset) {
+    if (!window.confirm(`Скрыть "${asset.title}" из каталога?\nАссет останется в базе — вернуть можно в Admin → Assets.`)) return
+    try {
+      const res = await fetch('/api/admin/assets', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ id: asset.id, is_public: false }),
+      })
+      const json = await res.json()
+      if (json.ok) setDeletedIds(prev => { const next = new Set(prev); next.add(asset.id); return next })
+      else alert(json.error || 'Hide failed')
+    } catch { alert('Hide failed — please try again') }
+  }
+
   const visibleAssets = (deletedIds.size === 0 ? assets : assets.filter(a => !deletedIds.has(a.id)))
     .map(a => moved[a.id] ? { ...a, type: moved[a.id].type as Asset['type'], category: moved[a.id].category } : a)
 
@@ -642,6 +680,7 @@ export default function AssetGrid({
                 isDeleting={deleting === asset.id}
                 onDelete={() => handleDelete(asset)}
                 onMove={() => { setMoveTarget(asset); setMoveTo('') }}
+                onHide={() => handleHide(asset)}
                 displayCfg={displayCfg}
               />
             </div>
