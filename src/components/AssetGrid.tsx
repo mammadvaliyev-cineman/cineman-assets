@@ -212,6 +212,9 @@ function AssetCard({
   const gridFit: 'contain' | 'cover' = displayCfg.fit === 'contain' ? 'contain' : 'cover'
   const gridPosition = displayCfg.fit === 'cover-top' ? 'top' : (displayCfg.fit === 'cover' ? 'center' : 'center')
   const gridRatio = displayCfg.ratio === 'auto' ? undefined : displayCfg.ratio
+  // In auto mode the image defines its own height. Until it loads we
+  // reserve a 4:5 placeholder so cards never collapse or jump.
+  const [imgLoaded, setImgLoaded] = useState(false)
 
   if (viewMode === 'list') {
     return (
@@ -295,7 +298,10 @@ function AssetCard({
             src={asset.thumbnail}
             alt={asset.title}
             className={`w-full block group-hover:scale-105 transition-transform duration-500 ${gridRatio ? 'h-full' : 'h-auto'}`}
-            style={gridRatio ? { objectFit: gridFit, objectPosition: gridPosition } : undefined}
+            style={gridRatio
+              ? { objectFit: gridFit, objectPosition: gridPosition }
+              : (imgLoaded ? undefined : { aspectRatio: '4/5', objectFit: 'cover' })}
+            onLoad={() => setImgLoaded(true)}
             loading="lazy"
           />
         ) : (
