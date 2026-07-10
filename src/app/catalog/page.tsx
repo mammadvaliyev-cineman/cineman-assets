@@ -177,6 +177,7 @@ function toAsset(a: Record<string, unknown>): Asset {
     tags: Array.isArray(a.tags) ? a.tags : [],
     fileUrl: String(a.file_url ?? ''),
     creditCost: Number(a.credit_cost ?? 5),
+    exclusivePrice: Number(a.exclusive_price ?? 50),
   }
 }
 
