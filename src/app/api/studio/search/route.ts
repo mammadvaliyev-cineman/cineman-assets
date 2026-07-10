@@ -125,6 +125,7 @@ export async function POST(req: NextRequest) {
       .from('assets')
       .select('id,title,type,category,tags,description,file_url,thumbnail_url')
       .eq('type', assetType)
+      .eq('is_public', true) // hidden assets are excluded from Studio search
       .limit(2000)
     if (error) throw error
 
