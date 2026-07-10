@@ -9,6 +9,7 @@ export type Asset = {
   tags: string[]
   fileUrl?: string // storage path for signed URL generation
   creditCost?: number // download price in credits (default 5)
+  exclusivePrice?: number // exclusive buyout price in credits (default 50)
 }
 
 // No mock data — all assets come from Supabase
