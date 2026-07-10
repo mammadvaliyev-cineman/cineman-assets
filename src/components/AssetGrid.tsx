@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { Asset } from '@/lib/mock-data'
+import { useAuth } from '@/components/AuthProvider'
+import { isAdminEmail, adminHeaders } from '@/components/AdminGate'
 
 // ── Type badge config ─────────────────────────────────────────
 const TYPE_STYLE: Record<string, { bg: string; color: string; icon: string }> = {
@@ -97,6 +99,16 @@ function CloseIcon() {
   )
 }
 
+function TrashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  )
+}
+
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill={filled ? '#CE95FB' : 'none'} stroke={filled ? '#CE95FB' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -177,7 +189,7 @@ function EmptyState() {
 
 // ── Card component ────────────────────────────────────────────
 function AssetCard({
-  asset, isFav, isDownloading, onFav, onDownload, viewMode,
+  asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete,
 }: {
   asset: Asset
   isFav: boolean
@@ -185,8 +197,14 @@ function AssetCard({
   onFav: () => void
   onDownload: () => void
   viewMode: 'grid' | 'list'
+  isAdmin?: boolean
+  isDeleting?: boolean
+  onDelete?: () => void
 }) {
   const typeStyle = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
+  // Character sheets are tall turnaround boards — anchor the crop to the
+  // top so heads stay in frame; everything else crops from the center.
+  const objectPosition = String(asset.type) === 'Character' ? 'top' : 'center'
 
   if (viewMode === 'list') {
     return (
@@ -202,7 +220,7 @@ function AssetCard({
           style={{ width: 100, flexShrink: 0, aspectRatio: '16/9', borderRadius: 8, overflow: 'hidden', backgroundColor: 'var(--bg-subtle)', position: 'relative' }}
         >
           {asset.thumbnail ? (
-            <img src={asset.thumbnail} alt={asset.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
+            <img src={asset.thumbnail} alt={asset.title} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition }} loading="lazy" />
           ) : (
             <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>
               {typeStyle.icon}
@@ -224,6 +242,15 @@ function AssetCard({
 
         {/* Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {isAdmin && onDelete && (
+            <button
+              onClick={onDelete}
+              title="Delete asset (admin)"
+              style={{ padding: 6, borderRadius: 6, backgroundColor: 'rgba(220,60,60,0.12)', border: '1px solid rgba(220,60,60,0.35)', color: '#e06060', cursor: isDeleting ? 'default' : 'pointer', display: 'flex', alignItems: 'center' }}
+            >
+              {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
+            </button>
+          )}
           <button
             onClick={onFav}
             title={isFav ? 'Remove favorite' : 'Add to favorites'}
@@ -261,6 +288,7 @@ function AssetCard({
             src={asset.thumbnail}
             alt={asset.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            style={{ objectPosition }}
             loading="lazy"
           />
         ) : (
@@ -276,6 +304,30 @@ function AssetCard({
               cineman.ai
             </span>
           </div>
+        )}
+
+        {/* Admin delete button (top-left) */}
+        {isAdmin && onDelete && (
+          <button
+            onClick={e => { e.stopPropagation(); onDelete() }}
+            title="Delete asset (admin)"
+            className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-all duration-200"
+            style={{
+              zIndex: 3,
+              padding: 6,
+              borderRadius: 7,
+              border: 'none',
+              cursor: isDeleting ? 'default' : 'pointer',
+              backgroundColor: 'rgba(220,60,60,0.55)',
+              color: 'rgba(255,255,255,0.9)',
+              backdropFilter: 'blur(6px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
+          </button>
         )}
 
         {/* Heart button (top-right) */}
@@ -362,6 +414,11 @@ export default function AssetGrid({
   const [showUpgrade, setShowUpgrade] = useState(false)
   const [freeUsed, setFreeUsed]       = useState<number>(() => getFreeDownloadsUsed())
   const [favs, setFavs]               = useState<Set<string>>(() => getFavs())
+  const [deletedIds, setDeletedIds]   = useState<Set<string>>(new Set())
+  const [deleting, setDeleting]       = useState<string | null>(null)
+
+  const { user } = useAuth()
+  const isAdmin = isAdminEmail(user?.email)
 
   // Re-sync from localStorage on mount (SSR-safe)
   useEffect(() => {
@@ -398,7 +455,29 @@ export default function AssetGrid({
 
   function handleFav(id: string) { setFavs(toggleFav(id)) }
 
-  if (assets.length === 0) return <EmptyState />
+  async function handleDelete(asset: Asset) {
+    if (deleting) return
+    if (!window.confirm(`Delete "${asset.title}" permanently?\nThis removes the database record AND the file from storage.`)) return
+    setDeleting(asset.id)
+    try {
+      const headers = await adminHeaders()
+      const res  = await fetch(`/api/admin/assets?id=${encodeURIComponent(asset.id)}`, { method: 'DELETE', headers })
+      const json = await res.json()
+      if (json.ok) {
+        setDeletedIds(prev => { const next = new Set(prev); next.add(asset.id); return next })
+      } else {
+        alert(json.error || 'Delete failed')
+      }
+    } catch {
+      alert('Delete failed — please try again')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  const visibleAssets = deletedIds.size === 0 ? assets : assets.filter(a => !deletedIds.has(a.id))
+
+  if (visibleAssets.length === 0) return <EmptyState />
 
   return (
     <>
@@ -419,7 +498,7 @@ export default function AssetGrid({
       {/* Grid or List */}
       {viewMode === 'list' ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {assets.map(asset => (
+          {visibleAssets.map(asset => (
             <AssetCard
               key={asset.id}
               asset={asset}
@@ -428,12 +507,15 @@ export default function AssetGrid({
               onFav={() => handleFav(asset.id)}
               onDownload={() => handleDownload(asset)}
               viewMode="list"
+              isAdmin={isAdmin}
+              isDeleting={deleting === asset.id}
+              onDelete={() => handleDelete(asset)}
             />
           ))}
         </div>
       ) : (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-          {assets.map(asset => (
+          {visibleAssets.map(asset => (
             <div
               key={asset.id}
               style={{
@@ -452,6 +534,9 @@ export default function AssetGrid({
                 onFav={() => handleFav(asset.id)}
                 onDownload={() => handleDownload(asset)}
                 viewMode="grid"
+                isAdmin={isAdmin}
+                isDeleting={deleting === asset.id}
+                onDelete={() => handleDelete(asset)}
               />
             </div>
           ))}
