@@ -12,6 +12,9 @@ import { CatalogConfig, DEFAULT_CATALOG_CONFIG } from '@/lib/catalogConfig'
 
 const ROW = { type: 'Config', title: 'catalog-config' }
 
+// Never cache — admins expect the catalog to react right after Save
+export const dynamic = 'force-dynamic'
+
 export async function GET() {
   try {
     const { data } = await supabase
