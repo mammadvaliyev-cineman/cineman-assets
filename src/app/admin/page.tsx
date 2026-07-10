@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import AdminGate, { adminHeaders } from '@/components/AdminGate'
+import { CatalogConfig, DEFAULT_CATALOG_CONFIG, FIT_OPTIONS, RATIO_OPTIONS } from '@/lib/catalogConfig'
 import { CATEGORIES, STYLES, MOODS, LIGHTING, Category, makeSubcategory } from '@/config/categories'
 
 // ── Types ───────────────────────────────────────────────────
@@ -245,12 +246,21 @@ type BatchItem = {
 
 // ── Main Component ──────────────────────────────────────────
 function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories' | 'settings'>('overview')
   const [stats, setStats] = useState<Stats>({ total: 0, byType: {}, byPlan: {} })
   const [assets, setAssets] = useState<AssetRow[]>([])
   const [loadingStats, setLoadingStats] = useState(true)
   const [loadingAssets, setLoadingAssets] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // ── Settings tab state ──────────────────────────────────
+  const [dispCfg, setDispCfg] = useState<CatalogConfig>(DEFAULT_CATALOG_CONFIG)
+  const [dispSaving, setDispSaving] = useState(false)
+  const [dispSaved, setDispSaved] = useState(false)
+  const [catList, setCatList] = useState<Array<{ category: string; count: number }>>([])
+  const [delCat, setDelCat] = useState('')
+  const [delBusy, setDelBusy] = useState(false)
+  const [delMsg, setDelMsg] = useState('')
 
   // ── Batch upload state ──────────────────────────────────
   const batchRef = useRef<HTMLInputElement>(null)
@@ -337,33 +347,107 @@ function AdminDashboard() {
 
   async function loadStats() {
     setLoadingStats(true)
-    const { data } = await supabase.from('assets').select('type, plan')
-    if (data) {
+    // Paginate past the 1000-row Supabase cap — otherwise the counter
+    // silently stops at 1000 no matter how big the base is
+    const PAGE = 1000
+    const all: Array<{ type: string; plan: string }> = []
+    for (let from = 0; from < 50000; from += PAGE) {
+      const { data } = await supabase.from('assets').select('type, plan').range(from, from + PAGE - 1)
+      if (!data) break
+      all.push(...(data as Array<{ type: string; plan: string }>))
+      if (data.length < PAGE) break
+    }
+    if (all.length) {
       const byType: Record<string, number> = {}
       const byPlan: Record<string, number> = {}
-      data.forEach(r => {
+      all.forEach(r => {
         byType[r.type] = (byType[r.type] ?? 0) + 1
         byPlan[r.plan] = (byPlan[r.plan] ?? 0) + 1
       })
-      setStats({ total: data.length, byType, byPlan })
+      setStats({ total: all.length, byType, byPlan })
     }
     setLoadingStats(false)
   }
 
   async function loadAssets() {
     setLoadingAssets(true)
-    const { data } = await supabase
-      .from('assets')
-      .select('*')
-      .neq('type', 'Config').neq('type', 'Usage') // system rows are not assets
-      .order('created_at', { ascending: false })
-    if (data) setAssets(data as AssetRow[])
+    const PAGE = 1000
+    const all: AssetRow[] = []
+    for (let from = 0; from < 50000; from += PAGE) {
+      const { data } = await supabase
+        .from('assets')
+        .select('*')
+        .neq('type', 'Config').neq('type', 'Usage') // system rows are not assets
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE - 1)
+      if (!data) break
+      all.push(...(data as AssetRow[]))
+      if (data.length < PAGE) break
+    }
+    setAssets(all)
     setLoadingAssets(false)
   }
 
   useEffect(() => {
     if (activeTab === 'assets') loadAssets()
+    if (activeTab === 'settings') {
+      fetch('/api/admin/catalog-config')
+        .then(r => r.json())
+        .then(j => { if (j?.config) setDispCfg(j.config) })
+        .catch(() => {})
+      ;(async () => {
+        const res = await fetch('/api/admin/delete-category', { headers: await adminHeaders() })
+        const j = await res.json().catch(() => ({}))
+        if (Array.isArray(j.categories)) setCatList(j.categories)
+      })()
+    }
   }, [activeTab])
+
+  // ── Settings: save display config ─────────────────────────
+  async function saveDisplayCfg() {
+    setDispSaving(true)
+    setDispSaved(false)
+    const res = await fetch('/api/admin/catalog-config', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+      body: JSON.stringify({ config: dispCfg }),
+    })
+    setDispSaving(false)
+    if (res.ok) {
+      setDispSaved(true)
+      setTimeout(() => setDispSaved(false), 2500)
+    } else {
+      const j = await res.json().catch(() => ({}))
+      alert(j.error || 'Save failed')
+    }
+  }
+
+  // ── Settings: delete whole category ────────────────────────
+  async function deleteCategory() {
+    if (!delCat) return
+    const found = catList.find(c => c.category === delCat)
+    const n = found?.count ?? '?'
+    if (!confirm(`Удалить раздел «${delCat}» ЦЕЛИКОМ?\n${n} ассетов + их файлы в Storage будут удалены НАВСЕГДА.`)) return
+    const typed = prompt(`Для подтверждения введи название раздела:\n${delCat}`)
+    if (typed !== delCat) { alert('Название не совпало — отмена.'); return }
+    setDelBusy(true)
+    setDelMsg('')
+    const res = await fetch('/api/admin/delete-category', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+      body: JSON.stringify({ category: delCat }),
+    })
+    const j = await res.json().catch(() => ({}))
+    setDelBusy(false)
+    if (res.ok) {
+      setDelMsg(`Удалено: ${j.deleted} ассетов, ${j.storageRemoved} файлов из Storage.`)
+      setCatList(prev => prev.filter(c => c.category !== delCat))
+      setDelCat('')
+      loadStats()
+    } else {
+      setDelMsg(`Ошибка: ${j.error || 'delete failed'}`)
+    }
+  }
 
   // ── Delete asset ────────────────────────────────────────
   async function deleteAsset(asset: AssetRow) {
@@ -566,7 +650,7 @@ function AdminDashboard() {
         className="flex gap-1 rounded-xl p-1 mb-8 w-fit"
         style={{ backgroundColor: 'var(--bg-subtle)' }}
       >
-        {(['overview', 'assets', 'batch', 'categories'] as const).map(tab => (
+        {(['overview', 'assets', 'batch', 'categories', 'settings'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1083,6 +1167,92 @@ function AdminDashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Settings Tab ────────────────────────────────────── */}
+      {activeTab === 'settings' && (
+        <div className="grid gap-6 max-w-3xl">
+
+          {/* Catalog display */}
+          <div className="card p-6">
+            <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
+              Отображение карточек в каталоге
+            </h3>
+            <p className="text-xs mb-5" style={{ color: 'var(--fg-subtle)' }}>
+              Действует для всех посетителей сразу после сохранения.
+            </p>
+            <div className="grid md:grid-cols-2 gap-4 mb-5">
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--fg-muted)' }}>Картинка</label>
+                <select
+                  value={dispCfg.fit}
+                  onChange={e => setDispCfg(c => ({ ...c, fit: e.target.value as CatalogConfig['fit'] }))}
+                  className="input-field w-full text-sm"
+                >
+                  {FIT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--fg-muted)' }}>Форма карточки</label>
+                <select
+                  value={dispCfg.ratio}
+                  onChange={e => setDispCfg(c => ({ ...c, ratio: e.target.value as CatalogConfig['ratio'] }))}
+                  className="input-field w-full text-sm"
+                >
+                  {RATIO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={saveDisplayCfg}
+                disabled={dispSaving}
+                className="px-5 py-2 rounded-lg text-sm font-semibold text-white"
+                style={{ background: 'linear-gradient(135deg,#9765E0,#534FA5)', opacity: dispSaving ? 0.6 : 1 }}
+              >
+                {dispSaving ? 'Saving…' : 'Save'}
+              </button>
+              {dispSaved && <span className="text-sm" style={{ color: '#00C264' }}>✓ Сохранено</span>}
+            </div>
+          </div>
+
+          {/* Danger zone */}
+          <div className="card p-6" style={{ border: '1px solid rgba(220,60,60,0.35)' }}>
+            <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: '#e06060' }}>
+              Danger zone — удалить раздел целиком
+            </h3>
+            <p className="text-xs mb-5" style={{ color: 'var(--fg-subtle)' }}>
+              Удаляет ВСЕ ассеты раздела вместе с файлами в Storage. Отменить нельзя.
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <select
+                value={delCat}
+                onChange={e => setDelCat(e.target.value)}
+                className="input-field text-sm"
+                style={{ minWidth: 260 }}
+              >
+                <option value="">— выбери раздел —</option>
+                {catList.map(c => (
+                  <option key={c.category} value={c.category}>{c.category} ({c.count})</option>
+                ))}
+              </select>
+              <button
+                onClick={deleteCategory}
+                disabled={!delCat || delBusy}
+                className="px-5 py-2 rounded-lg text-sm font-semibold"
+                style={{
+                  backgroundColor: 'rgba(220,60,60,0.12)',
+                  color: '#e06060',
+                  border: '1px solid rgba(220,60,60,0.4)',
+                  opacity: !delCat || delBusy ? 0.5 : 1,
+                }}
+              >
+                {delBusy ? 'Deleting…' : 'Delete section'}
+              </button>
+            </div>
+            {delMsg && <p className="text-sm mt-4" style={{ color: delMsg.startsWith('Ошибка') ? '#e06060' : '#00C264' }}>{delMsg}</p>}
           </div>
         </div>
       )}
