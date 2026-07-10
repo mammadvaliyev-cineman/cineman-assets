@@ -18,6 +18,8 @@ type AssetRow = {
   thumbnail_url: string
   created_at: string
   is_public?: boolean
+  credit_cost?: number
+  exclusive_price?: number
 }
 
 type Stats = {
@@ -587,6 +589,24 @@ function AdminDashboard() {
     alert(`Стиль обновлён: ${done}/${ids.length}`)
   }
 
+  // Edit download + exclusive prices (two quick prompts)
+  async function editPrices(asset: AssetRow) {
+    const p1 = window.prompt(`«${asset.title}» — цена скачивания ⚡:`, String(asset.credit_cost ?? 5))
+    if (p1 === null) return
+    const p2 = window.prompt(`«${asset.title}» — цена эксклюзивного выкупа 👑⚡:`, String(asset.exclusive_price ?? 50))
+    if (p2 === null) return
+    const credit_cost = Math.max(0, Math.round(Number(p1)))
+    const exclusive_price = Math.max(0, Math.round(Number(p2)))
+    if (!Number.isFinite(credit_cost) || !Number.isFinite(exclusive_price)) { alert('Нужно число'); return }
+    const headers = await adminHeaders()
+    try {
+      const r = await fetch('/api/admin/assets', { method: 'PATCH', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ id: asset.id, credit_cost, exclusive_price }) })
+      const j = await r.json()
+      if (j.ok) setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, credit_cost, exclusive_price } : a))
+      else alert(j.error || 'Не сохранилось')
+    } catch { alert('Не сохранилось — попробуй ещё раз') }
+  }
+
   function fmtSize(b: number): string {
     if (!b) return '—'
     if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB'
@@ -994,7 +1014,7 @@ function AdminDashboard() {
                     <th className="px-3 py-3">
                       <input type="checkbox" checked={visibleRows.length > 0 && selectedIds.size === visibleRows.length} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                     </th>
-                    {['', 'Title', 'Type', 'Category', 'Size', 'Tags', 'Date', ''].map(h => (
+                    {['', 'Title', 'Type', 'Category', '⚡ Цена', 'Size', 'Tags', 'Date', ''].map(h => (
                       <th
                         key={h}
                         className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -1051,6 +1071,16 @@ function AdminDashboard() {
                           <span className="text-xs font-medium" style={{ color: typeColor }}>{asset.type}</span>
                         </td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{asset.category}</td>
+                        <td className="px-4 py-3 text-xs" style={{ whiteSpace: 'nowrap' }}>
+                          <button
+                            onClick={() => editPrices(asset)}
+                            title="Изменить цены: скачивание / эксклюзив"
+                            className="font-semibold"
+                            style={{ color: '#CE95FB', textDecoration: 'underline dotted', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                          >
+                            ⚡{asset.credit_cost ?? 5} · 👑{asset.exclusive_price ?? 50}
+                          </button>
+                        </td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>
                           {fmtSize(sizeOf(asset))}
                         </td>
