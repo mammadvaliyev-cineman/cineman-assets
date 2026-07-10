@@ -436,7 +436,7 @@ function AdminDashboard() {
             .order('created_at', { ascending: false }).limit(1)
           const u = data?.[0]?.file_url
           if (typeof u === 'string' && u.includes('/storage/v1/object/public/')) {
-            samples.push({ label: t, url: u.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=440&quality=62' })
+            samples.push({ label: t, url: u.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=440&quality=62&resize=contain' })
           }
         }
         setPreviewSamples(samples)
