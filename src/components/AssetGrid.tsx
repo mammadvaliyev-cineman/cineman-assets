@@ -427,13 +427,20 @@ export default function AssetGrid({
   const { user } = useAuth()
   const isAdmin = isAdminEmail(user?.email)
 
-  // Admin-controlled card display mode (Admin → Settings)
+  // Admin-controlled card display mode (Admin → Settings).
+  // Re-fetched on window focus so the catalog picks up a fresh Save
+  // without a manual page reload.
   const [displayCfg, setDisplayCfg] = useState<CatalogConfig>(DEFAULT_CATALOG_CONFIG)
   useEffect(() => {
-    fetch('/api/admin/catalog-config', { cache: 'no-store' })
-      .then(r => r.json())
-      .then(j => { if (j?.config) setDisplayCfg(j.config) })
-      .catch(() => {})
+    const load = () => {
+      fetch('/api/admin/catalog-config', { cache: 'no-store' })
+        .then(r => r.json())
+        .then(j => { if (j?.config) setDisplayCfg(j.config) })
+        .catch(() => {})
+    }
+    load()
+    window.addEventListener('focus', load)
+    return () => window.removeEventListener('focus', load)
   }, [])
 
   // Re-sync from localStorage on mount (SSR-safe)
