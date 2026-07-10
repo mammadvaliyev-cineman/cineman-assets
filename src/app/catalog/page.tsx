@@ -216,9 +216,20 @@ export default function CatalogPage() {
   useEffect(() => {
     async function load() {
       setLoading(true)
-      const q = supabase.from('assets').select('*').neq('type', 'Config').neq('type', 'Generation').neq('type', 'Usage')
-      const { data, error } = await q.order('created_at', { ascending: sortBy === 'oldest' })
-      if (data && !error) setAssets(data.map(toAsset))
+      // Paginate: Supabase caps a single query at 1000 rows. With 2000+
+      // assets that silently hid half the base (e.g. all Characters).
+      const PAGE = 1000
+      const all: Record<string, unknown>[] = []
+      for (let from = 0; from < 50000; from += PAGE) {
+        const { data, error } = await supabase.from('assets').select('*')
+          .neq('type', 'Config').neq('type', 'Generation').neq('type', 'Usage')
+          .order('created_at', { ascending: sortBy === 'oldest' })
+          .range(from, from + PAGE - 1)
+        if (error || !data) break
+        all.push(...(data as Record<string, unknown>[]))
+        if (data.length < PAGE) break
+      }
+      setAssets(all.map(toAsset))
       setLoading(false)
     }
     load()
