@@ -77,6 +77,8 @@ export default function Navbar() {
       if (k < 1) requestAnimationFrame(step)
     }
     requestAnimationFrame(step)
+    // rAF freezes in background tabs — guarantee the final value lands
+    setTimeout(() => setCredits(target), dur + 120)
   }
   useEffect(() => {
     if (!user) { setCredits(null); return }
