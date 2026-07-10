@@ -236,6 +236,10 @@ export default function CatalogPage() {
   }, [sortBy])
 
   const types = useMemo(() => ['All', ...Array.from(new Set(assets.map(a => a.type))).filter(Boolean).sort()], [assets])
+  // Subcategories come from the ACTUAL loaded assets (not a hardcoded
+  // config) so the filter values always match a.category exactly.
+  const charSubcats = useMemo(() => ['All', ...Array.from(new Set(assets.filter(a => String(a.type) === 'Character').map(a => a.category).filter(Boolean))).sort()], [assets])
+  const locSubcats  = useMemo(() => ['All', ...Array.from(new Set(assets.filter(a => String(a.type) === 'Location').map(a => a.category).filter(Boolean))).sort()], [assets])
 
   const filtered = useMemo(() => {
     return assets.filter(a => {
@@ -433,7 +437,7 @@ export default function CatalogPage() {
             {(activeCat === 'Character' || activeType === 'Character') ? (
               <>
                 {/* Character-specific filters */}
-                <FilterChip label="Category"  value={activeSubcat}    options={['All', ...(CATEGORIES.find(c => c.id === 'Character')?.subcategories.map(x => x.label) ?? [])]} onChange={setActiveSubcat} />
+                <FilterChip label="Category"  value={activeSubcat}    options={charSubcats} onChange={setActiveSubcat} />
                 <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} />
                 <FilterChip label="Age"       value={activeAge}       options={['All', 'Kids', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
                 <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern']} onChange={setActiveEthnicity} />
@@ -441,7 +445,7 @@ export default function CatalogPage() {
             ) : (activeCat === 'Location' || activeType === 'Location') ? (
               <>
                 {/* Location-specific filters */}
-                <FilterChip label="Category" value={activeSubcat}  options={['All', ...(CATEGORIES.find(c => c.id === 'Location')?.subcategories.map(x => x.label) ?? [])]} onChange={setActiveSubcat} />
+                <FilterChip label="Category" value={activeSubcat}  options={locSubcats} onChange={setActiveSubcat} />
                 <FilterChip label="Setting"  value={activeSetting} options={['All', 'Interior', 'Exterior']} onChange={setActiveSetting} />
                 <FilterChip label="Time"     value={activeTime}    options={['All', 'Day', 'Golden Hour', 'Evening', 'Night']} onChange={setActiveTime} />
                 <FilterChip label="Mood"     value={activeMood}    options={['All', ...MOODS]} onChange={setActiveMood} />
