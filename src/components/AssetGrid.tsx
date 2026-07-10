@@ -430,7 +430,7 @@ export default function AssetGrid({
   // Admin-controlled card display mode (Admin → Settings)
   const [displayCfg, setDisplayCfg] = useState<CatalogConfig>(DEFAULT_CATALOG_CONFIG)
   useEffect(() => {
-    fetch('/api/admin/catalog-config')
+    fetch('/api/admin/catalog-config', { cache: 'no-store' })
       .then(r => r.json())
       .then(j => { if (j?.config) setDisplayCfg(j.config) })
       .catch(() => {})
