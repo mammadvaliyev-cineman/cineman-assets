@@ -1,54 +1,56 @@
 const PLANS = [
   {
-    name: 'Starter',
-    price: 9.99,
-    description: 'Perfect for independent creators',
+    name: 'Free',
+    price: 0,
+    description: 'Try the full catalog',
     accent: '#CE95FB',
     badge: null,
     popular: false,
     features: [
-      '3 free watermarked previews daily',
-      'Access to 50+ AI locations & characters',
+      '⚡ 15 credits every month',
+      'Browse the entire catalog',
+      'Standard asset = 5 credits',
       'Full-resolution PNG/JPG downloads',
       'Personal use license',
-      'Standard support',
     ],
   },
   {
-    name: 'Pro',
-    price: 24.99,
-    description: 'For professional filmmakers',
+    name: 'Personal',
+    price: 12,
+    description: 'For independent creators',
     accent: '#9765E0',
     badge: 'Most Popular',
     popular: true,
     features: [
-      'Unlimited downloads',
-      'Access to 200+ AI locations & characters',
+      '⚡ 150 credits every month',
+      'Standard asset = 5 credits (~30 assets/mo)',
       'Full-resolution PNG/JPG downloads',
-      'Commercial use license',
+      'Personal use license',
       'Priority support',
-      'Early access to new assets',
     ],
   },
   {
-    name: 'Enterprise',
-    price: 79.99,
-    description: 'For studios and agencies',
+    name: 'Pro',
+    price: 25,
+    description: 'For professional filmmakers',
     accent: '#00C2BA',
     badge: 'Best Value',
     popular: false,
     features: [
-      'Unlimited asset access',
-      'Full commercial license',
-      'Custom asset requests',
-      'Dedicated account manager',
-      'Team collaboration (5 seats)',
-      'White-label licensing available',
+      '⚡ 500 credits every month',
+      'Commercial use license',
+      'Exclusive buyouts — 50 credits',
+      'Top-up anytime: 100 credits = $10',
+      'Priority support & early access',
     ],
   },
 ]
 
 const FAQ = [
+  {
+    q: 'How do credits work?',
+    a: 'Every download costs credits: a standard asset is 5 credits, top assets up to 20, an exclusive buyout is 50. Credits refresh monthly with your plan.',
+  },
   {
     q: 'Can I cancel anytime?',
     a: 'Yes. Cancel anytime from your account dashboard. No lock-in, no hidden fees.',
@@ -59,11 +61,7 @@ const FAQ = [
   },
   {
     q: 'Is commercial use allowed?',
-    a: 'Pro and Enterprise plans include a full commercial license for advertising, film, and social media. Starter is for personal use only.',
-  },
-  {
-    q: 'What are the free previews?',
-    a: 'New users get 3 watermarked preview downloads per day. Subscribe to remove watermarks and get full-resolution files.',
+    a: 'The Pro plan includes a full commercial license for advertising, film, and social media. Free and Personal are for personal use only.',
   },
 ]
 
