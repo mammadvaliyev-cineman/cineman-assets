@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 
 // ── Thin line icons — same style as catalog (LineIcon) ────────
 function LineIcon({ d, size = 30, color = "#9765E0" }: { d: string; size?: number; color?: string }) {
@@ -16,7 +17,16 @@ const D = {
   sparkles: "M12 3l1.9 5.8L19.7 11l-5.8 1.9L12 18.7l-1.9-5.8L4.3 11l5.8-2.2L12 3z|M19 3v4|M17 5h4",
 };
 
-export default function HomePage() {
+export const revalidate = 600
+
+export default async function HomePage() {
+  let assetCount = 1900
+  try {
+    const { count } = await supabase
+      .from("assets").select("id", { count: "exact", head: true })
+      .neq("type", "Config").neq("type", "Usage").neq("type", "Generation")
+    if (count && count > 0) assetCount = count
+  } catch {}
   return (
     <>
       {/* Hero */}
@@ -89,7 +99,7 @@ export default function HomePage() {
           {/* Stats */}
           <div className="mt-16 grid grid-cols-3 gap-8 max-w-lg mx-auto fade-in-up" style={{ animationDelay: "0.4s" }}>
             {[
-              ["1900+", "Ready Assets"],
+              [assetCount.toLocaleString(), "Ready Assets"],
               ["7 steps", "Idea → Video"],
               ["1", "AI Director"],
             ].map(([val, label]) => (
