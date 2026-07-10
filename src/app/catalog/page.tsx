@@ -68,6 +68,9 @@ const CAT_ICONS: Record<string, string> = {
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4|M7 10l5 5 5-5|M12 15V3',
   sliders: 'M4 21v-7|M4 10V3|M12 21v-9|M12 8V3|M20 21v-5|M20 12V3|M2 14h4|M10 8h4|M18 16h4',
   Character: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2|M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  People: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2|M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  Animal: 'M12 13c-2.8 0-5 2-5 4.5 0 1.4 1.1 2.5 2.5 2.5h5c1.4 0 2.5-1.1 2.5-2.5 0-2.5-2.2-4.5-5-4.5z|M6 9.5a1.8 2.2 0 1 0 0-.01|M18 9.5a1.8 2.2 0 1 0 0-.01|M9.2 5.5a1.8 2.2 0 1 0 0-.01|M14.8 5.5a1.8 2.2 0 1 0 0-.01',
+  Robot: 'M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z|M12 8V4|M9 13h.01|M15 13h.01|M2 12v3|M22 12v3',
   Location: 'M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z|M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   Vehicle: 'M19 17h2v-4l-2-5H5l-2 5v4h2|M6.5 17a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z|M14.5 17a1.5 1.5 0 1 0 3 0 1.5 1.5 0 0 0-3 0z|M5 13h14',
   Architecture: 'M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18|M2 22h20|M10 7h1|M13 7h1|M10 11h1|M13 11h1|M10 15h1|M13 15h1',
@@ -462,7 +465,7 @@ export default function CatalogPage() {
             Categories
           </p>
           <SidebarItem iconD={CAT_ICONS.grid} label="All Categories" active={activeCat === 'All'} color="#9765E0" onClick={() => setActiveCat('All')} />
-          {CATEGORIES.map(cat => (
+          {CATEGORIES.filter(cat => assets.some(a => String(a.type) === cat.id) || activeCat === cat.id).map(cat => (
             <div key={cat.id}>
               <SidebarItem
                 iconD={CAT_ICONS[cat.id] ?? CAT_ICONS.grid}
@@ -566,46 +569,45 @@ export default function CatalogPage() {
             {types.length > 2 && (
               <FilterChip label="Asset Type" value={activeType} options={types} onChange={setActiveType} />
             )}
-            {(activeCat === 'Character' || activeType === 'Character') ? (
-              <>
-                {/* Character-specific filters — human ones only for People,
-                    with kid-appropriate labels inside People - Kids */}
-                <FilterChip label="Category"  value={activeSubcat}    options={charSubcats} onChange={setActiveSubcat} />
-                {activeSubcat === 'Animals' && animalClasses.length > 2 && (
-                  <FilterChip label="Class" value={activeClass} options={animalClasses} onChange={setActiveClass} />
-                )}
-                {activeSubcat === 'Robots' && robotTypes.length > 2 && (
-                  <FilterChip label="Type" value={activeRType} options={robotTypes} onChange={setActiveRType} />
-                )}
-                {isPeopleSubcat && (activeSubcat.toLowerCase().includes('kids') ? (
-                  <>
-                    <FilterChip label="Gender" value={activeGender} options={['All', 'Boy', 'Girl']} onChange={setActiveGender} />
-                    <FilterChip label="Age"    value={activeAge}    options={['All', 'Child', 'Teen']} onChange={setActiveAge} />
-                    <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} />
-                  </>
-                ) : (
-                  <>
-                    <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} />
-                    <FilterChip label="Age"       value={activeAge}       options={activeSubcat === 'All' ? ['All', 'Kids', 'Young', 'Middle-aged', 'Elderly'] : ['All', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
-                    <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} />
-                  </>
-                ))}
-              </>
-            ) : (activeCat === 'Location' || activeType === 'Location') ? (
-              <>
-                {/* Location-specific filters */}
-                <FilterChip label="Category" value={activeSubcat}  options={locSubcats} onChange={setActiveSubcat} />
-                <FilterChip label="Setting"  value={activeSetting} options={['All', 'Interior', 'Exterior']} onChange={setActiveSetting} />
-                <FilterChip label="Time"     value={activeTime}    options={['All', 'Dawn', 'Day', 'Golden Hour', 'Night']} onChange={setActiveTime} />
-              </>
-            ) : (activeCat === 'Vehicle' || activeType === 'Vehicle') ? (
-              <>
-                {/* Vehicle-specific filters — driven by brand:/color: tags */}
-                {vehSubcats.length > 2 && <FilterChip label="Category" value={activeSubcat} options={vehSubcats} onChange={setActiveSubcat} />}
-                {vehBrands.length > 2 && <FilterChip label="Brand" value={activeBrand} options={vehBrands} onChange={setActiveBrand} />}
-                {vehColors.length > 2 && <FilterChip label="Color" value={activeColor} options={vehColors} onChange={setActiveColor} />}
-              </>
-            ) : null}
+            {(() => {
+              // Contextual filters: one Category chip per section + filters
+              // that make sense for THAT section only
+              const curType = activeCat !== 'All' ? activeCat : (activeType !== 'All' ? activeType : '')
+              if (!curType) return null
+              const curSubcats = ['All', ...(subcatsForType[curType] || [])]
+              return (
+                <>
+                  {curSubcats.length > 2 && (
+                    <FilterChip label="Category" value={activeSubcat} options={curSubcats} onChange={setActiveSubcat} />
+                  )}
+                  {curType === 'People' && (activeSubcat === 'Kids' ? (
+                    <>
+                      <FilterChip label="Gender" value={activeGender} options={['All', 'Boy', 'Girl']} onChange={setActiveGender} />
+                      <FilterChip label="Age"    value={activeAge}    options={['All', 'Child', 'Teen']} onChange={setActiveAge} />
+                      <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} />
+                    </>
+                  ) : (
+                    <>
+                      <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} />
+                      <FilterChip label="Age"       value={activeAge}       options={activeSubcat === 'All' ? ['All', 'Kids', 'Young', 'Middle-aged', 'Elderly'] : ['All', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
+                      <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} />
+                    </>
+                  ))}
+                  {curType === 'Location' && (
+                    <>
+                      <FilterChip label="Setting" value={activeSetting} options={['All', 'Interior', 'Exterior']} onChange={setActiveSetting} />
+                      <FilterChip label="Time"    value={activeTime}    options={['All', 'Dawn', 'Day', 'Golden Hour', 'Night']} onChange={setActiveTime} />
+                    </>
+                  )}
+                  {curType === 'Vehicle' && (
+                    <>
+                      {vehBrands.length > 2 && <FilterChip label="Brand" value={activeBrand} options={vehBrands} onChange={setActiveBrand} />}
+                      {vehColors.length > 2 && <FilterChip label="Color" value={activeColor} options={vehColors} onChange={setActiveColor} />}
+                    </>
+                  )}
+                </>
+              )
+            })()}
             {hasFilters && (
               <button
                 onClick={clearAll}
