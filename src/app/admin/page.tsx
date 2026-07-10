@@ -17,6 +17,7 @@ type AssetRow = {
   file_url: string
   thumbnail_url: string
   created_at: string
+  is_public?: boolean
 }
 
 type Stats = {
@@ -488,6 +489,25 @@ function AdminDashboard() {
     }
   }
 
+  // ── Hide / show asset (main action — fully reversible) ────
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+  async function toggleVisibility(asset: AssetRow) {
+    const next = asset.is_public === false // hidden → show, visible → hide
+    setTogglingId(asset.id)
+    const res = await fetch('/api/admin/assets', {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+      body: JSON.stringify({ id: asset.id, is_public: next }),
+    })
+    if (res.ok) {
+      setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, is_public: next } : a))
+    } else {
+      const j = await res.json().catch(() => ({}))
+      alert(j.error || 'Toggle failed')
+    }
+    setTogglingId(null)
+  }
+
   // ── Delete asset ────────────────────────────────────────
   async function deleteAsset(asset: AssetRow) {
     if (!confirm(`Delete "${asset.title}"? This cannot be undone.`)) return
@@ -846,8 +866,16 @@ function AdminDashboard() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 font-medium max-w-[180px] truncate" style={{ color: 'var(--fg)' }}>
-                          {asset.title}
+                        <td className="px-4 py-3 font-medium max-w-[180px]" style={{ color: 'var(--fg)' }}>
+                          <span className="block truncate">{asset.title}</span>
+                          {asset.is_public === false && (
+                            <span
+                              className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                              style={{ backgroundColor: 'rgba(255,170,60,0.14)', color: '#ffaa3c', border: '1px solid rgba(255,170,60,0.35)' }}
+                            >
+                              Скрыт
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs font-medium" style={{ color: typeColor }}>{asset.type}</span>
@@ -868,6 +896,18 @@ function AdminDashboard() {
                           {new Date(asset.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-4 py-3">
+                          <button
+                            onClick={() => toggleVisibility(asset)}
+                            disabled={togglingId === asset.id}
+                            title={asset.is_public === false ? 'Показать в каталоге' : 'Скрыть из каталога (обратимо)'}
+                            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all mb-1"
+                            style={{
+                              color: asset.is_public === false ? '#00C264' : '#ffaa3c',
+                              backgroundColor: asset.is_public === false ? 'rgba(0,194,100,0.08)' : 'rgba(255,170,60,0.08)',
+                            }}
+                          >
+                            {togglingId === asset.id ? <SpinnerIcon /> : (asset.is_public === false ? 'Показать' : 'Скрыть')}
+                          </button>
                           <button
                             onClick={() => deleteAsset(asset)}
                             disabled={isDeleting}
