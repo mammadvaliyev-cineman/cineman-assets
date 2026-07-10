@@ -261,6 +261,7 @@ function AdminDashboard() {
   const [delCat, setDelCat] = useState('')
   const [delBusy, setDelBusy] = useState(false)
   const [delMsg, setDelMsg] = useState('')
+  const [previewSamples, setPreviewSamples] = useState<Array<{ label: string; url: string }>>([])
 
   // ── Batch upload state ──────────────────────────────────
   const batchRef = useRef<HTMLInputElement>(null)
@@ -391,7 +392,7 @@ function AdminDashboard() {
   useEffect(() => {
     if (activeTab === 'assets') loadAssets()
     if (activeTab === 'settings') {
-      fetch('/api/admin/catalog-config')
+      fetch('/api/admin/catalog-config', { cache: 'no-store' })
         .then(r => r.json())
         .then(j => { if (j?.config) setDispCfg(j.config) })
         .catch(() => {})
@@ -399,6 +400,20 @@ function AdminDashboard() {
         const res = await fetch('/api/admin/delete-category', { headers: await adminHeaders() })
         const j = await res.json().catch(() => ({}))
         if (Array.isArray(j.categories)) setCatList(j.categories)
+      })()
+      // Live-preview samples: one real asset per type from the base
+      ;(async () => {
+        const samples: Array<{ label: string; url: string }> = []
+        for (const t of ['Character', 'Location', 'Vehicle']) {
+          const { data } = await supabase
+            .from('assets').select('file_url').eq('type', t)
+            .order('created_at', { ascending: false }).limit(1)
+          const u = data?.[0]?.file_url
+          if (typeof u === 'string' && u.includes('/storage/v1/object/public/')) {
+            samples.push({ label: t, url: u.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=440&quality=62' })
+          }
+        }
+        setPreviewSamples(samples)
       })()
     }
   }, [activeTab])
@@ -1205,6 +1220,42 @@ function AdminDashboard() {
                 </select>
               </div>
             </div>
+            {/* Live preview — reacts instantly, BEFORE save */}
+            <div className="mb-5">
+              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--fg-muted)' }}>
+                Предпросмотр (реальные ассеты из базы, меняется сразу)
+              </label>
+              <div className="flex flex-wrap gap-4">
+                {previewSamples.length === 0 && (
+                  <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Загружаю примеры…</span>
+                )}
+                {previewSamples.map(s => (
+                  <div key={s.label} style={{ width: 220 }}>
+                    <div
+                      className="rounded-xl overflow-hidden"
+                      style={{
+                        aspectRatio: dispCfg.ratio === 'auto' ? undefined : dispCfg.ratio,
+                        backgroundColor: 'var(--bg-subtle)',
+                        border: '1px solid var(--border)',
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={s.url}
+                        alt={s.label}
+                        className={`w-full block ${dispCfg.ratio === 'auto' ? 'h-auto' : 'h-full'}`}
+                        style={dispCfg.ratio === 'auto' ? undefined : {
+                          objectFit: dispCfg.fit === 'contain' ? 'contain' : 'cover',
+                          objectPosition: dispCfg.fit === 'cover-top' ? 'top' : 'center',
+                        }}
+                      />
+                    </div>
+                    <p className="text-xs mt-1.5 text-center" style={{ color: 'var(--fg-subtle)' }}>{s.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="flex items-center gap-3">
               <button
                 onClick={saveDisplayCfg}
@@ -1215,6 +1266,7 @@ function AdminDashboard() {
                 {dispSaving ? 'Saving…' : 'Save'}
               </button>
               {dispSaved && <span className="text-sm" style={{ color: '#00C264' }}>✓ Сохранено</span>}
+              <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>После Save обнови страницу каталога, чтобы увидеть результат.</span>
             </div>
           </div>
 
