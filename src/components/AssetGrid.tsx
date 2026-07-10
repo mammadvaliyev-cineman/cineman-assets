@@ -670,7 +670,10 @@ export default function AssetGrid({
         // ✓ Downloaded + flying −N⚡, then back to normal
         setDoneIds(prev => { const n = new Set(prev); n.add(asset.id); return n })
         setTimeout(() => setDoneIds(prev => { const n = new Set(prev); n.delete(asset.id); return n }), 1400)
-        window.location.href = json.url
+        // ?download forces attachment — file saves, the page (and the
+        // spend feedback) stays on screen
+        const dlUrl = json.url.includes('/storage/v1/') ? json.url + (json.url.includes('?') ? '&' : '?') + 'download' : json.url
+        window.location.href = dlUrl
       } else {
         alert(json.error || 'Download failed')
       }
@@ -728,7 +731,8 @@ export default function AssetGrid({
         }
         recordDownload(asset.id)
         setDeletedIds(prev => { const next = new Set(prev); next.add(asset.id); return next })
-        window.location.href = json.url
+        const buyUrl = json.url.includes('/storage/v1/') ? json.url + (json.url.includes('?') ? '&' : '?') + 'download' : json.url
+        window.location.href = buyUrl
       } else {
         alert(json.error || 'Выкуп не прошёл')
       }
