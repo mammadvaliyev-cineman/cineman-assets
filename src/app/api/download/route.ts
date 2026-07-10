@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     // Look up the asset server-side — never trust client-provided URLs
     const { data, error } = await supabase
-      .from('assets').select('file_url, title, credit_cost').eq('id', assetId).eq('is_public', true).single()
+      .from('assets').select('file_url, title, credit_cost, price_tier').eq('id', assetId).eq('is_public', true).single()
     if (error || !data?.file_url) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
     }
@@ -34,7 +34,13 @@ export async function POST(req: NextRequest) {
       const { data: userData, error: userErr } = await admin.auth.getUser(token)
       if (!userErr && userData?.user) {
         const userId = userData.user.id
-        const cost = Number(data.credit_cost ?? 5)
+        // NULL credit_cost = follows the tier default (pricing_defaults)
+        let cost = data.credit_cost == null ? NaN : Number(data.credit_cost)
+        if (!Number.isFinite(cost)) {
+          const { data: pd } = await admin.from('pricing_defaults')
+            .select('credits').eq('tier', String(data.price_tier ?? 'standard')).single()
+          cost = Number(pd?.credits ?? 5)
+        }
         const { data: remaining, error: rpcErr } = await admin.rpc('spend_credits', { p_user: userId, p_cost: cost })
         if (rpcErr) {
           return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
