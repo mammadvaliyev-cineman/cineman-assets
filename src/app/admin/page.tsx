@@ -561,6 +561,32 @@ function AdminDashboard() {
     if (kind === 'delete') loadStats()
   }
 
+  // Style is a tag, not a category (owner's rule): style:cartoon etc.
+  // "realistic" = default = NO style tag, so setting it just strips style:*
+  const [bulkStyle, setBulkStyle] = useState('cartoon')
+  async function bulkSetStyle() {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    const label = bulkStyle === 'realistic' ? 'Realistic (убрать style-тег)' : `style:${bulkStyle}`
+    if (!confirm(`${ids.length} ассетов — задать стиль ${label}?`)) return
+    setBulkBusy(true)
+    const headers = await adminHeaders()
+    let done = 0
+    for (const id of ids) {
+      const row = assets.find(a => a.id === id)
+      if (!row) continue
+      const tags = (row.tags || []).filter(t => !String(t).toLowerCase().startsWith('style:'))
+      if (bulkStyle !== 'realistic') tags.push(`style:${bulkStyle}`)
+      try {
+        const r = await fetch('/api/admin/assets', { method: 'PATCH', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ id, tags }) })
+        if (r.ok) { done++; setAssets(prev => prev.map(a => a.id === id ? { ...a, tags } : a)) }
+      } catch { /* keep going */ }
+    }
+    setSelectedIds(new Set())
+    setBulkBusy(false)
+    alert(`Стиль обновлён: ${done}/${ids.length}`)
+  }
+
   function fmtSize(b: number): string {
     if (!b) return '—'
     if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB'
@@ -922,6 +948,25 @@ function AdminDashboard() {
                 {selectedIds.size > 0 && (
                   <>
                     <span className="text-xs font-semibold" style={{ color: '#9765E0' }}>выбрано: {selectedIds.size}</span>
+                    <select
+                      value={bulkStyle}
+                      onChange={e => setBulkStyle(e.target.value)}
+                      disabled={bulkBusy}
+                      style={{ fontSize: 12, backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 8px', color: 'var(--fg)' }}
+                    >
+                      <option value="cartoon">🎨 Cartoon</option>
+                      <option value="anime">Anime</option>
+                      <option value="3d">3D</option>
+                      <option value="realistic">Realistic (сброс)</option>
+                    </select>
+                    <button
+                      onClick={bulkSetStyle}
+                      disabled={bulkBusy}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-lg"
+                      style={{ color: '#CE95FB', border: '1px solid rgba(206,149,251,0.4)', backgroundColor: 'rgba(206,149,251,0.08)' }}
+                    >
+                      {bulkBusy ? '…' : 'Задать стиль'}
+                    </button>
                     <button
                       onClick={() => bulkAction('hide')}
                       disabled={bulkBusy}
