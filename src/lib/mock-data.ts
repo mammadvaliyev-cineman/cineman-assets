@@ -8,6 +8,7 @@ export type Asset = {
   plan: 'starter' | 'pro' | 'enterprise'
   tags: string[]
   fileUrl?: string // storage path for signed URL generation
+  creditCost?: number // download price in credits (default 5)
 }
 
 // No mock data — all assets come from Supabase
