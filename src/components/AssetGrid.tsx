@@ -281,18 +281,17 @@ function AssetCard({
   // Grid card
   return (
     <div className="card group cursor-pointer flex flex-col fade-in-up" style={{ position: 'relative' }}>
-      {/* Thumbnail — 16:9 */}
-      <div className="relative overflow-hidden" style={{ aspectRatio: '16/9', backgroundColor: 'var(--bg-subtle)' }}>
+      {/* Thumbnail — natural aspect ratio, no crop */}
+      <div className="relative overflow-hidden" style={{ backgroundColor: 'var(--bg-subtle)' }}>
         {asset.thumbnail ? (
           <img
             src={asset.thumbnail}
             alt={asset.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-            style={{ objectPosition }}
+            className="w-full h-auto block group-hover:scale-105 transition-transform duration-500"
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-3xl">
+          <div className="w-full flex items-center justify-center text-3xl" style={{ aspectRatio: '16/9' }}>
             {typeStyle.icon}
           </div>
         )}
