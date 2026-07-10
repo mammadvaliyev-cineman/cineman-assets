@@ -16,8 +16,18 @@ export const maxDuration = 60
 // ─────────────────────────────────────────────────────────────
 
 const STYLE: Record<string, string> = {
-  Character:
-    'Full body cinematic character reference, single person, natural pose, photorealistic, film still quality, neutral cinematic background, professional color grade.',
+  Character: [
+    'character reference sheet, same character shown in three panels: full body front view, full body back view, close-up front portrait,',
+    'neutral standing pose, arms down, legs straight, realistic anatomy, consistent clothing and hairstyle, centered framing,',
+    'clean split-panel composition, reference photo style, no action pose, no extra angles, no side view.',
+    'Ultra high-resolution 4K, hyper-realistic detail: skin texture, fabric fibers, surface imperfections, micro-details.',
+    'Advanced de-noising, no compression artifacts, no grain, natural texture retained.',
+    'Natural edge sharpness (no over-sharpening halos), accurate color grading, true-to-life tones and dynamic range.',
+    'Realistic lighting: balanced highlights and shadows, improved contrast without crushing blacks or blowing highlights.',
+    'Subtle cinematic depth: natural depth of field, realistic focus falloff, no artificial blur.',
+    'Output should look like it was captured on a modern high-end cinema camera (ARRI Alexa / RED), hyper-realistic, clean, crisp, film-quality.',
+    'NO artifacts, NO AI distortion, NO plastic skin, NO oversmoothing, NO stylization. no title no text.',
+  ].join(' '),
   Location:
     'Cinematic location establishing plate, no people, photorealistic, film still quality, professional cinematography, atmospheric lighting.',
 }
@@ -36,6 +46,8 @@ export async function POST(req: NextRequest) {
     const taskId = await kieCreateTask(KIE_MODELS.imageFallback, {
       prompt,
       output_format: 'png',
+      // Character reference sheets are wide split-panel boards → 16:9
+      ...(assetType === 'Character' ? { image_size: '16:9' } : {}),
     })
     await incrementUsage(gate.userId)
     return NextResponse.json({ taskId })
