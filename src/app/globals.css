@@ -179,16 +179,6 @@ input[type="range"].cine-range::-webkit-slider-thumb {
 .card img { transition: transform .55s cubic-bezier(.16,1,.3,1); }
 .card:hover img { transform: scale(1.05); }
 
-/* Primary buttons: light sweep on hover */
-.btn-primary { position: relative; overflow: hidden; }
-.btn-primary::before {
-  content: ''; position: absolute; top: 0; left: -120%;
-  width: 55%; height: 100%; pointer-events: none;
-  background: linear-gradient(105deg, transparent, rgba(255,255,255,.38), transparent);
-  transform: skewX(-18deg); transition: left .6s ease;
-}
-.btn-primary:hover::before { left: 150%; }
-
 /* Opt-in: staggered entrance for a grid (add class "stagger-in") */
 .stagger-in > * { opacity: 0; animation: fadeInUp .5s cubic-bezier(.16,1,.3,1) forwards; }
 .stagger-in > *:nth-child(1){animation-delay:.03s}
