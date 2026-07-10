@@ -10,6 +10,9 @@ import { CatalogConfig, DEFAULT_CATALOG_CONFIG } from '@/lib/catalogConfig'
 const TYPE_STYLE: Record<string, { bg: string; color: string; icon: string }> = {
   Location:          { bg: 'rgba(151,101,224,0.75)', color: '#EEE8FF', icon: '📍' },
   Character:         { bg: 'rgba(206,149,251,0.75)', color: '#1a0a2e', icon: '🎭' },
+  People:            { bg: 'rgba(206,149,251,0.75)', color: '#1a0a2e', icon: '👤' },
+  Animal:            { bg: 'rgba(0,194,100,0.7)',    color: '#EEE8FF', icon: '🐾' },
+  Robot:             { bg: 'rgba(0,194,186,0.7)',    color: '#EEE8FF', icon: '🤖' },
   Vehicle:           { bg: 'rgba(83,79,165,0.75)',   color: '#EEE8FF', icon: '🚗' },
   Architecture:      { bg: 'rgba(54,0,156,0.75)',    color: '#CE95FB', icon: '🏛'  },
   Nature:            { bg: 'rgba(0,194,100,0.7)',    color: '#EEE8FF', icon: '🌿' },
