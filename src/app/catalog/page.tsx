@@ -148,6 +148,15 @@ function thumbUrl(url: string): string {
   return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=440&quality=62&resize=contain'
 }
 
+// Display label → tag value for animal classes and robot types
+const CLASS_MAP: Record<string, string> = {
+  'Pets': 'pets', 'Predators': 'predators', 'Wild Mammals': 'wild-mammals',
+  'Birds': 'birds', 'Fish & Sea': 'fish-sea', 'Insects': 'insects', 'Reptiles': 'reptiles',
+}
+const RTYPE_MAP: Record<string, string> = {
+  'Humanoid': 'humanoid', 'Android': 'android', 'Mech': 'mech', 'Endoskeleton': 'endoskeleton',
+}
+
 function toAsset(a: Record<string, unknown>): Asset {
   return {
     id: String(a.id),
@@ -193,6 +202,9 @@ export default function CatalogPage() {
   // Vehicle-specific filters (tag-based: brand:/color:)
   const [activeBrand, setActiveBrand] = useState('All')
   const [activeColor, setActiveColor] = useState('All')
+  // Animal/Robot sub-filters (tag-based: class:/rtype:)
+  const [activeClass, setActiveClass] = useState('All')
+  const [activeRType, setActiveRType] = useState('All')
   // Character-specific filters (tag-based)
   const [activeGender, setActiveGender] = useState('All')
   const [activeAge, setActiveAge] = useState('All')
@@ -213,6 +225,7 @@ export default function CatalogPage() {
     setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
     setActiveSetting('All'); setActiveTime('All')
     setActiveBrand('All'); setActiveColor('All')
+    setActiveClass('All'); setActiveRType('All')
     setActiveSubcat('All')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCat, activeType])
@@ -221,6 +234,7 @@ export default function CatalogPage() {
   // between subcats (Man/Woman vs Boy/Girl), stale values give 0 results
   useEffect(() => {
     setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
+    setActiveClass('All'); setActiveRType('All')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSubcat])
   const [viewMode, setViewMode]       = useState<'grid' | 'list'>('grid')
@@ -291,6 +305,17 @@ export default function CatalogPage() {
     }
     return ['All', ...Array.from(set).sort()]
   }, [assets])
+  // Class/Type options: show only labels that exist in the data
+  const animalClasses = useMemo(() => {
+    const present = new Set<string>()
+    for (const a of assets) for (const t of a.tags) if (String(t).startsWith('class:')) present.add(String(t).slice(6))
+    return ['All', ...Object.keys(CLASS_MAP).filter(label => present.has(CLASS_MAP[label]))]
+  }, [assets])
+  const robotTypes = useMemo(() => {
+    const present = new Set<string>()
+    for (const a of assets) for (const t of a.tags) if (String(t).startsWith('rtype:')) present.add(String(t).slice(6))
+    return ['All', ...Object.keys(RTYPE_MAP).filter(label => present.has(RTYPE_MAP[label]))]
+  }, [assets])
   const subcatsForType = useMemo(() => {
     const m: Record<string, string[]> = {}
     for (const a of assets) {
@@ -338,6 +363,9 @@ export default function CatalogPage() {
       const matchGender = activeGender === 'All' || tagsLower.includes(GENDER_MAP[activeGender] || '')
       const matchAge = activeAge === 'All' || (AGE_MAP[activeAge] || []).some(x => tagsLower.includes(x))
       const matchEthnicity = activeEthnicity === 'All' || tagsLower.includes(ETH_MAP[activeEthnicity] || '')
+      // Animal class / Robot type — exact prefix-tag match
+      const matchClass = activeClass === 'All' || tagsLower.includes(`class:${CLASS_MAP[activeClass] || ''}`)
+      const matchRType = activeRType === 'All' || tagsLower.includes(`rtype:${RTYPE_MAP[activeRType] || ''}`)
       // Location filters: prefix tags first (place:/time:), word fallback
       // for the ~half of locations that predate the structural pass
       const SETTING_MAP: Record<string, string[]> = {
@@ -359,9 +387,9 @@ export default function CatalogPage() {
         || tagsLower.includes(TIME_TAG[activeTime] || '')
         || (TIME_MAP[activeTime] || []).some(x => blob.includes(x))
       const matchSubcat = activeSubcat === 'All' || a.category.toLowerCase() === activeSubcat.toLowerCase()
-      return matchSearch && matchCat && matchType && matchBrand && matchColor && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat
+      return matchSearch && matchCat && matchType && matchBrand && matchColor && matchClass && matchRType && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat
     })
-  }, [assets, search, activeCat, activeType, activeBrand, activeColor, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeSubcat, quickView, favIds, dlIds])
+  }, [assets, search, activeCat, activeType, activeBrand, activeColor, activeClass, activeRType, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeSubcat, quickView, favIds, dlIds])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
@@ -542,6 +570,12 @@ export default function CatalogPage() {
                 {/* Character-specific filters — human ones only for People,
                     with kid-appropriate labels inside People - Kids */}
                 <FilterChip label="Category"  value={activeSubcat}    options={charSubcats} onChange={setActiveSubcat} />
+                {activeSubcat === 'Animals' && animalClasses.length > 2 && (
+                  <FilterChip label="Class" value={activeClass} options={animalClasses} onChange={setActiveClass} />
+                )}
+                {activeSubcat === 'Robots' && robotTypes.length > 2 && (
+                  <FilterChip label="Type" value={activeRType} options={robotTypes} onChange={setActiveRType} />
+                )}
                 {isPeopleSubcat && (activeSubcat.toLowerCase().includes('kids') ? (
                   <>
                     <FilterChip label="Gender" value={activeGender} options={['All', 'Boy', 'Girl']} onChange={setActiveGender} />
