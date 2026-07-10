@@ -6,41 +6,42 @@ const PLANS = [
     accent: '#CE95FB',
     badge: null,
     popular: false,
+    license: 'Personal use only',
+    commercial: false,
     features: [
-      '⚡ 15 credits every month',
+      '⚡ 15 credits every month (~3 assets/mo)',
       'Browse the entire catalog',
-      'Standard asset = 5 credits',
       'Full-resolution PNG/JPG downloads',
-      'Personal use license',
     ],
   },
   {
     name: 'Personal',
     price: 12,
-    description: 'For independent creators',
+    description: 'For hobby & personal projects',
     accent: '#9765E0',
-    badge: 'Most Popular',
-    popular: true,
+    badge: null,
+    popular: false,
+    license: 'Personal use only',
+    commercial: false,
     features: [
-      '⚡ 150 credits every month',
-      'Standard asset = 5 credits (~30 assets/mo)',
+      '⚡ 150 credits every month (~30 assets/mo)',
       'Full-resolution PNG/JPG downloads',
-      'Personal use license',
       'Priority support',
     ],
   },
   {
     name: 'Pro',
     price: 25,
-    description: 'For professional filmmakers',
+    description: 'For creators who sell their work',
     accent: '#00C2BA',
-    badge: 'Best Value',
-    popular: false,
+    badge: 'Most Popular',
+    popular: true,
+    license: 'Commercial license',
+    commercial: true,
     features: [
-      '⚡ 500 credits every month',
-      'Commercial use license',
+      'Everything in Personal, plus…',
+      '⚡ 500 credits every month (~100 assets/mo)',
       'Exclusive buyouts — 50 credits',
-      'Top-up anytime: 100 credits = $10',
       'Priority support & early access',
     ],
   },
@@ -49,7 +50,7 @@ const PLANS = [
 const FAQ = [
   {
     q: 'How do credits work?',
-    a: 'Every download costs credits: a standard asset is 5 credits, top assets up to 20, an exclusive buyout is 50. Credits refresh monthly with your plan.',
+    a: 'Every download costs credits: a standard asset is 5 credits, top assets up to 20, an exclusive buyout is 50. Credits refresh monthly with your plan, and you can top up anytime on any plan — 100 credits for $10.',
   },
   {
     q: 'Can I cancel anytime?',
@@ -87,17 +88,18 @@ export default function PricingPage() {
           Choose Your Plan
         </h1>
         <p className="text-lg max-w-xl mx-auto" style={{ color: 'var(--fg-muted)' }}>
-          Start free for 7 days. No credit card required. Upgrade or cancel anytime.
+          Start free. No credit card required. Upgrade or cancel anytime.
         </p>
       </div>
 
-      {/* Plans */}
-      <div className="grid md:grid-cols-3 gap-6 mb-20">
+      {/* Plans — pt-4 so absolute badges are never clipped */}
+      <div className="grid md:grid-cols-3 gap-6 pt-4 mb-6">
         {PLANS.map(plan => (
           <div
             key={plan.name}
             className="relative card p-8 flex flex-col"
             style={{
+              overflow: 'visible', // .card has overflow-hidden — would clip the badge
               borderColor: plan.popular ? plan.accent : 'var(--border)',
               borderWidth: plan.popular ? 2 : 1,
               boxShadow: plan.popular ? `0 0 32px ${plan.accent}30` : undefined,
@@ -128,13 +130,33 @@ export default function PricingPage() {
             </div>
 
             {/* Price */}
-            <div className="mb-8">
+            <div className="mb-5">
               <span className="text-5xl font-bold" style={{ color: plan.accent }}>
                 ${plan.price}
               </span>
               <span className="ml-2 text-sm" style={{ color: 'var(--fg-muted)' }}>
                 /month
               </span>
+            </div>
+
+            {/* License — the key differentiator */}
+            <div
+              className="mb-6 text-sm font-bold px-4 py-2 rounded-lg text-center"
+              style={
+                plan.commercial
+                  ? {
+                      color: '#00C2BA',
+                      backgroundColor: 'rgba(0,194,186,0.10)',
+                      border: '1px solid rgba(0,194,186,0.35)',
+                    }
+                  : {
+                      color: 'var(--fg-muted)',
+                      backgroundColor: 'rgba(255,255,255,0.04)',
+                      border: '1px solid var(--border)',
+                    }
+              }
+            >
+              {plan.commercial ? '💼 ' : ''}{plan.license}
             </div>
 
             {/* Features */}
@@ -161,6 +183,11 @@ export default function PricingPage() {
           </div>
         ))}
       </div>
+
+      {/* Top-up — applies to every plan */}
+      <p className="text-center text-sm mb-20" style={{ color: 'var(--fg-muted)' }}>
+        ⚡ Need more? Top up anytime on any plan — <span style={{ color: 'var(--fg)', fontWeight: 600 }}>100 credits = $10</span>
+      </p>
 
       {/* FAQ */}
       <div className="max-w-2xl mx-auto">
