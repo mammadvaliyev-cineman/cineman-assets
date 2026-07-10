@@ -18,8 +18,9 @@ type AssetRow = {
   thumbnail_url: string
   created_at: string
   is_public?: boolean
-  credit_cost?: number
-  exclusive_price?: number
+  credit_cost?: number | null
+  exclusive_price?: number | null
+  price_tier?: string
 }
 
 type Stats = {
@@ -249,7 +250,7 @@ type BatchItem = {
 
 // ── Main Component ──────────────────────────────────────────
 function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories' | 'settings'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories' | 'pricing' | 'settings'>('overview')
   const [stats, setStats] = useState<Stats>({ total: 0, byType: {}, byPlan: {} })
   const [assets, setAssets] = useState<AssetRow[]>([])
   const [loadingStats, setLoadingStats] = useState(true)
@@ -423,6 +424,7 @@ function AdminDashboard() {
   useEffect(() => {
     if (activeTab === 'assets') {
       loadAssets()
+      loadPricing() // price column shows «(default)» from pricing_defaults
       // file sizes for the Size column / sort
       ;(async () => {
         try {
@@ -432,6 +434,7 @@ function AdminDashboard() {
         } catch { /* sizes optional */ }
       })()
     }
+    if (activeTab === 'pricing') loadPricing()
     if (activeTab === 'settings') {
       fetch('/api/admin/catalog-config', { cache: 'no-store' })
         .then(r => r.json())
@@ -589,22 +592,60 @@ function AdminDashboard() {
     alert(`Стиль обновлён: ${done}/${ids.length}`)
   }
 
-  // Edit download + exclusive prices (two quick prompts)
-  async function editPrices(asset: AssetRow) {
-    const p1 = window.prompt(`«${asset.title}» — цена скачивания ⚡:`, String(asset.credit_cost ?? 5))
-    if (p1 === null) return
-    const p2 = window.prompt(`«${asset.title}» — цена эксклюзивного выкупа 👑⚡:`, String(asset.exclusive_price ?? 50))
-    if (p2 === null) return
-    const credit_cost = Math.max(0, Math.round(Number(p1)))
-    const exclusive_price = Math.max(0, Math.round(Number(p2)))
-    if (!Number.isFinite(credit_cost) || !Number.isFinite(exclusive_price)) { alert('Нужно число'); return }
-    const headers = await adminHeaders()
+  // ── Pricing tab: tier defaults + plan grants (pricing_defaults) ──
+  const PRICE_LABELS: Record<string, string> = {
+    standard: 'Standard — цена скачивания', premium: 'Premium — топовые ассеты', exclusive: 'Exclusive — выкуп эксклюзива',
+    plan_free: 'Free — кредитов в месяц', plan_personal: 'Personal — кредитов в месяц', plan_pro: 'Pro — кредитов в месяц',
+  }
+  const [priceRows, setPriceRows] = useState<Record<string, number>>({})
+  const [priceBusy, setPriceBusy] = useState(false)
+  const loadPricing = async () => {
     try {
-      const r = await fetch('/api/admin/assets', { method: 'PATCH', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ id: asset.id, credit_cost, exclusive_price }) })
+      const r = await fetch('/api/admin/pricing', { headers: await adminHeaders() })
       const j = await r.json()
-      if (j.ok) setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, credit_cost, exclusive_price } : a))
-      else alert(j.error || 'Не сохранилось')
-    } catch { alert('Не сохранилось — попробуй ещё раз') }
+      if (Array.isArray(j.rows)) {
+        const m: Record<string, number> = {}
+        for (const row of j.rows) m[row.tier] = Number(row.credits)
+        setPriceRows(m)
+      }
+    } catch { /* noop */ }
+  }
+  const savePricing = async () => {
+    setPriceBusy(true)
+    try {
+      const rows = Object.entries(priceRows).map(([tier, credits]) => ({ tier, credits }))
+      const r = await fetch('/api/admin/pricing', { method: 'POST', headers: { 'content-type': 'application/json', ...(await adminHeaders()) }, body: JSON.stringify({ rows }) })
+      const j = await r.json()
+      alert(j.ok ? `Сохранено: ${j.saved}` : (j.error || 'Ошибка'))
+    } catch { alert('Ошибка сохранения') } finally { setPriceBusy(false) }
+  }
+
+  // ── Asset price editor modal: tier + override (NULL = follows tier) ──
+  const [priceTarget, setPriceTarget] = useState<AssetRow | null>(null)
+  const [pTier, setPTier] = useState('standard')
+  const [pOverride, setPOverride] = useState('')
+  const [pExclusive, setPExclusive] = useState('')
+  const [pBusy, setPBusy] = useState(false)
+  function openPriceEditor(asset: AssetRow) {
+    setPriceTarget(asset)
+    setPTier(asset.price_tier || 'standard')
+    setPOverride(asset.credit_cost == null ? '' : String(asset.credit_cost))
+    setPExclusive(asset.exclusive_price == null ? '' : String(asset.exclusive_price))
+  }
+  async function savePriceEditor() {
+    if (!priceTarget || pBusy) return
+    const credit_cost = pOverride.trim() === '' ? null : Math.max(0, Math.round(Number(pOverride)))
+    const exclusive_price = pExclusive.trim() === '' ? null : Math.max(0, Math.round(Number(pExclusive)))
+    if ((credit_cost !== null && !Number.isFinite(credit_cost)) || (exclusive_price !== null && !Number.isFinite(exclusive_price))) { alert('Числа или пусто'); return }
+    setPBusy(true)
+    try {
+      const r = await fetch('/api/admin/assets', { method: 'PATCH', headers: { 'content-type': 'application/json', ...(await adminHeaders()) }, body: JSON.stringify({ id: priceTarget.id, price_tier: pTier, credit_cost, exclusive_price }) })
+      const j = await r.json()
+      if (j.ok) {
+        setAssets(prev => prev.map(a => a.id === priceTarget.id ? { ...a, price_tier: pTier, credit_cost, exclusive_price } : a))
+        setPriceTarget(null)
+      } else alert(j.error || 'Не сохранилось')
+    } catch { alert('Не сохранилось') } finally { setPBusy(false) }
   }
 
   function fmtSize(b: number): string {
@@ -833,7 +874,7 @@ function AdminDashboard() {
         className="flex gap-1 rounded-xl p-1 mb-8 w-fit"
         style={{ backgroundColor: 'var(--bg-subtle)' }}
       >
-        {(['overview', 'assets', 'batch', 'categories', 'settings'] as const).map(tab => (
+        {(['overview', 'assets', 'batch', 'categories', 'pricing', 'settings'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1073,12 +1114,13 @@ function AdminDashboard() {
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{asset.category}</td>
                         <td className="px-4 py-3 text-xs" style={{ whiteSpace: 'nowrap' }}>
                           <button
-                            onClick={() => editPrices(asset)}
-                            title="Изменить цены: скачивание / эксклюзив"
+                            onClick={() => openPriceEditor(asset)}
+                            title="Тир и override цены (пусто = следует тиру)"
                             className="font-semibold"
                             style={{ color: '#CE95FB', textDecoration: 'underline dotted', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                           >
-                            ⚡{asset.credit_cost ?? 5} · 👑{asset.exclusive_price ?? 50}
+                            ⚡{asset.credit_cost ?? `(${priceRows[asset.price_tier || 'standard'] ?? '·'})`} · 👑{asset.exclusive_price ?? `(${priceRows['exclusive'] ?? '·'})`}
+                            <span className="block text-[10px] font-normal" style={{ color: 'var(--fg-subtle)' }}>{asset.price_tier || 'standard'}</span>
                           </button>
                         </td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>
@@ -1447,6 +1489,113 @@ function AdminDashboard() {
       )}
 
       {/* ── Settings Tab ────────────────────────────────────── */}
+      {/* ── Pricing Tab ─────────────────────────────────────── */}
+      {activeTab === 'pricing' && (
+        <div className="max-w-2xl space-y-6">
+          <div className="card p-7">
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Цены за скачивание (тиры)</h2>
+            <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
+              Ассет без override следует своему тиру. Меняешь тир — все «follows default» подтягиваются автоматически.
+            </p>
+            <div className="space-y-3">
+              {['standard', 'premium', 'exclusive'].map(t => (
+                <label key={t} className="flex items-center justify-between gap-4">
+                  <span className="text-sm" style={{ color: 'var(--fg-muted)' }}>{PRICE_LABELS[t]}</span>
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="number" min={0}
+                      value={priceRows[t] ?? ''}
+                      onChange={e => setPriceRows(prev => ({ ...prev, [t]: Number(e.target.value) }))}
+                      className="input-field text-sm text-right"
+                      style={{ width: 90, padding: '7px 10px' }}
+                    />
+                    <span className="text-sm font-bold" style={{ color: '#CE95FB' }}>⚡</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="card p-7">
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Кредиты по тарифам (в месяц)</h2>
+            <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
+              Начисления при подписке и месячном сбросе. Долларовые цены живут в LemonSqueezy — здесь только кредиты.
+            </p>
+            <div className="space-y-3">
+              {['plan_free', 'plan_personal', 'plan_pro'].map(t => (
+                <label key={t} className="flex items-center justify-between gap-4">
+                  <span className="text-sm" style={{ color: 'var(--fg-muted)' }}>{PRICE_LABELS[t]}</span>
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="number" min={0}
+                      value={priceRows[t] ?? ''}
+                      onChange={e => setPriceRows(prev => ({ ...prev, [t]: Number(e.target.value) }))}
+                      className="input-field text-sm text-right"
+                      style={{ width: 90, padding: '7px 10px' }}
+                    />
+                    <span className="text-sm font-bold" style={{ color: '#CE95FB' }}>⚡</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <button
+            onClick={savePricing}
+            disabled={priceBusy}
+            className="btn-primary px-8 py-2.5 text-sm font-bold"
+          >
+            {priceBusy ? 'Сохраняю…' : 'Сохранить цены'}
+          </button>
+        </div>
+      )}
+
+      {/* ── Asset price editor modal (tier + override) ──────── */}
+      {priceTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(8,5,15,0.80)', backdropFilter: 'blur(8px)' }}
+          onClick={() => !pBusy && setPriceTarget(null)}
+        >
+          <div
+            className="relative max-w-sm w-full rounded-2xl p-7"
+            style={{
+              background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(151,101,224,0.08) 100%)',
+              border: '1px solid rgba(151,101,224,0.35)',
+              boxShadow: '0 0 60px rgba(151,101,224,0.25)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Цена ассета</h2>
+            <p className="text-xs mb-5 truncate" style={{ color: 'var(--fg-muted)' }}>{priceTarget.title}</p>
+
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>Тир</label>
+            <select value={pTier} onChange={e => setPTier(e.target.value)} className="input-field w-full text-sm mb-4" style={{ padding: '9px 12px' }}>
+              <option value="standard">Standard ({priceRows['standard'] ?? 5}⚡)</option>
+              <option value="premium">Premium ({priceRows['premium'] ?? 20}⚡)</option>
+              <option value="exclusive">Exclusive ({priceRows['exclusive'] ?? 50}⚡)</option>
+            </select>
+
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>
+              Credit cost — override <span style={{ color: 'var(--fg-subtle)' }}>(пусто = follows default)</span>
+            </label>
+            <input type="number" min={0} value={pOverride} onChange={e => setPOverride(e.target.value)} placeholder={`по тиру: ${priceRows[pTier] ?? '—'}⚡`} className="input-field w-full text-sm mb-4" style={{ padding: '9px 12px' }} />
+
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>
+              Exclusive buyout — override <span style={{ color: 'var(--fg-subtle)' }}>(пусто = {priceRows['exclusive'] ?? 50}⚡)</span>
+            </label>
+            <input type="number" min={0} value={pExclusive} onChange={e => setPExclusive(e.target.value)} placeholder={`по умолчанию: ${priceRows['exclusive'] ?? 50}⚡`} className="input-field w-full text-sm mb-5" style={{ padding: '9px 12px' }} />
+
+            <div className="flex gap-3">
+              <button onClick={savePriceEditor} disabled={pBusy} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white" style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)', opacity: pBusy ? 0.5 : 1 }}>
+                {pBusy ? 'Сохраняю…' : 'Сохранить'}
+              </button>
+              <button onClick={() => { setPOverride(''); setPExclusive('') }} disabled={pBusy} className="px-4 py-2.5 rounded-xl text-sm font-medium" style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }} title="Очистить override — цена следует тиру">
+                Use default
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeTab === 'settings' && (
         <div className="grid gap-6 max-w-3xl">
 
