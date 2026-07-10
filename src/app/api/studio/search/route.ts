@@ -121,10 +121,15 @@ export async function POST(req: NextRequest) {
     const debug: Record<string, unknown> | undefined = wantDebug ? {} : undefined
     const keywords = await extractKeywords(String(text), debug)
 
+    // "Character" in the Studio means ANY castable hero — people,
+    // creatures, animals and robots now live under their own types
+    const typeList = assetType === 'Character'
+      ? ['Character', 'People', 'Creature', 'Animal', 'Robot']
+      : [String(assetType)]
     const { data, error } = await supabase
       .from('assets')
       .select('id,title,type,category,tags,description,file_url,thumbnail_url')
-      .eq('type', assetType)
+      .in('type', typeList)
       .eq('is_public', true) // hidden assets are excluded from Studio search
       .limit(2000)
     if (error) throw error
