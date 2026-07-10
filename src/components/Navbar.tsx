@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { useTheme } from '@/components/ThemeProvider'
 import { useAuth } from '@/components/AuthProvider'
 import { isAdminEmail } from '@/components/AdminGate'
+import { supabase } from '@/lib/supabase'
 
 // ── Cineman Logo Icon ─────────────────────────────────────────
 function CinemanLogoIcon({ size = 36 }: { size?: number }) {
@@ -54,6 +56,23 @@ export default function Navbar() {
   useTheme() // keeps dark theme applied; light mode disabled for now
   const { user } = useAuth()
   const isAdmin = isAdminEmail(user?.email)
+
+  // ⚡ credit balance — own profile via RLS; refreshed after downloads
+  const [credits, setCredits] = useState<number | null>(null)
+  useEffect(() => {
+    if (!user) { setCredits(null); return }
+    const load = async () => {
+      const { data } = await supabase.from('profiles').select('credits').eq('id', user.id).single()
+      if (data) setCredits(data.credits)
+    }
+    load()
+    const onChange = (e: Event) => {
+      const d = (e as CustomEvent).detail
+      if (typeof d === 'number') setCredits(d); else load()
+    }
+    window.addEventListener('cineman-credits-changed', onChange)
+    return () => window.removeEventListener('cineman-credits-changed', onChange)
+  }, [user])
 
   return (
     <nav
@@ -108,6 +127,16 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-3">
+          {user && credits !== null && (
+            <Link
+              href="/pricing"
+              title="Ваши кредиты — клик, чтобы пополнить"
+              className="flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-full"
+              style={{ backgroundColor: 'rgba(151,101,224,0.14)', color: '#CE95FB', border: '1px solid rgba(151,101,224,0.35)' }}
+            >
+              ⚡ {credits}
+            </Link>
+          )}
           {user ? (
             <Link href="/account" title="My account" className="flex items-center">
               {(user.user_metadata?.avatar_url || user.user_metadata?.picture) ? (

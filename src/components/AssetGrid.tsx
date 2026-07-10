@@ -160,18 +160,18 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
           <CloseIcon />
         </button>
 
-        <div className="text-5xl mb-4">🔒</div>
-        <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Limit reached</h2>
+        <div className="text-5xl mb-4">⚡</div>
+        <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Not enough credits</h2>
         <p className="text-sm mb-6" style={{ color: 'var(--fg-muted)' }}>
-          You&apos;ve used your <strong style={{ color: '#CE95FB' }}>{FREE_LIMIT} free downloads</strong> for today.
-          Subscribe to download more assets.
+          You&apos;ve run out of <strong style={{ color: '#CE95FB' }}>credits</strong>.
+          Upgrade your plan or top up to keep downloading.
         </p>
 
         <div className="grid grid-cols-3 gap-3 mb-6">
           {[
-            { name: 'Basic',  price: '$9.99',  color: '#CE95FB', downloads: '50 / mo'  },
-            { name: 'Pro',    price: '$24.99', color: '#9765E0', downloads: '150 / mo' },
-            { name: 'Ultra',  price: '$79.99', color: '#00C2BA', downloads: '500 / mo' },
+            { name: 'Free',     price: '$0',  color: '#CE95FB', downloads: '15 cr / mo'  },
+            { name: 'Personal', price: '$12', color: '#9765E0', downloads: '150 cr / mo' },
+            { name: 'Pro',      price: '$25', color: '#00C2BA', downloads: '500 cr / mo' },
           ].map(p => (
             <div
               key={p.name}
@@ -452,6 +452,7 @@ function AssetCard({
         <div className="flex items-center gap-2 mb-3">
           <span className="badge text-[11px] font-semibold" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
           <p className="text-xs truncate" style={{ color: 'var(--fg-muted)' }}>{asset.category}</p>
+          <span className="text-[11px] font-bold ml-auto whitespace-nowrap" style={{ color: '#CE95FB' }}>⚡ {asset.creditCost ?? 5}</span>
         </div>
         {asset.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-auto">
@@ -561,14 +562,24 @@ export default function AssetGrid({
 
     setDownloading(asset.id)
     try {
+      // signed-in users spend credits server-side; anonymous keeps free limit
+      const authHeaders = user ? await adminHeaders() : {}
       const res  = await fetch('/api/download', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ assetId: asset.id, filePath: asset.fileUrl }),
       })
       const json = await res.json()
+      if (res.status === 402 && json.code === 'credits') {
+        setShowUpgrade(true)
+        return
+      }
       if (json.url) {
-        setFreeUsed(incrementFreeDownloads())
+        if (typeof json.credits === 'number') {
+          window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: json.credits }))
+        } else {
+          setFreeUsed(incrementFreeDownloads())
+        }
         recordDownload(asset.id)
         window.location.href = json.url
       } else {
