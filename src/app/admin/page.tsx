@@ -380,7 +380,9 @@ function AdminDashboard() {
     const PAGE = 1000
     const all: Array<{ type: string; plan: string }> = []
     for (let from = 0; from < 50000; from += PAGE) {
-      const { data } = await supabase.from('assets').select('type, plan').range(from, from + PAGE - 1)
+      const { data } = await supabase.from('assets').select('type, plan')
+        .neq('type', 'Config').neq('type', 'Usage').neq('type', 'Generation')
+        .range(from, from + PAGE - 1)
       if (!data) break
       all.push(...(data as Array<{ type: string; plan: string }>))
       if (data.length < PAGE) break
