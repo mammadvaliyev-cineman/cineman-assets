@@ -209,10 +209,30 @@ function EmptyState() {
   )
 }
 
+// Crown icon (SVG, not emoji — master handoff §5)
+function CrownIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 18h20M4 18l-1.5-9 5 3.5L12 5l4.5 7.5 5-3.5L20 18" />
+    </svg>
+  )
+}
+
+// Sentence case for card titles («Casual studio portrait in olive»).
+// Words that are ALL-CAPS and short stay as-is (BMW, SUV, NYC).
+function sentenceCase(s: string): string {
+  if (!s) return s
+  const words = s.split(' ').map(w =>
+    (w.length <= 4 && w === w.toUpperCase() && /[A-Z]{2,}/.test(w)) ? w : w.toLowerCase()
+  )
+  const out = words.join(' ')
+  return out.charAt(0).toUpperCase() + out.slice(1)
+}
+
 // ── Card component ────────────────────────────────────────────
 function AssetCard({
   asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete, onMove, onHide,
-  onPrice, onBuyout, isBuying = false,
+  onPrice, onBuyout, isBuying = false, downloadState = 'idle',
   displayCfg = DEFAULT_CATALOG_CONFIG,
 }: {
   asset: Asset
@@ -229,6 +249,7 @@ function AssetCard({
   onPrice?: () => void
   onBuyout?: () => void
   isBuying?: boolean
+  downloadState?: 'idle' | 'done' | 'nocredits'
   displayCfg?: CatalogConfig
 }) {
   const typeStyle = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
@@ -316,7 +337,7 @@ function AssetCard({
               }}
             >
               {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
-              {isDownloading ? '…' : 'Download'}
+              {isDownloading ? '…' : `Download · ${asset.creditCost ?? 5}⚡`}
             </button>
           )}
         </div>
@@ -433,35 +454,62 @@ function AssetCard({
           style={{ background: 'linear-gradient(to top, rgba(8,5,15,0.85) 0%, transparent 60%)', zIndex: 2 }}
         >
           {asset.fileUrl && (
-            <div className="w-full flex flex-col gap-1.5">
-              <button
-                onClick={e => { e.stopPropagation(); onDownload() }}
-                disabled={isDownloading}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
-                style={{
-                  background: isDownloading ? 'rgba(151,101,224,0.5)' : 'linear-gradient(135deg,#9765E0,#534FA5)',
-                  color: 'white',
-                  boxShadow: '0 0 16px rgba(151,101,224,0.4)',
-                }}
-              >
-                {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
-                {isDownloading ? 'Generating link…' : 'Download'}
-              </button>
-              {onBuyout && (
+            <div className="w-full flex flex-col" style={{ position: 'relative' }}>
+              {/* −N⚡ flies up from the button after a successful spend */}
+              {downloadState === 'done' && (
+                <span style={{
+                  position: 'absolute', top: -8, left: '50%', pointerEvents: 'none',
+                  fontSize: 13, fontWeight: 800, color: '#CE95FB',
+                  animation: 'cine-fly-up .7s ease-out forwards',
+                }}>−{asset.creditCost ?? 5}⚡</span>
+              )}
+              {/* ONE primary action, price on the button (handoff §3/§5) */}
+              {downloadState === 'nocredits' ? (
+                <a
+                  href="/pricing"
+                  onClick={e => e.stopPropagation()}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
+                  style={{ background: 'linear-gradient(135deg,#9765E0,#534FA5)', color: 'white', textAlign: 'center' }}
+                >
+                  Get credits
+                </a>
+              ) : (
                 <button
-                  onClick={e => { e.stopPropagation(); onBuyout() }}
-                  disabled={isBuying}
-                  className="w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                  title="Эксклюзивный выкуп: ассет исчезнет из каталога и останется только у вас (Pro)"
+                  onClick={e => { e.stopPropagation(); onDownload() }}
+                  disabled={isDownloading || downloadState === 'done'}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
                   style={{
-                    background: isBuying ? 'rgba(0,194,186,0.35)' : 'rgba(0,194,186,0.16)',
-                    border: '1px solid rgba(0,194,186,0.5)',
-                    color: '#5EEAD4',
+                    background: downloadState === 'done'
+                      ? 'linear-gradient(135deg,#0EA97A,#0B8763)'
+                      : (isDownloading ? 'rgba(151,101,224,0.5)' : 'linear-gradient(135deg,#9765E0,#534FA5)'),
+                    color: 'white',
+                    boxShadow: downloadState === 'done' ? '0 0 16px rgba(14,169,122,0.4)' : '0 0 16px rgba(151,101,224,0.4)',
                   }}
                 >
-                  {isBuying ? <SpinnerIcon /> : '👑'}
-                  {isBuying ? '…' : `Buy exclusive · ⚡ ${asset.exclusivePrice ?? 50}`}
+                  {downloadState === 'done'
+                    ? '✓ Downloaded'
+                    : (<>{isDownloading ? <SpinnerIcon /> : <DownloadIcon />}{isDownloading ? 'Generating link…' : `Download · ${asset.creditCost ?? 5}⚡`}</>)}
                 </button>
+              )}
+              {/* Exclusive: QUIET secondary row — never competes with Download */}
+              {onBuyout && (
+                <div style={{ borderTop: '1px solid rgba(255,255,255,0.14)', marginTop: 8, paddingTop: 6, textAlign: 'center' }}>
+                  <button
+                    onClick={e => { e.stopPropagation(); onBuyout() }}
+                    disabled={isBuying}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      fontSize: 11.5, fontWeight: 600, color: 'rgba(255,255,255,0.82)',
+                    }}
+                  >
+                    {isBuying ? <SpinnerIcon /> : <CrownIcon size={12} />}
+                    Buy exclusive rights · {asset.exclusivePrice ?? 50}⚡
+                  </button>
+                  <p style={{ fontSize: 9.5, lineHeight: 1.35, color: 'rgba(255,255,255,0.48)', marginTop: 1 }}>
+                    Removes it from the catalog — only you can use it.
+                  </p>
+                </div>
               )}
             </div>
           )}
@@ -470,7 +518,7 @@ function AssetCard({
 
       {/* Info */}
       <div className="p-4 flex flex-col flex-1">
-        <h3 className="font-semibold mb-1.5 truncate text-sm" style={{ color: 'var(--fg)' }}>{asset.title}</h3>
+        <h3 className="font-semibold mb-1.5 truncate text-sm" style={{ color: 'var(--fg)' }}>{sentenceCase(asset.title)}</h3>
         <div className="flex items-center gap-2 mb-3">
           <span className="badge text-[11px] font-semibold" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
           <p className="text-xs truncate" style={{ color: 'var(--fg-muted)' }}>{asset.category}</p>
@@ -483,9 +531,11 @@ function AssetCard({
         </div>
         {asset.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-auto">
-            {asset.tags.slice(0, 3).map(tag => (
+            {/* structural prefix tags (g:/age:/place:…) are for filters, not
+                for humans — show plain descriptive words only */}
+            {asset.tags.filter(t => !String(t).includes(':')).slice(0, 3).map(tag => (
               <span key={tag} className="text-xs rounded px-2 py-0.5" style={{ backgroundColor: 'var(--bg-subtle)', color: 'var(--fg-subtle)' }}>
-                #{tag}
+                {tag}
               </span>
             ))}
           </div>
@@ -512,6 +562,10 @@ export default function AssetGrid({
   const [deletedIds, setDeletedIds]   = useState<Set<string>>(new Set())
   const [deleting, setDeleting]       = useState<string | null>(null)
   const [buying, setBuying]           = useState<string | null>(null)
+  // per-card download feedback: 'done' shows ✓ Downloaded ~1.4s,
+  // 'nocredits' flips the button to Get credits (→ /pricing)
+  const [doneIds, setDoneIds]         = useState<Set<string>>(new Set())
+  const [noCreditIds, setNoCreditIds] = useState<Set<string>>(new Set())
   // local overrides so the card badge updates right after an admin price edit
   const [priceEdits, setPriceEdits]   = useState<Record<string, { creditCost: number; exclusivePrice: number }>>({})
 
@@ -601,6 +655,8 @@ export default function AssetGrid({
       })
       const json = await res.json()
       if (res.status === 402 && json.code === 'credits') {
+        // button becomes Get credits (→ /pricing), modal sells the plans
+        setNoCreditIds(prev => { const n = new Set(prev); n.add(asset.id); return n })
         setShowUpgrade(true)
         return
       }
@@ -611,6 +667,9 @@ export default function AssetGrid({
           setFreeUsed(incrementFreeDownloads())
         }
         recordDownload(asset.id)
+        // ✓ Downloaded + flying −N⚡, then back to normal
+        setDoneIds(prev => { const n = new Set(prev); n.add(asset.id); return n })
+        setTimeout(() => setDoneIds(prev => { const n = new Set(prev); n.delete(asset.id); return n }), 1400)
         window.location.href = json.url
       } else {
         alert(json.error || 'Download failed')
@@ -622,16 +681,17 @@ export default function AssetGrid({
     }
   }
 
-  // Admin: edit both prices via two quick prompts (fast > pretty)
+  // Admin: price override via prompts. Empty input = follow the tier
+  // default from Admin → Pricing (credit_cost stays NULL in the DB).
   async function handlePrice(asset: Asset) {
     const cur = priceEdits[asset.id] ?? { creditCost: asset.creditCost ?? 5, exclusivePrice: asset.exclusivePrice ?? 50 }
-    const p1 = window.prompt('Цена скачивания в кредитах ⚡:', String(cur.creditCost))
+    const p1 = window.prompt('Override цены скачивания ⚡ (пусто = по тиру из Admin → Pricing):', String(cur.creditCost))
     if (p1 === null) return
-    const p2 = window.prompt('Цена эксклюзивного выкупа 👑⚡:', String(cur.exclusivePrice))
+    const p2 = window.prompt('Override цены эксклюзива 👑⚡ (пусто = по тиру):', String(cur.exclusivePrice))
     if (p2 === null) return
-    const creditCost = Math.max(0, Math.round(Number(p1)))
-    const exclusivePrice = Math.max(0, Math.round(Number(p2)))
-    if (!Number.isFinite(creditCost) || !Number.isFinite(exclusivePrice)) { alert('Нужно число'); return }
+    const creditCost = p1.trim() === '' ? null : Math.max(0, Math.round(Number(p1)))
+    const exclusivePrice = p2.trim() === '' ? null : Math.max(0, Math.round(Number(p2)))
+    if ((creditCost !== null && !Number.isFinite(creditCost)) || (exclusivePrice !== null && !Number.isFinite(exclusivePrice))) { alert('Нужно число или пусто'); return }
     try {
       const res = await fetch('/api/admin/assets', {
         method: 'PATCH',
@@ -639,7 +699,7 @@ export default function AssetGrid({
         body: JSON.stringify({ id: asset.id, credit_cost: creditCost, exclusive_price: exclusivePrice }),
       })
       const json = await res.json()
-      if (json.ok) setPriceEdits(prev => ({ ...prev, [asset.id]: { creditCost, exclusivePrice } }))
+      if (json.ok) setPriceEdits(prev => ({ ...prev, [asset.id]: { creditCost: creditCost ?? asset.creditCost ?? 5, exclusivePrice: exclusivePrice ?? asset.exclusivePrice ?? 50 } }))
       else alert(json.error || 'Не сохранилось')
     } catch { alert('Не сохранилось — попробуй ещё раз') }
   }
@@ -649,7 +709,7 @@ export default function AssetGrid({
     if (buying) return
     if (!user) { setShowUpgrade(true); return }
     const price = priceEdits[asset.id]?.exclusivePrice ?? asset.exclusivePrice ?? 50
-    if (!window.confirm(`Выкупить «${asset.title}» эксклюзивно за ⚡ ${price}?\nАссет навсегда исчезнет из каталога и останется только у вас.`)) return
+    if (!window.confirm(`Spend ${price} credits on this exclusive?\nRemoves it from the catalog — only you can use it.`)) return
     setBuying(asset.id)
     try {
       const res = await fetch('/api/buyout', {
@@ -786,6 +846,7 @@ export default function AssetGrid({
                 onPrice={() => handlePrice(asset)}
                 onBuyout={() => handleBuyout(asset)}
                 isBuying={buying === asset.id}
+                downloadState={doneIds.has(asset.id) ? 'done' : (noCreditIds.has(asset.id) ? 'nocredits' : 'idle')}
                 displayCfg={displayCfg}
               />
             </div>

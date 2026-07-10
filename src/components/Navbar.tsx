@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useTheme } from '@/components/ThemeProvider'
 import { useAuth } from '@/components/AuthProvider'
 import { isAdminEmail } from '@/components/AdminGate'
@@ -59,6 +59,25 @@ export default function Navbar() {
 
   // ⚡ credit balance — own profile via RLS; refreshed after downloads
   const [credits, setCredits] = useState<number | null>(null)
+  const [pulse, setPulse] = useState(false)
+  const creditsRef = useRef<number | null>(null)
+  creditsRef.current = credits
+  // Spend feedback: tween the number down (~420ms) + pulse the chip,
+  // so the user SEES credits leaving (master handoff §3)
+  const tweenTo = (target: number) => {
+    const from = creditsRef.current
+    if (from === null || from === target) { setCredits(target); return }
+    setPulse(true)
+    setTimeout(() => setPulse(false), 500)
+    const start = performance.now(), dur = 420
+    const step = (now: number) => {
+      const k = Math.min(1, (now - start) / dur)
+      const eased = 1 - Math.pow(1 - k, 3)
+      setCredits(Math.round(from + (target - from) * eased))
+      if (k < 1) requestAnimationFrame(step)
+    }
+    requestAnimationFrame(step)
+  }
   useEffect(() => {
     if (!user) { setCredits(null); return }
     const load = async () => {
@@ -68,10 +87,11 @@ export default function Navbar() {
     load()
     const onChange = (e: Event) => {
       const d = (e as CustomEvent).detail
-      if (typeof d === 'number') setCredits(d); else load()
+      if (typeof d === 'number') tweenTo(d); else load()
     }
     window.addEventListener('cineman-credits-changed', onChange)
     return () => window.removeEventListener('cineman-credits-changed', onChange)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
   return (
@@ -132,7 +152,10 @@ export default function Navbar() {
               href="/pricing"
               title="Ваши кредиты — клик, чтобы пополнить"
               className="flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-full"
-              style={{ backgroundColor: 'rgba(151,101,224,0.14)', color: '#CE95FB', border: '1px solid rgba(151,101,224,0.35)' }}
+              style={{
+                backgroundColor: 'rgba(151,101,224,0.14)', color: '#CE95FB', border: '1px solid rgba(151,101,224,0.35)',
+                animation: pulse ? 'cine-chip-pulse .45s ease-out' : undefined,
+              }}
             >
               ⚡ {credits}
             </Link>
