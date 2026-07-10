@@ -176,8 +176,9 @@ function toAsset(a: Record<string, unknown>): Asset {
     plan: (a.plan as Asset['plan']) ?? 'starter',
     tags: Array.isArray(a.tags) ? a.tags : [],
     fileUrl: String(a.file_url ?? ''),
-    creditCost: Number(a.credit_cost ?? 5),
-    exclusivePrice: Number(a.exclusive_price ?? 50),
+    creditCost: a.credit_cost == null ? undefined : Number(a.credit_cost),
+    exclusivePrice: a.exclusive_price == null ? undefined : Number(a.exclusive_price),
+    priceTier: String(a.price_tier ?? 'standard'),
   }
 }
 
@@ -220,6 +221,7 @@ export default function CatalogPage() {
   // Location-specific filters
   const [activeSetting, setActiveSetting] = useState('All')
   const [activeTime, setActiveTime] = useState('All')
+  const [activeEra, setActiveEra] = useState('All')
   // Subcategory filter (contextual for any selected type)
   const [activeSubcat, setActiveSubcat] = useState('All')
   // Style is orthogonal to sections (cartoon People, cartoon Locations…):
@@ -288,7 +290,16 @@ export default function CatalogPage() {
         all.push(...(data as Record<string, unknown>[]))
         if (data.length < PAGE) break
       }
-      let mapped = all.map(toAsset)
+      // Pricing: NULL credit_cost = "follows tier default" — resolve the
+      // effective price once here so every card/button shows a real number
+      const { data: pd } = await supabase.from('pricing_defaults').select('tier, credits')
+      const tierPrice: Record<string, number> = {}
+      for (const r of pd || []) tierPrice[String(r.tier)] = Number(r.credits)
+      let mapped = all.map(toAsset).map(a => ({
+        ...a,
+        creditCost: a.creditCost ?? tierPrice[a.priceTier || 'standard'] ?? 5,
+        exclusivePrice: a.exclusivePrice ?? tierPrice['exclusive'] ?? 50,
+      }))
       // Random is the default: similar shoots land next to each other by
       // created_at, shuffling makes every category feel diverse.
       // Categories are NOT mixed — filtering happens after ordering.
@@ -422,16 +433,28 @@ export default function CatalogPage() {
       const matchTime = activeTime === 'All'
         || tagsLower.includes(TIME_TAG[activeTime] || '')
         || (TIME_MAP[activeTime] || []).some(x => blob.includes(x))
+      // Era: era: tags first (retag route), keyword fallback for stragglers
+      const ERA_TAG: Record<string, string> = { 'Vintage': 'era:vintage', 'Medieval': 'era:medieval', 'Modern': 'era:modern', 'Post-apocalyptic': 'era:post-apoc', 'Sci-fi': 'era:scifi' }
+      const ERA_WORDS: Record<string, string[]> = {
+        'Vintage': ['vintage', 'retro', 'classic'],
+        'Medieval': ['medieval', 'village', 'castle'],
+        'Modern': ['modern', 'tech', 'glass', 'brutalist'],
+        'Post-apocalyptic': ['ruined', 'ruins', 'warzone', 'wasteland', 'abandoned'],
+        'Sci-fi': ['scifi', 'sci-fi', 'spaceship', 'mars', 'cyberpunk', 'futuristic'],
+      }
+      const matchEra = activeEra === 'All'
+        || tagsLower.includes(ERA_TAG[activeEra] || '')
+        || (ERA_WORDS[activeEra] || []).some(x => blob.includes(x))
       const matchSubcat = activeSubcat === 'All' || a.category.toLowerCase() === activeSubcat.toLowerCase()
-      return matchSearch && matchCat && matchType && matchBrand && matchColor && matchClass && matchRType && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat && matchStyle
+      return matchSearch && matchCat && matchType && matchBrand && matchColor && matchClass && matchRType && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchEra && matchSubcat && matchStyle
     })
-  }, [assets, search, activeCat, activeType, activeBrand, activeColor, activeClass, activeRType, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeSubcat, activeStyle, quickView, favIds, dlIds])
+  }, [assets, search, activeCat, activeType, activeBrand, activeColor, activeClass, activeRType, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeEra, activeSubcat, activeStyle, quickView, favIds, dlIds])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  useEffect(() => { setPage(1) }, [search, activeCat, activeType, activeSubcat, activeBrand, activeColor, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeStyle, quickView])
+  useEffect(() => { setPage(1) }, [search, activeCat, activeType, activeSubcat, activeBrand, activeColor, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeEra, activeStyle, quickView])
 
-  const hasFilters = activeStyle !== 'All' || activeCat !== 'All' || activeType !== 'All' || activeBrand !== 'All' || activeColor !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== ''
+  const hasFilters = activeEra !== 'All' || activeStyle !== 'All' || activeCat !== 'All' || activeType !== 'All' || activeBrand !== 'All' || activeColor !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== ''
   const activeFilterCount = [activeCat !== 'All', activeType !== 'All', activeBrand !== 'All', activeColor !== 'All'].filter(Boolean).length
 
   function clearAll() {
@@ -439,7 +462,7 @@ export default function CatalogPage() {
     setActiveBrand('All'); setActiveColor('All')
     setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
     setActiveSetting('All'); setActiveTime('All'); setActiveSubcat('All')
-    setActiveStyle('All')
+    setActiveStyle('All'); setActiveEra('All')
   }
 
   const activeCatObj = CATEGORIES.find(c => c.id === activeCat)
@@ -613,26 +636,24 @@ export default function CatalogPage() {
               const curSubcats = ['All', ...(subcatsForType[curType] || [])]
               return (
                 <>
-                  {curSubcats.length > 2 && (
+                  {/* People: NO Category chip — Men/Women/Kids duplicated the
+                      Gender/Age tags (Women vs Woman bug). One concept = one
+                      dimension: chips come from tag prefixes only. */}
+                  {curSubcats.length > 2 && curType !== 'People' && (
                     <FilterChip label="Category" value={activeSubcat} options={curSubcats} onChange={setActiveSubcat} />
                   )}
-                  {curType === 'People' && (activeSubcat === 'Kids' ? (
-                    <>
-                      <FilterChip label="Gender" value={activeGender} options={['All', 'Boy', 'Girl']} onChange={setActiveGender} />
-                      <FilterChip label="Age"    value={activeAge}    options={['All', 'Child', 'Teen']} onChange={setActiveAge} />
-                      <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} />
-                    </>
-                  ) : (
+                  {curType === 'People' && (
                     <>
                       <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} />
-                      <FilterChip label="Age"       value={activeAge}       options={activeSubcat === 'All' ? ['All', 'Kids', 'Young', 'Middle-aged', 'Elderly'] : ['All', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
+                      <FilterChip label="Age"       value={activeAge}       options={['All', 'Kids', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
                       <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} />
                     </>
-                  ))}
+                  )}
                   {curType === 'Location' && (
                     <>
                       <FilterChip label="Setting" value={activeSetting} options={['All', 'Interior', 'Exterior']} onChange={setActiveSetting} />
                       <FilterChip label="Time"    value={activeTime}    options={['All', 'Dawn', 'Day', 'Golden Hour', 'Night']} onChange={setActiveTime} />
+                      <FilterChip label="Era"     value={activeEra}     options={['All', 'Modern', 'Vintage', 'Medieval', 'Post-apocalyptic', 'Sci-fi']} onChange={setActiveEra} />
                     </>
                   )}
                   {curType === 'Vehicle' && (
