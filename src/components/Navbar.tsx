@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useTheme } from '@/components/ThemeProvider'
 import { useAuth } from '@/components/AuthProvider'
+import { isAdminEmail } from '@/components/AdminGate'
 
 // ── Cineman Logo Icon ─────────────────────────────────────────
 function CinemanLogoIcon({ size = 36 }: { size?: number }) {
@@ -52,6 +53,7 @@ function MenuIcon() {
 export default function Navbar() {
   useTheme() // keeps dark theme applied; light mode disabled for now
   const { user } = useAuth()
+  const isAdmin = isAdminEmail(user?.email)
 
   return (
     <nav
@@ -86,6 +88,10 @@ export default function Navbar() {
             { href: '/studio', label: 'Cineman Studio' },
             { href: '/catalog', label: 'AI Assets' },
             { href: '/pricing', label: 'Pricing' },
+            ...(isAdmin ? [
+              { href: '/engine', label: 'Engine' },
+              { href: '/admin', label: 'Admin' },
+            ] : []),
           ].map(({ href, label }) => (
             <Link
               key={href}
