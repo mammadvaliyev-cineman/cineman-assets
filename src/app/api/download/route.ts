@@ -6,9 +6,10 @@ export async function POST(req: NextRequest) {
     const { assetId } = await req.json()
     if (!assetId) return NextResponse.json({ error: 'No asset ID provided' }, { status: 400 })
 
-    // Look up file_url server-side — never trust client-provided URLs
+    // Look up file_url server-side — never trust client-provided URLs.
+    // Hidden assets are not downloadable.
     const { data, error } = await supabase
-      .from('assets').select('file_url, title').eq('id', assetId).single()
+      .from('assets').select('file_url, title').eq('id', assetId).eq('is_public', true).single()
 
     if (error || !data?.file_url) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
