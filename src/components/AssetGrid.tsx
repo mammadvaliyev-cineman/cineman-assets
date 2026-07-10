@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Asset } from '@/lib/mock-data'
 import { useAuth } from '@/components/AuthProvider'
 import { isAdminEmail, adminHeaders } from '@/components/AdminGate'
@@ -100,6 +100,15 @@ function CloseIcon() {
   )
 }
 
+function MoveIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+      <polyline points="12 11 15 14 12 17" /><line x1="9" y1="14" x2="15" y2="14" />
+    </svg>
+  )
+}
+
 function TrashIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -190,7 +199,7 @@ function EmptyState() {
 
 // ── Card component ────────────────────────────────────────────
 function AssetCard({
-  asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete,
+  asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete, onMove,
   displayCfg = DEFAULT_CATALOG_CONFIG,
 }: {
   asset: Asset
@@ -202,6 +211,7 @@ function AssetCard({
   isAdmin?: boolean
   isDeleting?: boolean
   onDelete?: () => void
+  onMove?: () => void
   displayCfg?: CatalogConfig
 }) {
   const typeStyle = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
@@ -259,6 +269,15 @@ function AssetCard({
               style={{ padding: 6, borderRadius: 6, backgroundColor: 'rgba(220,60,60,0.12)', border: '1px solid rgba(220,60,60,0.35)', color: '#e06060', cursor: isDeleting ? 'default' : 'pointer', display: 'flex', alignItems: 'center' }}
             >
               {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
+            </button>
+          )}
+          {isAdmin && onMove && (
+            <button
+              onClick={onMove}
+              title="Move to another section (admin)"
+              style={{ padding: 6, borderRadius: 6, backgroundColor: 'rgba(151,101,224,0.12)', border: '1px solid rgba(151,101,224,0.35)', color: '#9765E0', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+            >
+              <MoveIcon />
             </button>
           )}
           <button
@@ -319,28 +338,37 @@ function AssetCard({
           </div>
         )}
 
-        {/* Admin delete button (top-left) */}
-        {isAdmin && onDelete && (
-          <button
-            onClick={e => { e.stopPropagation(); onDelete() }}
-            title="Delete asset (admin)"
-            className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-all duration-200"
-            style={{
-              zIndex: 3,
-              padding: 6,
-              borderRadius: 7,
-              border: 'none',
-              cursor: isDeleting ? 'default' : 'pointer',
-              backgroundColor: 'rgba(220,60,60,0.55)',
-              color: 'rgba(255,255,255,0.9)',
-              backdropFilter: 'blur(6px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
-          </button>
+        {/* Admin buttons (top-left): delete + move to another section */}
+        {isAdmin && (
+          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex gap-1.5" style={{ zIndex: 3 }}>
+            {onDelete && (
+              <button
+                onClick={e => { e.stopPropagation(); onDelete() }}
+                title="Delete asset (admin)"
+                style={{
+                  padding: 6, borderRadius: 7, border: 'none',
+                  cursor: isDeleting ? 'default' : 'pointer',
+                  backgroundColor: 'rgba(220,60,60,0.55)', color: 'rgba(255,255,255,0.9)',
+                  backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
+              </button>
+            )}
+            {onMove && (
+              <button
+                onClick={e => { e.stopPropagation(); onMove() }}
+                title="Move to another section (admin)"
+                style={{
+                  padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer',
+                  backgroundColor: 'rgba(151,101,224,0.55)', color: 'rgba(255,255,255,0.9)',
+                  backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <MoveIcon />
+              </button>
+            )}
+          </div>
         )}
 
         {/* Heart button (top-right) */}
@@ -430,6 +458,51 @@ export default function AssetGrid({
   const [deletedIds, setDeletedIds]   = useState<Set<string>>(new Set())
   const [deleting, setDeleting]       = useState<string | null>(null)
 
+  // ── Admin: move asset to another section ──────────────────
+  const [moveTarget, setMoveTarget]   = useState<Asset | null>(null)
+  const [moveTo, setMoveTo]           = useState('')
+  const [moveBusy, setMoveBusy]       = useState(false)
+  const [moved, setMoved]             = useState<Record<string, { type: string; category: string }>>({})
+
+  // Real Type/Category combos from the loaded base — always valid targets
+  const moveOptions = useMemo(() => {
+    const map = new Map<string, { type: string; category: string }>()
+    for (const a of assets) {
+      const t = String(a.type || ''), c = String(a.category || '')
+      if (!t || !c) continue
+      map.set(`${t}|||${c}`, { type: t, category: c })
+    }
+    return Array.from(map.entries())
+      .map(([key, v]) => ({ key, ...v }))
+      .sort((x, y) => (x.type + x.category).localeCompare(y.type + y.category))
+  }, [assets])
+
+  async function handleMove() {
+    if (!moveTarget || !moveTo || moveBusy) return
+    const opt = moveOptions.find(o => o.key === moveTo)
+    if (!opt) return
+    setMoveBusy(true)
+    try {
+      const res = await fetch('/api/admin/assets', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ id: moveTarget.id, type: opt.type, category: opt.category }),
+      })
+      const json = await res.json()
+      if (json.ok) {
+        setMoved(prev => ({ ...prev, [moveTarget.id]: { type: opt.type, category: opt.category } }))
+        setMoveTarget(null)
+        setMoveTo('')
+      } else {
+        alert(json.error || 'Move failed')
+      }
+    } catch {
+      alert('Move failed — please try again')
+    } finally {
+      setMoveBusy(false)
+    }
+  }
+
   const { user } = useAuth()
   const isAdmin = isAdminEmail(user?.email)
 
@@ -504,7 +577,8 @@ export default function AssetGrid({
     }
   }
 
-  const visibleAssets = deletedIds.size === 0 ? assets : assets.filter(a => !deletedIds.has(a.id))
+  const visibleAssets = (deletedIds.size === 0 ? assets : assets.filter(a => !deletedIds.has(a.id)))
+    .map(a => moved[a.id] ? { ...a, type: moved[a.id].type as Asset['type'], category: moved[a.id].category } : a)
 
   if (visibleAssets.length === 0) return <EmptyState />
 
@@ -539,6 +613,7 @@ export default function AssetGrid({
               isAdmin={isAdmin}
               isDeleting={deleting === asset.id}
               onDelete={() => handleDelete(asset)}
+              onMove={() => { setMoveTarget(asset); setMoveTo('') }}
             />
           ))}
         </div>
@@ -566,6 +641,7 @@ export default function AssetGrid({
                 isAdmin={isAdmin}
                 isDeleting={deleting === asset.id}
                 onDelete={() => handleDelete(asset)}
+                onMove={() => { setMoveTarget(asset); setMoveTo('') }}
                 displayCfg={displayCfg}
               />
             </div>
@@ -574,6 +650,64 @@ export default function AssetGrid({
       )}
 
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
+
+      {/* Admin: move-to-section modal */}
+      {moveTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(8,5,15,0.80)', backdropFilter: 'blur(8px)' }}
+          onClick={() => !moveBusy && setMoveTarget(null)}
+        >
+          <div
+            className="relative max-w-md w-full rounded-2xl p-7"
+            style={{
+              background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(151,101,224,0.08) 100%)',
+              border: '1px solid rgba(151,101,224,0.35)',
+              boxShadow: '0 0 60px rgba(151,101,224,0.25)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <button onClick={() => !moveBusy && setMoveTarget(null)} className="absolute top-4 right-4" style={{ color: 'var(--fg-subtle)' }}>
+              <CloseIcon />
+            </button>
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Перенести в раздел</h2>
+            <p className="text-xs mb-4 truncate" style={{ color: 'var(--fg-muted)' }}>
+              {moveTarget.title} <span style={{ color: 'var(--fg-subtle)' }}>· сейчас: {String(moveTarget.type)} / {moveTarget.category}</span>
+            </p>
+            <select
+              value={moveTo}
+              onChange={e => setMoveTo(e.target.value)}
+              className="input-field w-full text-sm mb-4"
+              style={{ padding: '10px 12px' }}
+            >
+              <option value="">— выбери раздел —</option>
+              {moveOptions
+                .filter(o => !(o.type === String(moveTarget.type) && o.category === moveTarget.category))
+                .map(o => (
+                  <option key={o.key} value={o.key}>{o.type} / {o.category}</option>
+                ))}
+            </select>
+            <div className="flex gap-3">
+              <button
+                onClick={handleMove}
+                disabled={!moveTo || moveBusy}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white"
+                style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)', opacity: !moveTo || moveBusy ? 0.5 : 1 }}
+              >
+                {moveBusy ? 'Переношу…' : 'Перенести'}
+              </button>
+              <button
+                onClick={() => setMoveTarget(null)}
+                disabled={moveBusy}
+                className="px-5 py-2.5 rounded-xl text-sm font-medium"
+                style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
