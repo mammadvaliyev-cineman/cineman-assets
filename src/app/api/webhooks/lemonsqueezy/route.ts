@@ -53,7 +53,9 @@ export async function POST(req: NextRequest) {
       if (email) {
         const { data: prof } = await admin.from('profiles').select('id, plan').eq('email', email).limit(1)
         if (prof && prof.length > 0) {
-          const grant = PLAN_CREDITS[plan] ?? 15
+          // grants are editable in Admin → Pricing (pricing_defaults)
+          const { data: pd } = await admin.from('pricing_defaults').select('credits').eq('tier', `plan_${plan}`).single()
+          const grant = Number(pd?.credits ?? PLAN_CREDITS[plan] ?? 15)
           await admin.from('profiles').update({
             plan,
             credits: grant,
