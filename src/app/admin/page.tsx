@@ -442,9 +442,7 @@ function AdminDashboard() {
     if (!delCat) return
     const found = catList.find(c => c.category === delCat)
     const n = found?.count ?? '?'
-    if (!confirm(`Удалить раздел «${delCat}» ЦЕЛИКОМ?\n${n} ассетов + их файлы в Storage будут удалены НАВСЕГДА.`)) return
-    const typed = prompt(`Для подтверждения введи название раздела:\n${delCat}`)
-    if (typed !== delCat) { alert('Название не совпало — отмена.'); return }
+    if (!confirm(`Удалить раздел «${delCat.trim()}» ЦЕЛИКОМ?\n${n} ассетов + их файлы в Storage будут удалены НАВСЕГДА.`)) return
     setDelBusy(true)
     setDelMsg('')
     const res = await fetch('/api/admin/delete-category', {
