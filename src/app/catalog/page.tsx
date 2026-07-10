@@ -217,11 +217,10 @@ export default function CatalogPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCat, activeType])
 
-  // Switching to a non-people subcategory drops the human-only filters
+  // Any subcategory switch resets the human filters — option sets differ
+  // between subcats (Man/Woman vs Boy/Girl), stale values give 0 results
   useEffect(() => {
-    if (activeSubcat !== 'All' && !activeSubcat.toLowerCase().startsWith('people')) {
-      setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
-    }
+    setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSubcat])
   const [viewMode, setViewMode]       = useState<'grid' | 'list'>('grid')
@@ -321,28 +320,44 @@ export default function CatalogPage() {
       // Vehicle filters — exact prefix-tag match (brand:bmw / color:dark-blue)
       const matchBrand = activeBrand === 'All' || tagsLower.includes(`brand:${activeBrand.toLowerCase()}`)
       const matchColor = activeColor === 'All' || tagsLower.includes(`color:${activeColor.toLowerCase()}`)
+      // Human filters match the STRUCTURAL prefix tags (g:/age:/eth:) —
+      // present on ~100% of people. Plain-word matching missed 95% of them.
+      const GENDER_MAP: Record<string, string> = { 'Man': 'g:man', 'Woman': 'g:woman', 'Boy': 'g:man', 'Girl': 'g:woman' }
       const AGE_MAP: Record<string, string[]> = {
-        'Kids': ['kid', 'child', 'teen', 'teenager'],
-        'Young': ['young', 'young adult'],
-        'Middle-aged': ['middle-aged', 'middle aged'],
-        'Elderly': ['elderly', 'old', 'senior'],
+        'Kids': ['age:child', 'age:teen'],
+        'Child': ['age:child'],
+        'Teen': ['age:teen'],
+        'Young': ['age:young'],
+        'Middle-aged': ['age:adult'],
+        'Elderly': ['age:senior'],
       }
-      const matchGender = activeGender === 'All' || tagsLower.includes(activeGender.toLowerCase())
+      const ETH_MAP: Record<string, string> = {
+        'White': 'eth:white', 'Black': 'eth:black', 'East Asian': 'eth:asian',
+        'South Asian': 'eth:south-asian', 'Latino': 'eth:latino', 'Middle Eastern': 'eth:mena', 'Mixed': 'eth:mixed',
+      }
+      const matchGender = activeGender === 'All' || tagsLower.includes(GENDER_MAP[activeGender] || '')
       const matchAge = activeAge === 'All' || (AGE_MAP[activeAge] || []).some(x => tagsLower.includes(x))
-      const matchEthnicity = activeEthnicity === 'All' || tagsLower.some(t => t.includes(activeEthnicity.toLowerCase()))
+      const matchEthnicity = activeEthnicity === 'All' || tagsLower.includes(ETH_MAP[activeEthnicity] || '')
+      // Location filters: prefix tags first (place:/time:), word fallback
+      // for the ~half of locations that predate the structural pass
       const SETTING_MAP: Record<string, string[]> = {
         'Interior': ['interior', 'indoor', 'indoors', 'room'],
         'Exterior': ['exterior', 'outdoor', 'outdoors', 'street', 'aerial', 'landscape'],
       }
       const TIME_MAP: Record<string, string[]> = {
-        'Day': ['day', 'daylight', 'midday', 'afternoon', 'morning'],
-        'Golden Hour': ['golden hour', 'sunset', 'sunrise', 'dusk'],
-        'Evening': ['evening'],
-        'Night': ['night', 'midnight', 'neon'],
+        'Dawn': ['dawn', 'sunrise', 'morning'],
+        'Day': ['day', 'daylight', 'midday', 'afternoon'],
+        'Golden Hour': ['golden hour', 'sunset', 'dusk'],
+        'Night': ['night', 'midnight', 'neon', 'evening'],
       }
+      const TIME_TAG: Record<string, string> = { 'Dawn': 'time:dawn', 'Day': 'time:day', 'Golden Hour': 'time:golden', 'Night': 'time:night' }
       const blob = (tagsLower.join(' ') + ' ' + a.category.toLowerCase() + ' ' + a.title.toLowerCase())
-      const matchSetting = activeSetting === 'All' || (SETTING_MAP[activeSetting] || []).some(x => blob.includes(x))
-      const matchTime = activeTime === 'All' || (TIME_MAP[activeTime] || []).some(x => blob.includes(x))
+      const matchSetting = activeSetting === 'All'
+        || tagsLower.includes(activeSetting === 'Interior' ? 'place:interior' : 'place:exterior')
+        || (SETTING_MAP[activeSetting] || []).some(x => blob.includes(x))
+      const matchTime = activeTime === 'All'
+        || tagsLower.includes(TIME_TAG[activeTime] || '')
+        || (TIME_MAP[activeTime] || []).some(x => blob.includes(x))
       const matchSubcat = activeSubcat === 'All' || a.category.toLowerCase() === activeSubcat.toLowerCase()
       return matchSearch && matchCat && matchType && matchBrand && matchColor && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchSubcat
     })
@@ -524,22 +539,29 @@ export default function CatalogPage() {
             )}
             {(activeCat === 'Character' || activeType === 'Character') ? (
               <>
-                {/* Character-specific filters — human ones only for People */}
+                {/* Character-specific filters — human ones only for People,
+                    with kid-appropriate labels inside People - Kids */}
                 <FilterChip label="Category"  value={activeSubcat}    options={charSubcats} onChange={setActiveSubcat} />
-                {isPeopleSubcat && (
+                {isPeopleSubcat && (activeSubcat.toLowerCase().includes('kids') ? (
+                  <>
+                    <FilterChip label="Gender" value={activeGender} options={['All', 'Boy', 'Girl']} onChange={setActiveGender} />
+                    <FilterChip label="Age"    value={activeAge}    options={['All', 'Child', 'Teen']} onChange={setActiveAge} />
+                    <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} />
+                  </>
+                ) : (
                   <>
                     <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} />
-                    <FilterChip label="Age"       value={activeAge}       options={['All', 'Kids', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
-                    <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern']} onChange={setActiveEthnicity} />
+                    <FilterChip label="Age"       value={activeAge}       options={activeSubcat === 'All' ? ['All', 'Kids', 'Young', 'Middle-aged', 'Elderly'] : ['All', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
+                    <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} />
                   </>
-                )}
+                ))}
               </>
             ) : (activeCat === 'Location' || activeType === 'Location') ? (
               <>
                 {/* Location-specific filters */}
                 <FilterChip label="Category" value={activeSubcat}  options={locSubcats} onChange={setActiveSubcat} />
                 <FilterChip label="Setting"  value={activeSetting} options={['All', 'Interior', 'Exterior']} onChange={setActiveSetting} />
-                <FilterChip label="Time"     value={activeTime}    options={['All', 'Day', 'Golden Hour', 'Evening', 'Night']} onChange={setActiveTime} />
+                <FilterChip label="Time"     value={activeTime}    options={['All', 'Dawn', 'Day', 'Golden Hour', 'Night']} onChange={setActiveTime} />
               </>
             ) : (activeCat === 'Vehicle' || activeType === 'Vehicle') ? (
               <>
