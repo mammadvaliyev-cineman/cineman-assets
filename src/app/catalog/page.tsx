@@ -140,9 +140,12 @@ function SidebarItem({
 
 // Small on-the-fly resized thumbnail via Supabase image transform —
 // ~28KB vs the full ~310KB web image, so the 2000-card grid loads fast.
+// resize=contain is REQUIRED: without it Supabase CROPS a 440px-wide
+// vertical strip out of wide sheets instead of scaling them down
+// (proven: 1400x781 original → 440x781 crop vs 440x245 contain).
 function thumbUrl(url: string): string {
   if (!url || !url.includes('/storage/v1/object/public/')) return url
-  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=440&quality=62'
+  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=440&quality=62&resize=contain'
 }
 
 function toAsset(a: Record<string, unknown>): Asset {
