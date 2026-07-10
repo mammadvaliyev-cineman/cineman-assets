@@ -28,12 +28,20 @@ const fixDash = (s: string) => s.replace(/\s*[—–]\s*/g, ' - ').replace(/\s{2
 
 async function plan() {
   const admin = supabaseAdmin()
-  const { data, error } = await admin
-    .from('assets')
-    .select('id,title,type,category,file_url,thumbnail_url')
-    .limit(5000)
-  if (error) throw error
-  const rows = (data || []) as Row[]
+  // Supabase caps every query at 1000 rows — paginate to see the full table
+  const rows: Row[] = []
+  const PAGE = 1000
+  for (let from = 0; from < 20000; from += PAGE) {
+    const { data, error } = await admin
+      .from('assets')
+      .select('id,title,type,category,file_url,thumbnail_url')
+      .order('created_at', { ascending: true })
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    const batch = (data || []) as Row[]
+    rows.push(...batch)
+    if (batch.length < PAGE) break
+  }
 
   const santa: Array<{ id: string; title: string; type: string; category: string }> = []
   const dashes: Array<{ id: string; from: string; to: string }> = []
