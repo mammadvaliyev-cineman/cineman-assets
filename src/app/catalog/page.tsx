@@ -270,6 +270,7 @@ export default function CatalogPage() {
       for (let from = 0; from < 50000; from += PAGE) {
         const { data, error } = await supabase.from('assets').select('*')
           .neq('type', 'Config').neq('type', 'Generation').neq('type', 'Usage')
+          .eq('is_public', true) // hidden assets never reach the public catalog
           .order('created_at', { ascending: sortBy === 'oldest' })
           .range(from, from + PAGE - 1)
         if (error || !data) break
