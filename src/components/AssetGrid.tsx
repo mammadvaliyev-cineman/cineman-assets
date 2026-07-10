@@ -212,6 +212,7 @@ function EmptyState() {
 // ── Card component ────────────────────────────────────────────
 function AssetCard({
   asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete, onMove, onHide,
+  onPrice, onBuyout, isBuying = false,
   displayCfg = DEFAULT_CATALOG_CONFIG,
 }: {
   asset: Asset
@@ -225,6 +226,9 @@ function AssetCard({
   onDelete?: () => void
   onMove?: () => void
   onHide?: () => void
+  onPrice?: () => void
+  onBuyout?: () => void
+  isBuying?: boolean
   displayCfg?: CatalogConfig
 }) {
   const typeStyle = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
@@ -429,19 +433,37 @@ function AssetCard({
           style={{ background: 'linear-gradient(to top, rgba(8,5,15,0.85) 0%, transparent 60%)', zIndex: 2 }}
         >
           {asset.fileUrl && (
-            <button
-              onClick={e => { e.stopPropagation(); onDownload() }}
-              disabled={isDownloading}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
-              style={{
-                background: isDownloading ? 'rgba(151,101,224,0.5)' : 'linear-gradient(135deg,#9765E0,#534FA5)',
-                color: 'white',
-                boxShadow: '0 0 16px rgba(151,101,224,0.4)',
-              }}
-            >
-              {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
-              {isDownloading ? 'Generating link…' : 'Download'}
-            </button>
+            <div className="w-full flex flex-col gap-1.5">
+              <button
+                onClick={e => { e.stopPropagation(); onDownload() }}
+                disabled={isDownloading}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
+                style={{
+                  background: isDownloading ? 'rgba(151,101,224,0.5)' : 'linear-gradient(135deg,#9765E0,#534FA5)',
+                  color: 'white',
+                  boxShadow: '0 0 16px rgba(151,101,224,0.4)',
+                }}
+              >
+                {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
+                {isDownloading ? 'Generating link…' : 'Download'}
+              </button>
+              {onBuyout && (
+                <button
+                  onClick={e => { e.stopPropagation(); onBuyout() }}
+                  disabled={isBuying}
+                  className="w-full flex items-center justify-center gap-2 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                  title="Эксклюзивный выкуп: ассет исчезнет из каталога и останется только у вас (Pro)"
+                  style={{
+                    background: isBuying ? 'rgba(0,194,186,0.35)' : 'rgba(0,194,186,0.16)',
+                    border: '1px solid rgba(0,194,186,0.5)',
+                    color: '#5EEAD4',
+                  }}
+                >
+                  {isBuying ? <SpinnerIcon /> : '👑'}
+                  {isBuying ? '…' : `Buy exclusive · ⚡ ${asset.exclusivePrice ?? 50}`}
+                </button>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -452,7 +474,12 @@ function AssetCard({
         <div className="flex items-center gap-2 mb-3">
           <span className="badge text-[11px] font-semibold" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
           <p className="text-xs truncate" style={{ color: 'var(--fg-muted)' }}>{asset.category}</p>
-          <span className="text-[11px] font-bold ml-auto whitespace-nowrap" style={{ color: '#CE95FB' }}>⚡ {asset.creditCost ?? 5}</span>
+          <span
+            className="text-[11px] font-bold ml-auto whitespace-nowrap"
+            style={{ color: '#CE95FB', cursor: isAdmin && onPrice ? 'pointer' : undefined, textDecoration: isAdmin && onPrice ? 'underline dotted' : undefined }}
+            title={isAdmin && onPrice ? 'Изменить цену (admin)' : undefined}
+            onClick={isAdmin && onPrice ? (e => { e.stopPropagation(); onPrice() }) : undefined}
+          >⚡ {asset.creditCost ?? 5}</span>
         </div>
         {asset.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-auto">
@@ -484,6 +511,9 @@ export default function AssetGrid({
   const [favs, setFavs]               = useState<Set<string>>(() => getFavs())
   const [deletedIds, setDeletedIds]   = useState<Set<string>>(new Set())
   const [deleting, setDeleting]       = useState<string | null>(null)
+  const [buying, setBuying]           = useState<string | null>(null)
+  // local overrides so the card badge updates right after an admin price edit
+  const [priceEdits, setPriceEdits]   = useState<Record<string, { creditCost: number; exclusivePrice: number }>>({})
 
   // ── Admin: move asset to another section ──────────────────
   const [moveTarget, setMoveTarget]   = useState<Asset | null>(null)
@@ -592,6 +622,63 @@ export default function AssetGrid({
     }
   }
 
+  // Admin: edit both prices via two quick prompts (fast > pretty)
+  async function handlePrice(asset: Asset) {
+    const cur = priceEdits[asset.id] ?? { creditCost: asset.creditCost ?? 5, exclusivePrice: asset.exclusivePrice ?? 50 }
+    const p1 = window.prompt('Цена скачивания в кредитах ⚡:', String(cur.creditCost))
+    if (p1 === null) return
+    const p2 = window.prompt('Цена эксклюзивного выкупа 👑⚡:', String(cur.exclusivePrice))
+    if (p2 === null) return
+    const creditCost = Math.max(0, Math.round(Number(p1)))
+    const exclusivePrice = Math.max(0, Math.round(Number(p2)))
+    if (!Number.isFinite(creditCost) || !Number.isFinite(exclusivePrice)) { alert('Нужно число'); return }
+    try {
+      const res = await fetch('/api/admin/assets', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ id: asset.id, credit_cost: creditCost, exclusive_price: exclusivePrice }),
+      })
+      const json = await res.json()
+      if (json.ok) setPriceEdits(prev => ({ ...prev, [asset.id]: { creditCost, exclusivePrice } }))
+      else alert(json.error || 'Не сохранилось')
+    } catch { alert('Не сохранилось — попробуй ещё раз') }
+  }
+
+  // Exclusive buyout: Pro-only, hides the asset from the catalog forever
+  async function handleBuyout(asset: Asset) {
+    if (buying) return
+    if (!user) { setShowUpgrade(true); return }
+    const price = priceEdits[asset.id]?.exclusivePrice ?? asset.exclusivePrice ?? 50
+    if (!window.confirm(`Выкупить «${asset.title}» эксклюзивно за ⚡ ${price}?\nАссет навсегда исчезнет из каталога и останется только у вас.`)) return
+    setBuying(asset.id)
+    try {
+      const res = await fetch('/api/buyout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ assetId: asset.id }),
+      })
+      const json = await res.json()
+      if ((res.status === 403 && json.code === 'pro') || (res.status === 402 && json.code === 'credits') || (res.status === 401 && json.code === 'auth')) {
+        setShowUpgrade(true)
+        return
+      }
+      if (json.url) {
+        if (typeof json.credits === 'number') {
+          window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: json.credits }))
+        }
+        recordDownload(asset.id)
+        setDeletedIds(prev => { const next = new Set(prev); next.add(asset.id); return next })
+        window.location.href = json.url
+      } else {
+        alert(json.error || 'Выкуп не прошёл')
+      }
+    } catch {
+      alert('Выкуп не прошёл — попробуй ещё раз')
+    } finally {
+      setBuying(null)
+    }
+  }
+
   function handleFav(id: string) { setFavs(toggleFav(id)) }
 
   async function handleDelete(asset: Asset) {
@@ -631,6 +718,7 @@ export default function AssetGrid({
 
   const visibleAssets = (deletedIds.size === 0 ? assets : assets.filter(a => !deletedIds.has(a.id)))
     .map(a => moved[a.id] ? { ...a, type: moved[a.id].type as Asset['type'], category: moved[a.id].category } : a)
+    .map(a => priceEdits[a.id] ? { ...a, creditCost: priceEdits[a.id].creditCost, exclusivePrice: priceEdits[a.id].exclusivePrice } : a)
 
   if (visibleAssets.length === 0) return <EmptyState />
 
@@ -695,6 +783,9 @@ export default function AssetGrid({
                 onDelete={() => handleDelete(asset)}
                 onMove={() => { setMoveTarget(asset); setMoveTo('') }}
                 onHide={() => handleHide(asset)}
+                onPrice={() => handlePrice(asset)}
+                onBuyout={() => handleBuyout(asset)}
+                isBuying={buying === asset.id}
                 displayCfg={displayCfg}
               />
             </div>
