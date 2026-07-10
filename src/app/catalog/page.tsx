@@ -138,6 +138,13 @@ function SidebarItem({
   )
 }
 
+// Small on-the-fly resized thumbnail via Supabase image transform —
+// ~28KB vs the full ~310KB web image, so the 2000-card grid loads fast.
+function thumbUrl(url: string): string {
+  if (!url || !url.includes('/storage/v1/object/public/')) return url
+  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=440&quality=62'
+}
+
 function toAsset(a: Record<string, unknown>): Asset {
   return {
     id: String(a.id),
@@ -147,7 +154,7 @@ function toAsset(a: Record<string, unknown>): Asset {
     url: String(a.file_url ?? ''),
     // Catalog sells the full turnaround sheet — show the original,
     // face-crop thumbnails are for Studio cards only
-    thumbnail: String(a.file_url ?? a.thumbnail_url ?? ''),
+    thumbnail: thumbUrl(String(a.file_url ?? a.thumbnail_url ?? '')),
     plan: (a.plan as Asset['plan']) ?? 'starter',
     tags: Array.isArray(a.tags) ? a.tags : [],
     fileUrl: String(a.file_url ?? ''),
