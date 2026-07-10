@@ -241,7 +241,7 @@ export default function CatalogPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSubcat])
   const [viewMode, setViewMode]       = useState<'grid' | 'list'>('grid')
-  const [sortBy, setSortBy]           = useState<'recent' | 'oldest'>('recent')
+  const [sortBy, setSortBy]           = useState<'random' | 'recent' | 'oldest'>('random')
   const [previewSize, setPreviewSize] = useState(100)
   const [quickView, setQuickView]     = useState<'all' | 'fav' | 'dl'>('all')
   const [storeTick, setStoreTick]     = useState(0)
@@ -280,7 +280,17 @@ export default function CatalogPage() {
         all.push(...(data as Record<string, unknown>[]))
         if (data.length < PAGE) break
       }
-      setAssets(all.map(toAsset))
+      let mapped = all.map(toAsset)
+      // Random is the default: similar shoots land next to each other by
+      // created_at, shuffling makes every category feel diverse.
+      // Categories are NOT mixed — filtering happens after ordering.
+      if (sortBy === 'random') {
+        for (let i = mapped.length - 1; i > 0; i--) {
+          const k = Math.floor(Math.random() * (i + 1))
+          ;[mapped[i], mapped[k]] = [mapped[k], mapped[i]]
+        }
+      }
+      setAssets(mapped)
       setLoading(false)
     }
     load()
@@ -639,7 +649,7 @@ export default function CatalogPage() {
             <div style={{ position: 'relative' }}>
               <select
                 value={sortBy}
-                onChange={e => setSortBy(e.target.value as 'recent' | 'oldest')}
+                onChange={e => setSortBy(e.target.value as 'random' | 'recent' | 'oldest')}
                 style={{
                   appearance: 'none', WebkitAppearance: 'none',
                   backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)',
@@ -647,6 +657,7 @@ export default function CatalogPage() {
                   color: 'var(--fg-muted)', cursor: 'pointer',
                 }}
               >
+                <option value="random">Sort by: Random</option>
                 <option value="recent">Sort by: Recent</option>
                 <option value="oldest">Sort by: Oldest</option>
               </select>
