@@ -202,6 +202,28 @@ export default function CatalogPage() {
   const [activeTime, setActiveTime] = useState('All')
   // Subcategory filter (contextual for any selected type)
   const [activeSubcat, setActiveSubcat] = useState('All')
+
+  // Human-only filters (Gender/Age/Ethnicity) make sense only for people —
+  // not for Animals / Aliens / Creatures / Monsters / Robots
+  const isPeopleSubcat = activeSubcat === 'All' || activeSubcat.toLowerCase().startsWith('people')
+
+  // Switching main section resets every contextual filter — otherwise a
+  // stale "Man + Kids + White" carries into Animals and shows 0 results
+  useEffect(() => {
+    setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
+    setActiveSetting('All'); setActiveTime('All')
+    setActiveBrand('All'); setActiveColor('All')
+    setActiveSubcat('All')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCat, activeType])
+
+  // Switching to a non-people subcategory drops the human-only filters
+  useEffect(() => {
+    if (activeSubcat !== 'All' && !activeSubcat.toLowerCase().startsWith('people')) {
+      setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSubcat])
   const [viewMode, setViewMode]       = useState<'grid' | 'list'>('grid')
   const [sortBy, setSortBy]           = useState<'recent' | 'oldest'>('recent')
   const [previewSize, setPreviewSize] = useState(100)
@@ -502,11 +524,15 @@ export default function CatalogPage() {
             )}
             {(activeCat === 'Character' || activeType === 'Character') ? (
               <>
-                {/* Character-specific filters */}
+                {/* Character-specific filters — human ones only for People */}
                 <FilterChip label="Category"  value={activeSubcat}    options={charSubcats} onChange={setActiveSubcat} />
-                <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} />
-                <FilterChip label="Age"       value={activeAge}       options={['All', 'Kids', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
-                <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern']} onChange={setActiveEthnicity} />
+                {isPeopleSubcat && (
+                  <>
+                    <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} />
+                    <FilterChip label="Age"       value={activeAge}       options={['All', 'Kids', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
+                    <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern']} onChange={setActiveEthnicity} />
+                  </>
+                )}
               </>
             ) : (activeCat === 'Location' || activeType === 'Location') ? (
               <>
