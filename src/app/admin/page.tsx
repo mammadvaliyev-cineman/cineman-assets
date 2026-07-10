@@ -262,6 +262,32 @@ function AdminDashboard() {
   const [delBusy, setDelBusy] = useState(false)
   const [delMsg, setDelMsg] = useState('')
   const [previewSamples, setPreviewSamples] = useState<Array<{ label: string; url: string }>>([])
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupMsg, setBackupMsg] = useState('')
+
+  // ── Settings: download full DB backup ─────────────────────
+  async function downloadBackup() {
+    setBackupBusy(true)
+    setBackupMsg('')
+    try {
+      const res = await fetch('/api/admin/backup', { headers: await adminHeaders() })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}))
+        setBackupMsg(`Ошибка: ${j.error || res.status}`)
+      } else {
+        const blob = await res.blob()
+        const a = document.createElement('a')
+        a.href = URL.createObjectURL(blob)
+        a.download = `cineman-backup-${new Date().toISOString().slice(0, 10)}.json`
+        a.click()
+        URL.revokeObjectURL(a.href)
+        setBackupMsg('✓ Бэкап скачан — сохрани файл в надёжное место (Dropbox).')
+      }
+    } catch {
+      setBackupMsg('Ошибка: не удалось скачать бэкап')
+    }
+    setBackupBusy(false)
+  }
 
   // ── Batch upload state ──────────────────────────────────
   const batchRef = useRef<HTMLInputElement>(null)
@@ -1265,6 +1291,28 @@ function AdminDashboard() {
               </button>
               {dispSaved && <span className="text-sm" style={{ color: '#00C264' }}>✓ Сохранено</span>}
               <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>После Save обнови страницу каталога, чтобы увидеть результат.</span>
+            </div>
+          </div>
+
+          {/* Backup */}
+          <div className="card p-6" style={{ borderTop: '2px solid #00C2BA' }}>
+            <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
+              Резервная копия базы
+            </h3>
+            <p className="text-xs mb-4" style={{ color: 'var(--fg-subtle)' }}>
+              Скачивает все ассеты (названия, теги, категории, ссылки) одним JSON-файлом.
+              Жми раз в неделю и после больших изменений — файл храни в Dropbox.
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={downloadBackup}
+                disabled={backupBusy}
+                className="px-5 py-2 rounded-lg text-sm font-semibold"
+                style={{ backgroundColor: 'rgba(0,194,186,0.12)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.4)', opacity: backupBusy ? 0.6 : 1 }}
+              >
+                {backupBusy ? 'Готовлю…' : '⬇ Скачать бэкап'}
+              </button>
+              {backupMsg && <span className="text-xs" style={{ color: backupMsg.startsWith('Ошибка') ? '#e06060' : '#00C264' }}>{backupMsg}</span>}
             </div>
           </div>
 
