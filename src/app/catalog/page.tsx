@@ -274,7 +274,7 @@ export default function CatalogPage() {
   const activeFilterCount = [activeCat !== 'All', activeType !== 'All', activeStyle !== 'All', activeMood !== 'All', activeLighting !== 'All'].filter(Boolean).length
 
   function clearAll() {
-    setActiveCat('All'); setActiveType('All'); setActiveStyle('All')
+    setActiveType('All'); setActiveStyle('All')
     setActiveMood('All'); setActiveLighting('All'); setSearch('')
     setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
     setActiveSetting('All'); setActiveTime('All'); setActiveSubcat('All')
