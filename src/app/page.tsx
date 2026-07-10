@@ -17,14 +17,16 @@ const D = {
   sparkles: "M12 3l1.9 5.8L19.7 11l-5.8 1.9L12 18.7l-1.9-5.8L4.3 11l5.8-2.2L12 3z|M19 3v4|M17 5h4",
 };
 
-export const revalidate = 600
+export const revalidate = 60
 
 export default async function HomePage() {
   let assetCount = 1900
   try {
+    // Same rules as the public catalog: no system rows, no hidden assets
     const { count } = await supabase
       .from("assets").select("id", { count: "exact", head: true })
       .neq("type", "Config").neq("type", "Usage").neq("type", "Generation")
+      .eq("is_public", true)
     if (count && count > 0) assetCount = count
   } catch {}
   return (
