@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Asset } from '@/lib/mock-data'
 import { useAuth } from '@/components/AuthProvider'
 import { isAdminEmail, adminHeaders } from '@/components/AdminGate'
+import { CatalogConfig, DEFAULT_CATALOG_CONFIG } from '@/lib/catalogConfig'
 
 // ── Type badge config ─────────────────────────────────────────
 const TYPE_STYLE: Record<string, { bg: string; color: string; icon: string }> = {
@@ -190,6 +191,7 @@ function EmptyState() {
 // ── Card component ────────────────────────────────────────────
 function AssetCard({
   asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete,
+  displayCfg = DEFAULT_CATALOG_CONFIG,
 }: {
   asset: Asset
   isFav: boolean
@@ -200,11 +202,16 @@ function AssetCard({
   isAdmin?: boolean
   isDeleting?: boolean
   onDelete?: () => void
+  displayCfg?: CatalogConfig
 }) {
   const typeStyle = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
   // Character sheets are tall turnaround boards — anchor the crop to the
   // top so heads stay in frame; everything else crops from the center.
   const objectPosition = String(asset.type) === 'Character' ? 'top' : 'center'
+  // Admin-controlled display mode for grid cards (Admin → Settings)
+  const gridFit: 'contain' | 'cover' = displayCfg.fit === 'contain' ? 'contain' : 'cover'
+  const gridPosition = displayCfg.fit === 'cover-top' ? 'top' : (displayCfg.fit === 'cover' ? 'center' : 'center')
+  const gridRatio = displayCfg.ratio === 'auto' ? undefined : displayCfg.ratio
 
   if (viewMode === 'list') {
     return (
@@ -281,18 +288,18 @@ function AssetCard({
   // Grid card
   return (
     <div className="card group cursor-pointer flex flex-col fade-in-up" style={{ position: 'relative' }}>
-      {/* Thumbnail — uniform card, full image shown without cropping */}
-      <div className="relative overflow-hidden" style={{ aspectRatio: '1/1', backgroundColor: 'var(--bg-subtle)' }}>
+      {/* Thumbnail — display mode is admin-controlled (Admin → Settings) */}
+      <div className="relative overflow-hidden" style={{ aspectRatio: gridRatio, backgroundColor: 'var(--bg-subtle)' }}>
         {asset.thumbnail ? (
           <img
             src={asset.thumbnail}
             alt={asset.title}
-            className="w-full h-full group-hover:scale-105 transition-transform duration-500"
-            style={{ objectFit: 'contain' }}
+            className={`w-full block group-hover:scale-105 transition-transform duration-500 ${gridRatio ? 'h-full' : 'h-auto'}`}
+            style={gridRatio ? { objectFit: gridFit, objectPosition: gridPosition } : undefined}
             loading="lazy"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center text-3xl">
+          <div className="w-full flex items-center justify-center text-3xl" style={{ aspectRatio: gridRatio ?? '16/9' }}>
             {typeStyle.icon}
           </div>
         )}
@@ -420,6 +427,15 @@ export default function AssetGrid({
   const { user } = useAuth()
   const isAdmin = isAdminEmail(user?.email)
 
+  // Admin-controlled card display mode (Admin → Settings)
+  const [displayCfg, setDisplayCfg] = useState<CatalogConfig>(DEFAULT_CATALOG_CONFIG)
+  useEffect(() => {
+    fetch('/api/admin/catalog-config')
+      .then(r => r.json())
+      .then(j => { if (j?.config) setDisplayCfg(j.config) })
+      .catch(() => {})
+  }, [])
+
   // Re-sync from localStorage on mount (SSR-safe)
   useEffect(() => {
     setFavs(getFavs())
@@ -537,6 +553,7 @@ export default function AssetGrid({
                 isAdmin={isAdmin}
                 isDeleting={deleting === asset.id}
                 onDelete={() => handleDelete(asset)}
+                displayCfg={displayCfg}
               />
             </div>
           ))}
