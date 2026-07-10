@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import AdminGate, { adminHeaders } from '@/components/AdminGate'
 import { CatalogConfig, DEFAULT_CATALOG_CONFIG, FIT_OPTIONS, RATIO_OPTIONS } from '@/lib/catalogConfig'
@@ -417,7 +417,17 @@ function AdminDashboard() {
   }
 
   useEffect(() => {
-    if (activeTab === 'assets') loadAssets()
+    if (activeTab === 'assets') {
+      loadAssets()
+      // file sizes for the Size column / sort
+      ;(async () => {
+        try {
+          const res = await fetch('/api/admin/storage-cleanup?sizes=1', { headers: await adminHeaders() })
+          const j = await res.json()
+          if (j?.sizes) setFileSizes(j.sizes)
+        } catch { /* sizes optional */ }
+      })()
+    }
     if (activeTab === 'settings') {
       fetch('/api/admin/catalog-config', { cache: 'no-store' })
         .then(r => r.json())
@@ -487,6 +497,72 @@ function AdminDashboard() {
     } else {
       setDelMsg(`Ошибка: ${j.error || 'delete failed'}`)
     }
+  }
+
+  // ── Assets table: filters / sorting / bulk selection ──────
+  const [assetSearch, setAssetSearch] = useState('')
+  const [assetType, setAssetType] = useState('All')
+  const [assetSort, setAssetSort] = useState<'date' | 'name' | 'size'>('date')
+  const [fileSizes, setFileSizes] = useState<Record<string, number>>({})
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
+
+  function storagePathOf(url: string | null | undefined): string {
+    if (!url || !url.includes('/assets/')) return ''
+    return decodeURIComponent(url.split('/assets/')[1]?.split('?')[0] || '')
+  }
+  const sizeOf = (a: AssetRow) => fileSizes[storagePathOf(a.file_url)] ?? 0
+
+  const assetTypes = useMemo(() => ['All', ...Array.from(new Set(assets.map(a => a.type))).filter(Boolean).sort()], [assets])
+
+  const visibleRows = useMemo(() => {
+    const q = assetSearch.trim().toLowerCase()
+    let rows = assets.filter(a =>
+      (assetType === 'All' || a.type === assetType) &&
+      (!q || (a.title || '').toLowerCase().includes(q) || storagePathOf(a.file_url).toLowerCase().includes(q))
+    )
+    if (assetSort === 'name') rows = [...rows].sort((x, y) => (x.title || '').localeCompare(y.title || ''))
+    if (assetSort === 'size') rows = [...rows].sort((x, y) => sizeOf(y) - sizeOf(x))
+    return rows
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assets, assetSearch, assetType, assetSort, fileSizes])
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  }
+  function toggleSelectAll() {
+    setSelectedIds(prev => prev.size === visibleRows.length ? new Set() : new Set(visibleRows.map(r => r.id)))
+  }
+
+  async function bulkAction(kind: 'hide' | 'delete') {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    const verb = kind === 'delete' ? 'УДАЛИТЬ НАВСЕГДА (вместе с файлами)' : 'скрыть из каталога (обратимо)'
+    if (!confirm(`${ids.length} ассетов — ${verb}. Продолжить?`)) return
+    setBulkBusy(true)
+    const headers = await adminHeaders()
+    let done = 0
+    for (const id of ids) {
+      try {
+        if (kind === 'delete') {
+          const r = await fetch(`/api/admin/assets?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers })
+          if (r.ok) { done++; setAssets(prev => prev.filter(a => a.id !== id)) }
+        } else {
+          const r = await fetch('/api/admin/assets', { method: 'PATCH', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ id, is_public: false }) })
+          if (r.ok) { done++; setAssets(prev => prev.map(a => a.id === id ? { ...a, is_public: false } : a)) }
+        }
+      } catch { /* keep going */ }
+    }
+    setSelectedIds(new Set())
+    setBulkBusy(false)
+    alert(`Готово: ${done}/${ids.length}`)
+    if (kind === 'delete') loadStats()
+  }
+
+  function fmtSize(b: number): string {
+    if (!b) return '—'
+    if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' KB'
+    return (b / 1048576).toFixed(1) + ' MB'
   }
 
   // ── Hide / show asset (main action — fully reversible) ────
@@ -822,11 +898,56 @@ function AdminDashboard() {
               <p style={{ color: 'var(--fg-muted)' }}>No assets yet. Upload your first one!</p>
             </div>
           ) : (
-            <div className="card overflow-hidden">
+            <div>
+              {/* Filter / bulk panel */}
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <input
+                  value={assetSearch}
+                  onChange={e => setAssetSearch(e.target.value)}
+                  placeholder="Поиск: название или имя файла…"
+                  className="input-field text-sm"
+                  style={{ minWidth: 260, padding: '8px 12px' }}
+                />
+                <select value={assetType} onChange={e => setAssetType(e.target.value)} className="input-field text-sm" style={{ padding: '8px 12px' }}>
+                  {assetTypes.map(t => <option key={t} value={t}>{t === 'All' ? 'Все типы' : t}</option>)}
+                </select>
+                <select value={assetSort} onChange={e => setAssetSort(e.target.value as 'date' | 'name' | 'size')} className="input-field text-sm" style={{ padding: '8px 12px' }}>
+                  <option value="date">По дате</option>
+                  <option value="name">По имени</option>
+                  <option value="size">По размеру (крупные сверху)</option>
+                </select>
+                <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>{visibleRows.length} шт.</span>
+                {selectedIds.size > 0 && (
+                  <>
+                    <span className="text-xs font-semibold" style={{ color: '#9765E0' }}>выбрано: {selectedIds.size}</span>
+                    <button
+                      onClick={() => bulkAction('hide')}
+                      disabled={bulkBusy}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: 'rgba(255,170,60,0.12)', color: '#ffaa3c', border: '1px solid rgba(255,170,60,0.4)' }}
+                    >
+                      {bulkBusy ? '…' : 'Скрыть выбранные'}
+                    </button>
+                    <button
+                      onClick={() => bulkAction('delete')}
+                      disabled={bulkBusy}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: 'rgba(220,60,60,0.12)', color: '#e06060', border: '1px solid rgba(220,60,60,0.4)' }}
+                    >
+                      {bulkBusy ? '…' : 'Удалить выбранные'}
+                    </button>
+                  </>
+                )}
+              </div>
+
+              <div className="card overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['', 'Title', 'Type', 'Category', 'Plan', 'Tags', 'Date', ''].map(h => (
+                    <th className="px-3 py-3">
+                      <input type="checkbox" checked={visibleRows.length > 0 && selectedIds.size === visibleRows.length} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
+                    </th>
+                    {['', 'Title', 'Type', 'Category', 'Size', 'Tags', 'Date', ''].map(h => (
                       <th
                         key={h}
                         className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -838,15 +959,17 @@ function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {assets.map(asset => {
-                    const planStyle = PLAN_COLOR[asset.plan] ?? PLAN_COLOR.starter
+                  {visibleRows.map(asset => {
                     const typeColor = TYPE_COLOR[asset.type] ?? '#CE95FB'
                     const isDeleting = deletingId === asset.id
                     return (
                       <tr
                         key={asset.id}
-                        style={{ borderBottom: '1px solid var(--border)' }}
+                        style={{ borderBottom: '1px solid var(--border)', backgroundColor: selectedIds.has(asset.id) ? 'rgba(151,101,224,0.06)' : undefined }}
                       >
+                        <td className="px-3 py-2">
+                          <input type="checkbox" checked={selectedIds.has(asset.id)} onChange={() => toggleSelect(asset.id)} style={{ cursor: 'pointer' }} />
+                        </td>
                         {/* Thumbnail — horizontal 16:9 preview of the full sheet */}
                         <td className="px-3 py-2">
                           {asset.file_url || asset.thumbnail_url ? (
@@ -881,13 +1004,8 @@ function AdminDashboard() {
                           <span className="text-xs font-medium" style={{ color: typeColor }}>{asset.type}</span>
                         </td>
                         <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)' }}>{asset.category}</td>
-                        <td className="px-4 py-3">
-                          <span
-                            className="text-xs font-semibold px-2 py-0.5 rounded-full capitalize"
-                            style={{ backgroundColor: planStyle.bg, color: planStyle.color }}
-                          >
-                            {asset.plan}
-                          </span>
+                        <td className="px-4 py-3 text-xs" style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>
+                          {fmtSize(sizeOf(asset))}
                         </td>
                         <td className="px-4 py-3 text-xs max-w-[140px] truncate" style={{ color: 'var(--fg-subtle)' }}>
                           {Array.isArray(asset.tags) ? asset.tags.join(', ') : '—'}
@@ -926,6 +1044,7 @@ function AdminDashboard() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </div>
