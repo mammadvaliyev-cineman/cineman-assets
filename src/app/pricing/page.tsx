@@ -1,8 +1,12 @@
-// Pricing page — copy is verbatim from the owner's pricing_cards_copy.md:
-// sentence case everywhere, NO emoji (inline SVG bolt instead), accent on
-// Pro only (border + badge, no glow), license as a large pill.
-// Key business rule: Commercial license on Personal AND Pro — the plans
-// differ by VOLUME (150 vs 500 credits) + exclusives + early access.
+'use client'
+
+import { useState } from 'react'
+
+// Pricing page — copy is verbatim from the owner's latest spec:
+// sentence case, NO emoji (inline SVG bolt), accent on Pro only,
+// license as a large pill, Monthly/Yearly toggle (~17% off yearly),
+// one-currency footer: Download 5 · Generation 5 (4K 10) · Top up 100=$10.
+// Commercial license on Personal AND Pro — plans differ by volume.
 
 function Bolt({ size = 13, color = '#CE95FB' }: { size?: number; color?: string }) {
   return (
@@ -23,31 +27,34 @@ function withBolt(text: string, color?: string) {
 const PLANS = [
   {
     name: 'Free',
-    price: 0,
+    monthly: 0,
+    yearly: 0,
     subtitle: 'Try the full catalog',
     accent: '#CE95FB',
     badge: null,
     popular: false,
     license: 'Personal use only',
     commercial: false,
-    features: ['15 credits / mo', 'Browse the entire catalog', 'Full-res PNG / JPG'],
+    features: ['15 credits / mo', 'Generate missing assets with AI', 'Browse entire catalog', 'Full-res PNG / JPG'],
     cta: 'Get started',
   },
   {
     name: 'Personal',
-    price: 12,
+    monthly: 12,
+    yearly: 10, // ~17% off, billed yearly
     subtitle: 'For solo creators',
     accent: '#9765E0',
     badge: null,
     popular: false,
     license: 'Commercial license',
     commercial: true,
-    features: ['150 credits / mo', 'Full-res PNG / JPG', 'Priority support'],
+    features: ['150 credits / mo', 'Generate missing assets with AI', 'Full-res PNG / JPG', 'Priority support'],
     cta: 'Choose Personal',
   },
   {
     name: 'Pro',
-    price: 25,
+    monthly: 25,
+    yearly: 21, // ~17% off, billed yearly
     subtitle: 'For creators who sell more',
     accent: '#00C2BA',
     badge: 'Most popular',
@@ -62,7 +69,7 @@ const PLANS = [
 const FAQ = [
   {
     q: 'How do credits work?',
-    a: 'Credits are one currency for downloads and for generating a missing asset. A standard download is about 5 credits, generation is 10–20, an exclusive buyout is 50. Credits refresh monthly with your plan, and you can top up anytime — 100 credits for $10.',
+    a: 'Credits are one currency for downloads and for generating a missing asset. A standard download is 5 credits, generation is 5 (4K is 10), an exclusive buyout is 50. Credits refresh monthly with your plan, and you can top up anytime — 100 credits for $10.',
   },
   {
     q: 'Can I cancel anytime?',
@@ -79,10 +86,12 @@ const FAQ = [
 ]
 
 export default function PricingPage() {
+  const [period, setPeriod] = useState<'monthly' | 'yearly'>('monthly')
+
   return (
     <div className="max-w-6xl mx-auto px-6 py-16">
       {/* Header */}
-      <div className="text-center mb-16">
+      <div className="text-center mb-12">
         <span
           className="inline-block text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full mb-5"
           style={{
@@ -99,6 +108,29 @@ export default function PricingPage() {
         <p className="text-lg max-w-xl mx-auto" style={{ color: 'var(--fg-muted)' }}>
           Start free. No card required. Upgrade or cancel anytime.
         </p>
+      </div>
+
+      {/* Billing period toggle */}
+      <div className="flex justify-center mb-10">
+        <div
+          className="flex items-center gap-1 rounded-full p-1"
+          style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}
+        >
+          {(['monthly', 'yearly'] as const).map(p => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className="px-5 py-1.5 rounded-full text-sm font-semibold transition-all"
+              style={
+                period === p
+                  ? { background: 'linear-gradient(135deg, #9765E0, #534FA5)', color: 'white' }
+                  : { color: 'var(--fg-muted)' }
+              }
+            >
+              {p === 'monthly' ? 'Monthly' : 'Yearly · save ~17%'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Plans — pt-4 keeps the absolute badge unclipped */}
@@ -137,11 +169,16 @@ export default function PricingPage() {
 
             <div className="mb-5">
               <span className="text-5xl font-bold" style={{ color: plan.accent }}>
-                ${plan.price}
+                ${period === 'yearly' ? plan.yearly : plan.monthly}
               </span>
               <span className="ml-2 text-sm" style={{ color: 'var(--fg-muted)' }}>
                 /mo
               </span>
+              {period === 'yearly' && plan.monthly > 0 && (
+                <span className="block text-xs mt-1" style={{ color: 'var(--fg-subtle)' }}>
+                  billed yearly (${plan.yearly * 12}/yr)
+                </span>
+              )}
             </div>
 
             {/* License — the pill users compare first */}
@@ -193,7 +230,7 @@ export default function PricingPage() {
           Credits work for <span style={{ color: 'var(--fg)', fontWeight: 600 }}>downloads and generating a missing asset</span> — one currency.
         </p>
         <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
-          {withBolt('Download ≈ 5⚡ · Generation ≈ 10–20⚡ · Top up anytime: 100 credits = $10')}
+          {withBolt('Download 5⚡ · Generation 5⚡ (4K 10⚡) · Top up anytime: 100 credits = $10')}
         </p>
       </div>
 
