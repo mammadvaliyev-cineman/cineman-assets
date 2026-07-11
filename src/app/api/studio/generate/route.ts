@@ -42,15 +42,36 @@ export async function POST(req: NextRequest) {
     if (!assetType || !description) {
       return NextResponse.json({ error: 'assetType and description are required' }, { status: 400 })
     }
+
+    // ONE CURRENCY (pricing copy): generation spends credits like
+    // downloads do. Price lives in pricing_defaults.gen_base — editable
+    // in Admin → Pricing. Spent BEFORE the task; refunded if the task
+    // fails to start.
+    const admin = supabaseAdmin()
+    const { data: pd } = await admin.from('pricing_defaults').select('credits').eq('tier', 'gen_base').single()
+    const cost = Number(pd?.credits ?? 5)
+    const { data: remaining, error: rpcErr } = await admin.rpc('spend_credits', { p_user: gate.userId, p_cost: cost })
+    if (rpcErr) return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
+    if (typeof remaining === 'number' && remaining < 0) {
+      return NextResponse.json({ error: 'Not enough credits', code: 'credits', cost }, { status: 402 })
+    }
+
     const prompt = `${description}. ${STYLE[assetType] || ''}`
-    const taskId = await kieCreateTask(KIE_MODELS.imageFallback, {
-      prompt,
-      output_format: 'png',
-      // Character reference sheets are wide split-panel boards → 16:9
-      ...(assetType === 'Character' ? { image_size: '16:9' } : {}),
-    })
+    let taskId: string
+    try {
+      taskId = await kieCreateTask(KIE_MODELS.imageFallback, {
+        prompt,
+        output_format: 'png',
+        // Character reference sheets are wide split-panel boards → 16:9
+        ...(assetType === 'Character' ? { image_size: '16:9' } : {}),
+      })
+    } catch (err) {
+      // task never started — give the money back
+      await admin.rpc('spend_credits', { p_user: gate.userId, p_cost: -cost }).then(() => {}, () => {})
+      throw err
+    }
     await incrementUsage(gate.userId)
-    return NextResponse.json({ taskId })
+    return NextResponse.json({ taskId, credits: remaining, cost })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Generation failed'
     return NextResponse.json({ error: msg }, { status: 500 })
