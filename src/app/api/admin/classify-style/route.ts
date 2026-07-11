@@ -49,19 +49,20 @@ async function fetchUnstyled(limit: number): Promise<{ rows: Row[]; left: number
 }
 
 function thumb(url: string): string {
-  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=128&quality=50&resize=contain'
+  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=96&quality=45&resize=contain'
 }
 
 async function classifyBatch(rows: Row[], key: string): Promise<string[]> {
   const parts: Array<Record<string, unknown>> = [{
     text: `You will see ${rows.length} images. For EACH image decide if its visual style is "cartoon" (стилизованная 2D/3D мультипликация, аниме, иллюстрация, cel-shading) or "realistic" (фотореалистичное изображение). Answer ONLY a JSON array of ${rows.length} strings, each "cartoon" or "realistic", in the same order. No other text.`,
   }]
-  for (const r of rows) {
+  // thumbnails in parallel — sequential fetches were the bottleneck
+  const images = await Promise.all(rows.map(async r => {
     const res = await fetch(thumb(r.file_url as string))
     if (!res.ok) throw new Error(`thumb fetch ${res.status}`)
-    const b64 = Buffer.from(await res.arrayBuffer()).toString('base64')
-    parts.push({ inline_data: { mime_type: 'image/jpeg', data: b64 } })
-  }
+    return Buffer.from(await res.arrayBuffer()).toString('base64')
+  }))
+  for (const b64 of images) parts.push({ inline_data: { mime_type: 'image/jpeg', data: b64 } })
   const res = await fetch(`${GEMINI_URL}?key=${key}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
   const started = Date.now()
   let updated = 0, cartoonsFound = 0
   const BATCH = 10
-  const { rows, left } = await fetchUnstyled(120)
+  const { rows, left } = await fetchUnstyled(300)
   for (let i = 0; i < rows.length; i += BATCH) {
     if (Date.now() - started > 42000) break
     const batch = rows.slice(i, i + BATCH)
