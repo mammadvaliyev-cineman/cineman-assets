@@ -35,33 +35,54 @@ const PLANS = [
     popular: false,
     license: 'Personal use only',
     commercial: false,
-    features: ['15 credits / mo', 'Generate missing assets with AI', 'Browse entire catalog', 'Full-res PNG / JPG'],
+    features: [
+      '15 credits / mo (~3 assets — download or generate)',
+      'Generate missing assets with AI',
+      'Realistic + cartoon styles',
+      'Browse the entire catalog',
+      'Full-res, no watermark',
+    ],
     cta: 'Get started',
   },
   {
     name: 'Personal',
     monthly: 12,
-    yearly: 10, // ~17% off, billed yearly
+    yearly: 120, // $/yr — ~2 months free
     subtitle: 'For solo creators',
     accent: '#9765E0',
     badge: null,
     popular: false,
     license: 'Commercial license',
     commercial: true,
-    features: ['150 credits / mo', 'Generate missing assets with AI', 'Full-res PNG / JPG', 'Priority support'],
+    features: [
+      '150 credits / mo (~30 assets — download or generate)',
+      'Generate missing assets with AI',
+      'Realistic + cartoon styles',
+      'Save favorites & collections',
+      'Full-res, no watermark',
+      'Priority support',
+    ],
     cta: 'Choose Personal',
   },
   {
     name: 'Pro',
     monthly: 25,
-    yearly: 21, // ~17% off, billed yearly
+    yearly: 250, // $/yr — ~2 months free
     subtitle: 'For creators who sell more',
     accent: '#00C2BA',
     badge: 'Most popular',
     popular: true,
     license: 'Commercial license',
     commercial: true,
-    features: ['Everything in Personal, plus…', '500 credits / mo', 'Exclusive buyouts · 50⚡ each', 'Early access'],
+    features: [
+      '500 credits / mo (~100 assets — download or generate)',
+      'Generate missing assets with AI',
+      '4K generation',
+      'Exclusive buyouts · 50⚡ each',
+      'Save favorites & collections',
+      'Early access to new assets',
+      'Priority support',
+    ],
     cta: 'Choose Pro',
   },
 ]
@@ -172,11 +193,11 @@ export default function PricingPage() {
                 ${period === 'yearly' ? plan.yearly : plan.monthly}
               </span>
               <span className="ml-2 text-sm" style={{ color: 'var(--fg-muted)' }}>
-                /mo
+                {period === 'yearly' ? '/yr' : '/mo'}
               </span>
               {period === 'yearly' && plan.monthly > 0 && (
                 <span className="block text-xs mt-1" style={{ color: 'var(--fg-subtle)' }}>
-                  billed yearly (${plan.yearly * 12}/yr)
+                  ≈ ${Math.round(plan.yearly / 12 * 10) / 10}/mo — 2 months free
                 </span>
               )}
             </div>
@@ -230,7 +251,7 @@ export default function PricingPage() {
           Credits work for <span style={{ color: 'var(--fg)', fontWeight: 600 }}>downloads and generating a missing asset</span> — one currency.
         </p>
         <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
-          {withBolt('Download 5⚡ · Generation 5⚡ (4K 10⚡) · Top up anytime: 100 credits = $10')}
+          {withBolt('Standard 5⚡ · 4K 10⚡ (same for download or generate) · Top up anytime: 100 credits = $10')}
         </p>
       </div>
 
