@@ -88,6 +88,22 @@ export async function GET(req: NextRequest) {
 
     const info = await kieGetTask(taskId)
     if (info.state !== 'success' || !info.resultUrls.length) {
+      // «платит только за успех»: if the render FAILED, give the credits
+      // back to the caller (client polls with its auth token)
+      if (info.state === 'fail') {
+        const auth = req.headers.get('authorization') || ''
+        const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+        if (token) {
+          const admin = supabaseAdmin()
+          const { data: userData } = await admin.auth.getUser(token)
+          if (userData?.user) {
+            const { data: pd } = await admin.from('pricing_defaults').select('credits').eq('tier', 'gen_base').single()
+            const cost = Number(pd?.credits ?? 5)
+            const { data: remaining } = await admin.rpc('spend_credits', { p_user: userData.user.id, p_cost: -cost })
+            return NextResponse.json({ state: info.state, progress: info.progress, error: info.failMsg || undefined, refunded: cost, credits: remaining })
+          }
+        }
+      }
       return NextResponse.json({ state: info.state, progress: info.progress, error: info.failMsg || undefined })
     }
 
