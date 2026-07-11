@@ -1056,7 +1056,7 @@ function AdminDashboard() {
                     <th className="px-3 py-3">
                       <input type="checkbox" checked={visibleRows.length > 0 && selectedIds.size === visibleRows.length} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                     </th>
-                    {['', 'Title', 'Type', 'Category', '⚡ Цена', 'Size', 'Tags', 'Date', ''].map(h => (
+                    {['', 'Title', 'Type', 'Category', 'Цена', 'Size', 'Tags', 'Date', ''].map(h => (
                       <th
                         key={h}
                         className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -1120,7 +1120,7 @@ function AdminDashboard() {
                             className="font-semibold"
                             style={{ color: '#CE95FB', textDecoration: 'underline dotted', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                           >
-                            ⚡{asset.credit_cost ?? `(${priceRows[asset.price_tier || 'standard'] ?? '·'})`} · 👑{asset.exclusive_price ?? `(${priceRows['exclusive'] ?? '·'})`}
+                            {asset.credit_cost ?? `(${priceRows[asset.price_tier || 'standard'] ?? '·'})`} / excl {asset.exclusive_price ?? `(${priceRows['exclusive'] ?? '·'})`}
                             <span className="block text-[10px] font-normal" style={{ color: 'var(--fg-subtle)' }}>{asset.price_tier || 'standard'}</span>
                           </button>
                         </td>
@@ -1510,7 +1510,7 @@ function AdminDashboard() {
                       className="input-field text-sm text-right"
                       style={{ width: 90, padding: '7px 10px' }}
                     />
-                    <span className="text-sm font-bold" style={{ color: '#CE95FB' }}>⚡</span>
+                    <span className="text-sm font-bold"><svg width="15" height="15" viewBox="0 0 24 24" style={{ display: 'inline', verticalAlign: '-0.15em' }}><polygon points="8,5 12,5 12,10 4,10" fill="#5EEAD4" /><polygon points="12,5 16,5 20,10 12,10" fill="#2DD4C4" /><polygon points="4,10 12,10 12,21" fill="#2DD4C4" /><polygon points="12,10 20,10 12,21" fill="#0F9E8E" /><polygon points="8,5 9.6,5 6,10 4,10" fill="#ffffff" fillOpacity="0.5" /></svg></span>
                   </span>
                 </label>
               ))}
@@ -1533,7 +1533,7 @@ function AdminDashboard() {
                       className="input-field text-sm text-right"
                       style={{ width: 90, padding: '7px 10px' }}
                     />
-                    <span className="text-sm font-bold" style={{ color: '#CE95FB' }}>⚡</span>
+                    <span className="text-sm font-bold"><svg width="15" height="15" viewBox="0 0 24 24" style={{ display: 'inline', verticalAlign: '-0.15em' }}><polygon points="8,5 12,5 12,10 4,10" fill="#5EEAD4" /><polygon points="12,5 16,5 20,10 12,10" fill="#2DD4C4" /><polygon points="4,10 12,10 12,21" fill="#2DD4C4" /><polygon points="12,10 20,10 12,21" fill="#0F9E8E" /><polygon points="8,5 9.6,5 6,10 4,10" fill="#ffffff" fillOpacity="0.5" /></svg></span>
                   </span>
                 </label>
               ))}
@@ -1556,7 +1556,7 @@ function AdminDashboard() {
                       className="input-field text-sm text-right"
                       style={{ width: 90, padding: '7px 10px' }}
                     />
-                    <span className="text-sm font-bold" style={{ color: '#CE95FB' }}>⚡</span>
+                    <span className="text-sm font-bold"><svg width="15" height="15" viewBox="0 0 24 24" style={{ display: 'inline', verticalAlign: '-0.15em' }}><polygon points="8,5 12,5 12,10 4,10" fill="#5EEAD4" /><polygon points="12,5 16,5 20,10 12,10" fill="#2DD4C4" /><polygon points="4,10 12,10 12,21" fill="#2DD4C4" /><polygon points="12,10 20,10 12,21" fill="#0F9E8E" /><polygon points="8,5 9.6,5 6,10 4,10" fill="#ffffff" fillOpacity="0.5" /></svg></span>
                   </span>
                 </label>
               ))}
