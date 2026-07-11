@@ -406,7 +406,7 @@ function AssetCard({
               }}
             >
               {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
-              {isDownloading ? '…' : (<>Download · {mine ? 0 : displayPrice(asset)} <CreditGem size={13} /></>)}
+              {isDownloading ? '…' : mine ? 'Download · Free' : (<>Download · {displayPrice(asset)} <CreditGem size={13} /></>)}
             </button>
           ))}
         </div>
@@ -605,8 +605,14 @@ function AssetCard({
                       title={isAdmin && onPrice ? 'Edit price (admin)' : undefined}
                       style={{ backgroundColor: 'rgba(0,0,0,0.22)', cursor: isAdmin && onPrice ? 'pointer' : undefined }}
                     >
-                      <CreditGem size={14} />
-                      <span style={{ fontWeight: 800, color: 'white', fontSize: 13 }}>{mine ? 0 : displayPrice(asset)}</span>
+                      {mine ? (
+                        <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
+                      ) : (
+                        <>
+                          <CreditGem size={14} />
+                          <span style={{ fontWeight: 800, color: 'white', fontSize: 13 }}>{displayPrice(asset)}</span>
+                        </>
+                      )}
                       <span
                         className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                         style={{ border: '1px solid rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.85)', lineHeight: '12px' }}
@@ -897,9 +903,16 @@ export default function AssetGrid({
     }
   }
 
-  async function handleDelete(asset: Asset) {
+  const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null)
+  function handleDelete(asset: Asset) {
     if (deleting) return
-    if (!window.confirm(`Delete "${asset.title}" permanently?\nThis removes the database record AND the file from storage.`)) return
+    setDeleteTarget(asset)
+  }
+
+  async function confirmDelete() {
+    const asset = deleteTarget
+    if (!asset || deleting) return
+    setDeleteTarget(null)
     setDeleting(asset.id)
     try {
       const headers = await adminHeaders()
@@ -917,9 +930,9 @@ export default function AssetGrid({
     }
   }
 
-  // Hide (reversible) — the main admin action; PATCH is_public=false
+  // Hide (reversible) — instant, no dialog; a toast explains the undo path
   async function handleHide(asset: Asset) {
-    if (!window.confirm(`Hide "${asset.title}" from the catalog?\nIt stays in the base — restore anytime in Admin → Assets.`)) return
+    toastMsg('Hidden — restore anytime in Admin → Assets')
     try {
       const res = await fetch('/api/admin/assets', {
         method: 'PATCH',
@@ -1055,6 +1068,47 @@ export default function AssetGrid({
                 style={{ background: 'linear-gradient(135deg, #00C2BA, #0B8763)', opacity: buying === buyTarget.id ? 0.6 : 1 }}
               >
                 {buying === buyTarget.id ? 'Processing…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm — styled, uniform with the rest (no browser dialogs) */}
+      {deleteTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(8,5,15,0.80)', backdropFilter: 'blur(8px)' }}
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            className="relative max-w-sm w-full rounded-2xl p-7 text-center"
+            style={{
+              background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(220,60,60,0.07) 100%)',
+              border: '1px solid rgba(220,60,60,0.4)',
+              boxShadow: '0 0 60px rgba(220,60,60,0.15)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Delete permanently?</h2>
+            <p className="text-sm mb-1 truncate" style={{ color: 'var(--fg-muted)' }}>{sentenceCase(deleteTarget.title)}</p>
+            <p className="text-xs mb-6" style={{ color: 'var(--fg-subtle)' }}>
+              This removes the database record and the file from storage. It cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white"
+                style={{ background: 'linear-gradient(135deg, #DC3C3C, #A32020)' }}
+              >
+                Delete
               </button>
             </div>
           </div>
