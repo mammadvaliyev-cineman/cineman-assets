@@ -9,9 +9,9 @@ export const dynamic = 'force-dynamic'
 //   client shows the upgrade modal (drives Pro conversions).
 // • Costs assets.exclusive_price (default 50 credits), spent via
 //   the same atomic spend_credits RPC as downloads.
-// • On success the asset is hidden from the catalog FOREVER
-//   (is_public=false + owned_by=buyer) — that exclusivity is the
-//   whole product. Reversible only by admin (is_public toggle).
+// • On success the asset STAYS in the catalog marked SOLD
+//   (exclusive_owner + exclusive_sold_at): others see the lock and
+//   can't download or buy; the owner downloads free.
 // ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -36,13 +36,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Exclusive buyouts are a Pro feature', code: 'pro' }, { status: 403 })
     }
 
-    // Asset must still be publicly available and not already owned
+    // Asset must be public and not already sold to someone
     const { data: asset, error: assetErr } = await supabase
       .from('assets')
-      .select('file_url, title, exclusive_price, is_public')
+      .select('file_url, title, exclusive_price, is_public, exclusive_owner')
       .eq('id', assetId).eq('is_public', true).single()
     if (assetErr || !asset?.file_url) {
       return NextResponse.json({ error: 'Asset not available' }, { status: 404 })
+    }
+    if (asset.exclusive_owner) {
+      return NextResponse.json({ error: 'Already exclusively sold', code: 'sold' }, { status: 409 })
     }
 
     // NULL exclusive_price = follows pricing_defaults.exclusive
@@ -57,10 +60,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Not enough credits', code: 'credits', cost }, { status: 402 })
     }
 
-    // Hide from catalog + record the owner. If this update fails we must
-    // not keep the money — refund by spending a negative cost.
+    // SOLD state (owner's spec v2): the asset STAYS in the catalog with a
+    // lock — is_public untouched. .is(exclusive_owner, null) guards against
+    // two buyers racing. If the update fails we refund.
     const { error: updErr } = await admin.from('assets')
-      .update({ is_public: false, owned_by: userId }).eq('id', assetId).eq('is_public', true)
+      .update({ exclusive_owner: userId, exclusive_sold_at: new Date().toISOString() })
+      .eq('id', assetId).is('exclusive_owner', null)
     if (updErr) {
       await admin.rpc('spend_credits', { p_user: userId, p_cost: -cost }).then(() => {}, () => {})
       return NextResponse.json({ error: 'Buyout failed, credits refunded' }, { status: 500 })
