@@ -436,6 +436,7 @@ function AdminDashboard() {
       })()
     }
     if (activeTab === 'pricing') loadPricing()
+    if (activeTab === 'categories') loadCombos()
     if (activeTab === 'settings') {
       fetch('/api/admin/catalog-config', { cache: 'no-store' })
         .then(r => r.json())
@@ -621,6 +622,33 @@ function AdminDashboard() {
       const j = await r.json()
       alert(j.ok ? `Сохранено: ${j.saved}` : (j.error || 'Ошибка'))
     } catch { alert('Ошибка сохранения') } finally { setPriceBusy(false) }
+  }
+
+  // ── Category visibility: hide/show whole sections without SQL ──
+  type Combo = { type: string; category: string; total: number; visible: number }
+  const [combos, setCombos] = useState<Combo[]>([])
+  const [comboBusy, setComboBusy] = useState<string | null>(null)
+  const loadCombos = async () => {
+    try {
+      const r = await fetch('/api/admin/category-visibility', { headers: await adminHeaders() })
+      const j = await r.json()
+      if (Array.isArray(j.combos)) setCombos(j.combos)
+    } catch { /* noop */ }
+  }
+  async function setComboVisibility(c: Combo, isPublic: boolean) {
+    const verb = isPublic ? 'ОТКРЫТЬ в каталог' : 'скрыть из каталога (обратимо)'
+    if (!confirm(`${c.type} / ${c.category} — ${verb} все ${c.total} ассетов?`)) return
+    setComboBusy(`${c.type}|||${c.category}`)
+    try {
+      const r = await fetch('/api/admin/category-visibility', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ type: c.type, category: c.category, is_public: isPublic }),
+      })
+      const j = await r.json()
+      if (j.ok) loadCombos()
+      else alert(j.error || 'Не сохранилось')
+    } catch { alert('Не сохранилось — попробуй ещё раз') } finally { setComboBusy(null) }
   }
 
   // ── Asset price editor modal: tier + override (NULL = follows tier) ──
@@ -1420,6 +1448,49 @@ function AdminDashboard() {
             >
               {catSaving ? 'Saving…' : catSaved ? 'Saved ✓' : 'Save'}
             </button>
+          </div>
+
+          {/* Раздел целиком: скрыть/показать без SQL */}
+          <div className="card p-5 mb-8">
+            <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--fg)' }}>Видимость разделов</h3>
+            <p className="text-xs mb-4" style={{ color: 'var(--fg-muted)' }}>
+              Скрыть или открыть ВСЕ ассеты раздела одной кнопкой. Обратимо — файлы остаются в базе.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {combos.map(c => {
+                const key = `${c.type}|||${c.category}`
+                const fullyHidden = c.visible === 0
+                return (
+                  <div key={key} className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+                    <span className="text-xs font-medium truncate" style={{ color: fullyHidden ? 'var(--fg-subtle)' : 'var(--fg)' }}>
+                      {c.type} / {c.category || '—'}
+                    </span>
+                    <span className="text-[11px] whitespace-nowrap" style={{ color: 'var(--fg-subtle)' }}>
+                      {c.visible}/{c.total}
+                    </span>
+                    <span className="ml-auto flex gap-1.5">
+                      <button
+                        onClick={() => setComboVisibility(c, true)}
+                        disabled={comboBusy === key || c.visible === c.total}
+                        className="px-2 py-1 rounded text-[11px] font-semibold disabled:opacity-30"
+                        style={{ color: '#00C264', backgroundColor: 'rgba(0,194,100,0.1)' }}
+                      >
+                        {comboBusy === key ? '…' : 'Показать все'}
+                      </button>
+                      <button
+                        onClick={() => setComboVisibility(c, false)}
+                        disabled={comboBusy === key || fullyHidden}
+                        className="px-2 py-1 rounded text-[11px] font-semibold disabled:opacity-30"
+                        style={{ color: '#ffaa3c', backgroundColor: 'rgba(255,170,60,0.1)' }}
+                      >
+                        {comboBusy === key ? '…' : 'Скрыть все'}
+                      </button>
+                    </span>
+                  </div>
+                )
+              })}
+              {combos.length === 0 && <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Загружаю разделы…</p>}
+            </div>
           </div>
 
           {/* Editable category grid */}
