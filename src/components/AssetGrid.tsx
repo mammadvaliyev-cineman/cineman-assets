@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Asset } from '@/lib/mock-data'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import { isAdminEmail, adminHeaders } from '@/components/AdminGate'
 import { CatalogConfig, DEFAULT_CATALOG_CONFIG } from '@/lib/catalogConfig'
@@ -696,11 +697,23 @@ export default function AssetGrid({
     return () => window.removeEventListener('focus', load)
   }, [])
 
-  // Re-sync from localStorage on mount (SSR-safe)
+  // Re-sync from localStorage on mount (SSR-safe) + pull DB favorites
+  // for signed-in users so hearts follow the account across devices
   useEffect(() => {
     setFavs(getFavs())
     setFreeUsed(getFreeDownloadsUsed())
   }, [])
+  useEffect(() => {
+    if (!user) return
+    supabase.from('favorites').select('asset_id').eq('user_id', user.id).then(({ data }) => {
+      if (!data) return
+      const merged = getFavs()
+      for (const r of data) merged.add(String(r.asset_id))
+      localStorage.setItem('cineman_favs', JSON.stringify(Array.from(merged)))
+      setFavs(merged)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   async function handleDownload(asset: Asset) {
     if (!asset.fileUrl) return
@@ -811,7 +824,16 @@ export default function AssetGrid({
     }
   }
 
-  function handleFav(id: string) { setFavs(toggleFav(id)) }
+  function handleFav(id: string) {
+    const before = favs.has(id)
+    setFavs(toggleFav(id))
+    // write-through to the favorites table for signed-in users
+    // (cross-device; localStorage keeps working for anonymous)
+    if (user) {
+      if (before) supabase.from('favorites').delete().eq('user_id', user.id).eq('asset_id', id).then(() => {}, () => {})
+      else supabase.from('favorites').insert({ user_id: user.id, asset_id: id }).then(() => {}, () => {})
+    }
+  }
 
   async function handleDelete(asset: Asset) {
     if (deleting) return

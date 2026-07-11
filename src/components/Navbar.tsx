@@ -149,6 +149,11 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-3">
+          {user && (
+            <Link href="/favorites" title="My favorites & collections" className="text-sm font-medium" style={{ color: 'var(--fg-muted)' }}>
+              ♥
+            </Link>
+          )}
           {user && credits !== null && (
             <Link
               href="/pricing"
