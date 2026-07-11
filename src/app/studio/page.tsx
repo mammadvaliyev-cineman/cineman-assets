@@ -562,8 +562,9 @@ export default function StudioPage() {
       }
       await new Promise<void>((resolve, reject) => {
         const iv = setInterval(async () => {
-          const r = await fetch(`/api/studio/generate?taskId=${taskId}&assetType=${assetType}&title=${encodeURIComponent(description.slice(0, 60))}&description=${encodeURIComponent(description)}`)
+          const r = await fetch(`/api/studio/generate?taskId=${taskId}&assetType=${assetType}&title=${encodeURIComponent(description.slice(0, 60))}&description=${encodeURIComponent(description)}`, { headers: await adminHeaders() })
           const j = await r.json()
+          if (typeof j.credits === 'number') window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: j.credits }))
           if (j.state === 'success' && j.asset) {
             clearInterval(iv)
             // Невыбранные варианты уходят — остаётся только новый герой
