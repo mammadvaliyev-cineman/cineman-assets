@@ -534,6 +534,14 @@ export default function StudioPage() {
     }
   }, [])
 
+  // Generation price for the button label — same price-on-button rule
+  // as Download. Falls back to 10 until pricing_defaults loads.
+  const [genCost, setGenCost] = useState(5)
+  useEffect(() => {
+    supabase.from('pricing_defaults').select('credits').eq('tier', 'gen_base').single()
+      .then(({ data }) => { if (data?.credits) setGenCost(Number(data.credits)) })
+  }, [])
+
   const generateAsset = useCallback(async (assetType: 'Character' | 'Location', description: string) => {
     setGenState('working')
     setError('')
@@ -543,8 +551,15 @@ export default function StudioPage() {
         headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) },
         body: JSON.stringify({ assetType, description }),
       })
-      const { taskId, error: err } = await res.json()
+      const json = await res.json()
+      if (json.code === 'auth') throw new Error('Sign in to generate.')
+      if (json.code === 'credits') throw new Error(`Not enough credits — generation costs ${json.cost ?? genCost} credits. Top up on the pricing page.`)
+      if (json.code === 'quota') throw new Error(json.error || 'Daily limit reached.')
+      const { taskId, error: err } = json
       if (err) throw new Error(err)
+      if (typeof json.credits === 'number') {
+        window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: json.credits }))
+      }
       await new Promise<void>((resolve, reject) => {
         const iv = setInterval(async () => {
           const r = await fetch(`/api/studio/generate?taskId=${taskId}&assetType=${assetType}&title=${encodeURIComponent(description.slice(0, 60))}&description=${encodeURIComponent(description)}`)
@@ -566,7 +581,8 @@ export default function StudioPage() {
     } finally {
       setGenState('idle')
     }
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genCost])
 
   const startRender = useCallback(async () => {
     setStep('render')
@@ -999,7 +1015,7 @@ export default function StudioPage() {
                           <Icon d={I.refresh} size={15} /> More options
                         </button>
                         <button onClick={() => generateAsset('Character', heroQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors">
-                          <Icon d={I.sparkles} size={15} /> Generate new
+                          <Icon d={I.sparkles} size={15} /> Generate new · {genCost}⚡
                         </button>
                       </div>
                     </>
@@ -1057,7 +1073,7 @@ export default function StudioPage() {
                           <Icon d={I.refresh} size={15} /> More options
                         </button>
                         <button onClick={() => generateAsset('Location', locQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors">
-                          <Icon d={I.sparkles} size={15} /> Generate new
+                          <Icon d={I.sparkles} size={15} /> Generate new · {genCost}⚡
                         </button>
                       </div>
                     </>
