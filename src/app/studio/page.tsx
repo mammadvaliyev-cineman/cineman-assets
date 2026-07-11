@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ENGINE_CATS, CAM_GROUPS, DEFAULT_ENGINE_CONFIG, EngineConfig } from '@/lib/engine'
 import { supabase } from '@/lib/supabase'
 import { adminHeaders } from '@/components/AdminGate'
+import { CreditGem } from '@/components/AssetGrid'
 
 // ─────────────────────────────────────────────────────────────
 // CINEMAN AI STUDIO — chat-first director agent.
@@ -1016,7 +1017,7 @@ export default function StudioPage() {
                           <Icon d={I.refresh} size={15} /> More options
                         </button>
                         <button onClick={() => generateAsset('Character', heroQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors">
-                          <Icon d={I.sparkles} size={15} /> Generate new · {genCost}⚡
+                          <Icon d={I.sparkles} size={15} /> Generate new · {genCost} <CreditGem size={13} />
                         </button>
                       </div>
                     </>
@@ -1074,7 +1075,7 @@ export default function StudioPage() {
                           <Icon d={I.refresh} size={15} /> More options
                         </button>
                         <button onClick={() => generateAsset('Location', locQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors">
-                          <Icon d={I.sparkles} size={15} /> Generate new · {genCost}⚡
+                          <Icon d={I.sparkles} size={15} /> Generate new · {genCost} <CreditGem size={13} />
                         </button>
                       </div>
                     </>
