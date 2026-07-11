@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
-import { dropboxTempLink } from '@/lib/dropbox'
+import { presignR2Get, r2Configured } from '@/lib/r2'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,11 +15,16 @@ export const dynamic = 'force-dynamic'
 // Hidden assets are never downloadable.
 // ─────────────────────────────────────────────────────────────
 
-// The served file: original from the owner's Dropbox when mapped,
-// otherwise the Supabase copy. Falls back to Supabase if Dropbox errors.
-async function servedUrl(data: { file_url: string; dropbox_id?: string | null }): Promise<string> {
-  if (data.dropbox_id) {
-    try { return await dropboxTempLink(String(data.dropbox_id)) } catch (e) { console.error('dropbox link failed, falling back:', e) }
+// The served file: the ORIGINAL from the private R2 bucket when mapped
+// (short-lived signed URL, handed out only after credits are spent),
+// otherwise the Supabase copy. Falls back to Supabase if R2 errors.
+function servedUrl(data: { file_url: string; title?: string | null; r2_key?: string | null }): string {
+  if (data.r2_key && r2Configured()) {
+    try {
+      const ext = String(data.r2_key).match(/\.[a-z0-9]+$/i)?.[0] ?? '.png'
+      const pretty = (data.title || 'asset').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') + ext
+      return presignR2Get(String(data.r2_key), pretty)
+    } catch (e) { console.error('r2 presign failed, falling back:', e) }
   }
   return data.file_url
 }
@@ -31,7 +36,7 @@ export async function POST(req: NextRequest) {
 
     // Look up the asset server-side — never trust client-provided URLs
     const { data, error } = await supabase
-      .from('assets').select('file_url, title, credit_cost, price_tier, resolution, exclusive_owner, dropbox_id').eq('id', assetId).eq('is_public', true).single()
+      .from('assets').select('file_url, title, credit_cost, price_tier, resolution, exclusive_owner, r2_key').eq('id', assetId).eq('is_public', true).single()
     if (error || !data?.file_url) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
     }
@@ -47,7 +52,7 @@ export async function POST(req: NextRequest) {
         // EXCLUSIVELY SOLD: stays in the catalog but only the owner can
         // download it — and the owner already paid, so it's free for them
         if (data.exclusive_owner) {
-          if (data.exclusive_owner === userId) return NextResponse.json({ url: await servedUrl(data), owned: true })
+          if (data.exclusive_owner === userId) return NextResponse.json({ url: servedUrl(data), owned: true })
           return NextResponse.json({ error: 'Exclusively sold', code: 'sold' }, { status: 403 })
         }
         // NULL credit_cost = follows the tier default (pricing_defaults)
@@ -71,7 +76,7 @@ export async function POST(req: NextRequest) {
           )
         }
         await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost }).then(() => {}, () => {})
-        return NextResponse.json({ url: await servedUrl(data), credits: remaining, cost })
+        return NextResponse.json({ url: servedUrl(data), credits: remaining, cost })
       }
       // invalid/expired token → fall through as anonymous
     }
@@ -81,7 +86,7 @@ export async function POST(req: NextRequest) {
     if (data.exclusive_owner) {
       return NextResponse.json({ error: 'Exclusively sold', code: 'sold' }, { status: 403 })
     }
-    return NextResponse.json({ url: await servedUrl(data) })
+    return NextResponse.json({ url: servedUrl(data) })
   } catch (err) {
     console.error('Download error:', err)
     return NextResponse.json({ error: 'Could not generate download link' }, { status: 500 })
