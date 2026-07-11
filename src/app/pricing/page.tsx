@@ -8,10 +8,15 @@ import { useState } from 'react'
 // one-currency footer: Download 5 · Generation 5 (4K 10) · Top up 100=$10.
 // Commercial license on Personal AND Pro — plans differ by volume.
 
-function Bolt({ size = 13, color = '#CE95FB' }: { size?: number; color?: string }) {
+// Credit currency = turquoise brilliant-cut gem (owner's spec)
+function Bolt({ size = 14 }: { size?: number; color?: string }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke="none" style={{ display: 'inline', verticalAlign: '-0.12em' }}>
-      <path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" />
+    <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ display: 'inline', verticalAlign: '-0.15em' }}>
+      <polygon points="8,5 12,5 12,10 4,10" fill="#5EEAD4" />
+      <polygon points="12,5 16,5 20,10 12,10" fill="#2DD4C4" />
+      <polygon points="4,10 12,10 12,21" fill="#2DD4C4" />
+      <polygon points="12,10 20,10 12,21" fill="#0F9E8E" />
+      <polygon points="8,5 9.6,5 6,10 4,10" fill="#ffffff" fillOpacity="0.5" />
     </svg>
   )
 }
