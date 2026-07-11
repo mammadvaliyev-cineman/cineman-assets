@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
   const admin = supabaseAdmin()
   const started = Date.now()
   let updated = 0, cartoonsFound = 0
+  const errors: string[] = []
   const BATCH = 10
   const { rows, left } = await fetchUnstyled(300)
   for (let i = 0; i < rows.length; i += BATCH) {
@@ -114,9 +115,12 @@ export async function POST(req: NextRequest) {
         if (!error) updated++
       }
     } catch (err) {
-      console.error('classify-style batch failed:', err)
-      // skip this batch, keep going — repeated POSTs will retry it
+      // report the first errors so the operator can SEE why nothing moves;
+      // on Gemini 429 back off instead of burning the whole window
+      const msg = err instanceof Error ? err.message : String(err)
+      if (errors.length < 3) errors.push(msg.slice(0, 160))
+      if (msg.includes('429')) await new Promise(res => setTimeout(res, 15000))
     }
   }
-  return NextResponse.json({ updated, cartoonsFound, leftBefore: left })
+  return NextResponse.json({ updated, cartoonsFound, leftBefore: left, errors: errors.length ? errors : undefined })
 }
