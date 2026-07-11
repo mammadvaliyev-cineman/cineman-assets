@@ -45,16 +45,16 @@ type Verdict = { type: string; category: string } | null
 
 function classify(title: string, tags: string[]): Verdict {
   const blob = (title + ' ' + tags.join(' ')).toLowerCase()
-  const word = (w: string) => new RegExp(`(^|[^a-z])${w}`, 'i').test(blob)
+  const word = (w: string) => new RegExp(`(^|[^a-z])${w}([^a-z]|s[^a-z]|s$|$)`, 'i').test(blob)
   for (const [w, cat] of CREATURES) if (word(w)) return { type: 'Creature', category: cat }
   for (const w of ROBOTS) if (word(w)) return { type: 'Robot', category: w === 'mech' ? 'Mech' : w === 'endoskeleton' ? 'Endoskeleton' : w === 'android' ? 'Android' : 'Humanoid' }
   for (const [w, cls] of ANIMALS) if (word(w)) return { type: 'Animal', category: CLASS_LABEL[cls] }
   if (LOCATION_WORDS.some(w => word(w)) && !/character|hero|costume|suit/i.test(blob)) return { type: 'Location', category: 'Misc' }
-  // humans: gendered words → Women/Kids, otherwise Men (heroes are
-  // overwhelmingly male-presenting in this set)
-  if (WOMEN.some(w => blob.includes(w))) return { type: 'People', category: 'Women' }
-  if (KIDS.some(w => blob.includes(w))) return { type: 'People', category: 'Kids' }
-  if (/man|hero|soldier|warrior|ninja|samurai|knight|pirate|sailor|astronaut|wizard|cowboy|outlaw|inventor|traveler|artist|hunter|agent|detective|king|guard|monk|viking/i.test(blob)) {
+  // humans: gendered words → Women/Kids, otherwise Men. Word boundaries
+  // matter: «man» must not match «human/humanoid», «girl» not «girlish»
+  if (WOMEN.some(w => word(w))) return { type: 'People', category: 'Women' }
+  if (KIDS.some(w => word(w.trim()))) return { type: 'People', category: 'Kids' }
+  if (/\b(man|hero|soldier|warrior|ninja|samurai|knight|pirate|sailor|astronaut|wizard|cowboy|outlaw|inventor|traveler|artist|hunter|agent|detective|king|guard|monk|viking|character)\b/i.test(blob)) {
     return { type: 'People', category: 'Men' }
   }
   return null
