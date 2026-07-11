@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 // Dollar prices live in LemonSqueezy (billing) — not stored here.
 // ─────────────────────────────────────────────────────────────
 
-const KNOWN = ['standard', 'premium', 'exclusive', 'plan_free', 'plan_personal', 'plan_pro']
+const KNOWN = ['standard', 'premium', 'exclusive', 'plan_free', 'plan_personal', 'plan_pro', 'gen_base', 'gen_4k']
 
 export async function GET(req: NextRequest) {
   const gate = await requireAdmin(req)
