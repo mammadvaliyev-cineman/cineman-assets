@@ -21,6 +21,7 @@ type AssetRow = {
   credit_cost?: number | null
   exclusive_price?: number | null
   price_tier?: string
+  exclusive_owner?: string | null
 }
 
 type Stats = {
@@ -655,6 +656,23 @@ function AdminDashboard() {
     return (b / 1048576).toFixed(1) + ' MB'
   }
 
+  // ── Revoke exclusive: return a bought-out asset to the catalog ──
+  const [revokingId, setRevokingId] = useState<string | null>(null)
+  async function revokeExclusive(asset: AssetRow) {
+    if (!confirm(`Return "${asset.title}" to the catalog?\nThe exclusive purchase will be revoked — everyone can buy and download it again.`)) return
+    setRevokingId(asset.id)
+    try {
+      const r = await fetch('/api/admin/assets', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ id: asset.id, exclusive_owner: null, exclusive_sold_at: null }),
+      })
+      const j = await r.json()
+      if (j.ok) setAssets(prev => prev.map(a => a.id === asset.id ? { ...a, exclusive_owner: null } : a))
+      else alert(j.error || 'Revoke failed')
+    } catch { alert('Revoke failed — try again') } finally { setRevokingId(null) }
+  }
+
   // ── Hide / show asset (main action — fully reversible) ────
   const [togglingId, setTogglingId] = useState<string | null>(null)
   async function toggleVisibility(asset: AssetRow) {
@@ -1108,6 +1126,14 @@ function AdminDashboard() {
                               Скрыт
                             </span>
                           )}
+                          {asset.exclusive_owner && (
+                            <span
+                              className="inline-block mt-1 ml-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                              style={{ backgroundColor: 'rgba(94,234,212,0.12)', color: '#5EEAD4', border: '1px solid rgba(94,234,212,0.35)' }}
+                            >
+                              Sold
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs font-medium" style={{ color: typeColor }}>{asset.type}</span>
@@ -1134,6 +1160,17 @@ function AdminDashboard() {
                           {new Date(asset.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-4 py-3">
+                          {asset.exclusive_owner && (
+                            <button
+                              onClick={() => revokeExclusive(asset)}
+                              disabled={revokingId === asset.id}
+                              title="Revoke the exclusive purchase — the asset returns to open sale"
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all mb-1"
+                              style={{ color: '#5EEAD4', backgroundColor: 'rgba(94,234,212,0.08)' }}
+                            >
+                              {revokingId === asset.id ? <SpinnerIcon /> : 'Return to catalog'}
+                            </button>
+                          )}
                           <button
                             onClick={() => toggleVisibility(asset)}
                             disabled={togglingId === asset.id}
