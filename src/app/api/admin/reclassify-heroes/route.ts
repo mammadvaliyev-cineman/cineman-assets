@@ -81,7 +81,7 @@ async function run(apply: boolean) {
   }
   const byTarget: Record<string, number> = {}
   for (const m of moves) byTarget[m.to] = (byTarget[m.to] || 0) + 1
-  return { total: data.length, matched: moves.length, applied: apply ? applied : undefined, byTarget, unmatched, sample: moves.slice(0, 30) }
+  return { total: data.length, matched: moves.length, applied: apply ? applied : undefined, byTarget, unmatched, sample: moves.slice(0, 30), rowsDebug: apply ? undefined : data.slice(0, 15).map(r => ({ t: r.title, tags: (Array.isArray(r.tags) ? r.tags : []).slice(0, 16) })) }
 }
 
 export async function GET(req: NextRequest) {
