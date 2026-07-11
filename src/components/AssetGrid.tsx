@@ -241,9 +241,10 @@ export function CreditGem({ size = 16 }: { size?: number }) {
   )
 }
 
-// 2K downloads cost the base price, 4K doubles it (same as generation)
+// Every download costs the tier price in the asset's NATIVE resolution —
+// native 4K is included at the same price (badge shows the truth)
 function displayPrice(a: Asset): number {
-  return (a.creditCost ?? 5) * (String(a.resolution ?? '2K') === '4K' ? 2 : 1)
+  return a.creditCost ?? 5
 }
 
 // Confetti burst for exclusive buyouts (spec §5): ~40 sparks from a
