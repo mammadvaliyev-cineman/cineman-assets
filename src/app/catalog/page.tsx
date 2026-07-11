@@ -179,6 +179,9 @@ function toAsset(a: Record<string, unknown>): Asset {
     creditCost: a.credit_cost == null ? undefined : Number(a.credit_cost),
     exclusivePrice: a.exclusive_price == null ? undefined : Number(a.exclusive_price),
     priceTier: String(a.price_tier ?? 'standard'),
+    resolution: String(a.resolution ?? '2K'),
+    exclusiveOwner: a.exclusive_owner ? String(a.exclusive_owner) : null,
+    exclusiveSoldAt: a.exclusive_sold_at ? String(a.exclusive_sold_at) : null,
   }
 }
 
