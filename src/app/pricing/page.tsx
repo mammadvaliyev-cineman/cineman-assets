@@ -95,7 +95,7 @@ const PLANS = [
 const FAQ = [
   {
     q: 'How do credits work?',
-    a: 'Credits are one currency for downloads and for generating a missing asset. A standard download is 5 credits, generation is 5 (4K is 10), an exclusive buyout is 50. Credits refresh monthly with your plan, and you can top up anytime — 100 credits for $10.',
+    a: 'Credits are one currency for downloads and generation. Every download is 5 credits in the asset\'s native resolution — some assets are native 4K, included at the same price (the badge on each card shows the real resolution). Upscaling a 2K asset to 4K is 10 credits, an exclusive buyout is 50. Credits refresh monthly, and you can top up anytime — 100 credits for $10.',
   },
   {
     q: 'Can I cancel anytime?',
@@ -256,7 +256,7 @@ export default function PricingPage() {
           Credits work for <span style={{ color: 'var(--fg)', fontWeight: 600 }}>downloads and generating a missing asset</span> — one currency.
         </p>
         <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
-          {withBolt('Standard 5⚡ · 4K 10⚡ (same for download or generate) · Top up anytime: 100 credits = $10')}
+          {withBolt('Download or generate 5⚡ (native 4K included) · Upscale 2K→4K 10⚡ · Top up anytime: 100 credits = $10')}
         </p>
       </div>
 
