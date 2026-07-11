@@ -599,7 +599,7 @@ function AdminDashboard() {
   const PRICE_LABELS: Record<string, string> = {
     standard: 'Standard — цена скачивания', premium: 'Premium — топовые ассеты', exclusive: 'Exclusive — выкуп эксклюзива',
     plan_free: 'Free — кредитов в месяц', plan_personal: 'Personal — кредитов в месяц', plan_pro: 'Pro — кредитов в месяц',
-    gen_base: 'Генерация — база (Nano Banana)', gen_4k: 'Генерация — 4K / high',
+    gen_base: 'Генерация — база (Nano Banana)', gen_4k: 'Апскейл 2K→4K (по запросу)',
   }
   const [priceRows, setPriceRows] = useState<Record<string, number>>({})
   const [priceBusy, setPriceBusy] = useState(false)
