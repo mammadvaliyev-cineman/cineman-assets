@@ -161,7 +161,7 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
           <CloseIcon />
         </button>
 
-        <div className="text-5xl mb-4">⚡</div>
+        <div className="mb-4 flex justify-center"><CreditGem size={48} /></div>
         <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Not enough credits</h2>
         <p className="text-sm mb-6" style={{ color: 'var(--fg-muted)' }}>
           You&apos;ve run out of <strong style={{ color: '#CE95FB' }}>credits</strong>.
@@ -227,24 +227,54 @@ function LockIcon({ size = 11 }: { size?: number }) {
   )
 }
 
-// Gold price token: ⚡+number in a thin gold outline (owner's spec 1.2)
-function GoldPrice({ credits }: { credits: number }) {
+// Credit currency = turquoise brilliant-cut gem (owner's spec — no bolts,
+// no gold anywhere). One component, scaled by size.
+export function CreditGem({ size = 16 }: { size?: number }) {
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 3,
-      padding: '1px 8px', borderRadius: 7, fontWeight: 800, fontSize: 12,
-      color: '#E8C979', border: '1px solid rgba(212,175,55,0.65)',
-      backgroundColor: 'rgba(212,175,55,0.10)', lineHeight: '18px',
-    }}>
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="#E8C979" stroke="none"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></svg>
-      {credits}
-    </span>
+    <svg width={size} height={size} viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ display: 'inline-block', verticalAlign: '-0.15em' }}>
+      <polygon points="8,5 12,5 12,10 4,10" fill="#5EEAD4" />
+      <polygon points="12,5 16,5 20,10 12,10" fill="#2DD4C4" />
+      <polygon points="4,10 12,10 12,21" fill="#2DD4C4" />
+      <polygon points="12,10 20,10 12,21" fill="#0F9E8E" />
+      <polygon points="8,5 9.6,5 6,10 4,10" fill="#ffffff" fillOpacity="0.5" />
+    </svg>
   )
 }
 
 // 2K downloads cost the base price, 4K doubles it (same as generation)
 function displayPrice(a: Asset): number {
   return (a.creditCost ?? 5) * (String(a.resolution ?? '2K') === '4K' ? 2 : 1)
+}
+
+// Confetti burst for exclusive buyouts (spec §5): ~40 sparks from a
+// point, canvas-based, ~600ms, zero dependencies.
+function confettiBurst(x: number, y: number) {
+  const canvas = document.createElement('canvas')
+  canvas.width = window.innerWidth
+  canvas.height = window.innerHeight
+  canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999'
+  document.body.appendChild(canvas)
+  const ctx = canvas.getContext('2d')!
+  const colors = ['#3BE3D0', '#9765E0', '#ffffff', '#F4B41A']
+  const parts = Array.from({ length: 42 }, () => {
+    const a = Math.random() * Math.PI * 2
+    const v = 2.5 + Math.random() * 4.5
+    return { x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, r: 1.5 + Math.random() * 2.5, c: colors[Math.floor(Math.random() * colors.length)] }
+  })
+  const t0 = performance.now()
+  const tick = (now: number) => {
+    const k = (now - t0) / 650
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    if (k >= 1) { canvas.remove(); return }
+    ctx.globalAlpha = 1 - k
+    for (const p of parts) {
+      p.x += p.vx; p.y += p.vy; p.vy += 0.14
+      ctx.fillStyle = p.c
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill()
+    }
+    requestAnimationFrame(tick)
+  }
+  requestAnimationFrame(tick)
 }
 
 // Sentence case for card titles («Casual studio portrait in olive»).
@@ -376,7 +406,7 @@ function AssetCard({
               }}
             >
               {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
-              {isDownloading ? '…' : (<>Download <GoldPrice credits={mine ? 0 : displayPrice(asset)} /></>)}
+              {isDownloading ? '…' : (<>Download · {mine ? 0 : displayPrice(asset)} <CreditGem size={13} /></>)}
             </button>
           ))}
         </div>
@@ -471,9 +501,9 @@ function AssetCard({
             className="absolute top-2 right-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md"
             style={{
               zIndex: 4,
-              color: mine ? '#7EE7C7' : '#E8C979',
+              color: mine ? '#7EE7C7' : '#5EEAD4',
               backgroundColor: 'rgba(8,5,15,0.78)',
-              border: `1px solid ${mine ? 'rgba(126,231,199,0.45)' : 'rgba(212,175,55,0.45)'}`,
+              border: `1px solid ${mine ? 'rgba(126,231,199,0.45)' : 'rgba(94,234,212,0.4)'}`,
               backdropFilter: 'blur(6px)',
             }}
           >
@@ -523,9 +553,10 @@ function AssetCard({
             {downloadState === 'done' && (
               <span style={{
                 position: 'absolute', top: -10, left: '50%', pointerEvents: 'none',
-                fontSize: 13, fontWeight: 800, color: '#E8C979',
+                fontSize: 13, fontWeight: 800, color: '#5EEAD4',
                 animation: 'cine-fly-up .7s ease-out forwards',
-              }}>−{displayPrice(asset)}</span>
+                display: 'inline-flex', alignItems: 'center', gap: 2,
+              }}>−{displayPrice(asset)} <CreditGem size={11} /></span>
             )}
 
             {locked ? (
@@ -549,36 +580,42 @@ function AssetCard({
               <button
                 onClick={e => { e.stopPropagation(); onDownload() }}
                 disabled={isDownloading || downloadState === 'done'}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
+                className="w-full flex items-stretch rounded-lg text-sm font-semibold transition-all overflow-hidden"
                 style={{
                   background: downloadState === 'done'
                     ? 'linear-gradient(135deg,#0EA97A,#0B8763)'
                     : (isDownloading ? 'rgba(151,101,224,0.5)' : 'linear-gradient(135deg,#9765E0,#534FA5)'),
                   color: 'white',
+                  padding: 0,
                 }}
               >
-                {downloadState === 'done'
-                  ? '✓ Downloaded'
-                  : isDownloading
-                    ? (<><SpinnerIcon /> Generating link…</>)
-                    : (
-                      <>
-                        Download
-                        <span
-                          onClick={isAdmin && onPrice ? (e => { e.stopPropagation(); onPrice() }) : undefined}
-                          style={isAdmin && onPrice ? { cursor: 'pointer' } : undefined}
-                          title={isAdmin && onPrice ? 'Изменить цену (admin)' : undefined}
-                        >
-                          <GoldPrice credits={mine ? 0 : displayPrice(asset)} />
-                        </span>
-                        <span
-                          className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                          style={{ border: '1px solid rgba(255,255,255,0.35)', color: 'rgba(255,255,255,0.85)', lineHeight: '12px' }}
-                        >
-                          {asset.resolution ?? '2K'}
-                        </span>
-                      </>
-                    )}
+                {downloadState === 'done' ? (
+                  <span className="flex-1 flex items-center justify-center gap-2 py-2">✓ Downloaded</span>
+                ) : isDownloading ? (
+                  <span className="flex-1 flex items-center justify-center gap-2 py-2"><SpinnerIcon /> Generating link…</span>
+                ) : (
+                  <>
+                    {/* variant D: main action left, price on a darker inset right */}
+                    <span className="flex-1 flex items-center justify-center gap-1.5 py-2">
+                      <DownloadIcon /> Download
+                    </span>
+                    <span
+                      className="flex items-center gap-1.5 px-2.5"
+                      onClick={isAdmin && onPrice ? (e => { e.stopPropagation(); onPrice() }) : undefined}
+                      title={isAdmin && onPrice ? 'Edit price (admin)' : undefined}
+                      style={{ backgroundColor: 'rgba(0,0,0,0.22)', cursor: isAdmin && onPrice ? 'pointer' : undefined }}
+                    >
+                      <CreditGem size={14} />
+                      <span style={{ fontWeight: 800, color: 'white', fontSize: 13 }}>{mine ? 0 : displayPrice(asset)}</span>
+                      <span
+                        className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ border: '1px solid rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.85)', lineHeight: '12px' }}
+                      >
+                        {asset.resolution ?? '2K'}
+                      </span>
+                    </span>
+                  </>
+                )}
               </button>
             )}
 
@@ -594,7 +631,7 @@ function AssetCard({
                   }}
                 >
                   {isBuying ? <SpinnerIcon /> : <CrownIcon size={12} />}
-                  Buy exclusive rights · {asset.exclusivePrice ?? 50}⚡
+                  Buy exclusive rights · {asset.exclusivePrice ?? 50} <CreditGem size={12} />
                 </button>
                 <p style={{ fontSize: 9.5, lineHeight: 1.35, color: 'var(--fg-subtle)', marginTop: 1 }}>
                   You own it — nobody else can buy or download it after.
@@ -625,6 +662,13 @@ export default function AssetGrid({
   const [deletedIds, setDeletedIds]   = useState<Set<string>>(new Set())
   const [deleting, setDeleting]       = useState<string | null>(null)
   const [buying, setBuying]           = useState<string | null>(null)
+  // no native browser dialogs (spec §4): styled modals + a small toast
+  const [toast, setToast]             = useState<string | null>(null)
+  const toastMsg = (m: string) => { setToast(m); setTimeout(() => setToast(null), 3200) }
+  const [buyTarget, setBuyTarget]     = useState<Asset | null>(null)
+  const [priceTarget, setPriceTarget] = useState<Asset | null>(null)
+  const [pOverride, setPOverride]     = useState('')
+  const [pExclusive, setPExclusive]   = useState('')
   // per-card download feedback: 'done' shows ✓ Downloaded ~1.4s,
   // 'nocredits' flips the button to Get credits (→ /pricing)
   const [doneIds, setDoneIds]         = useState<Set<string>>(new Set())
@@ -669,10 +713,10 @@ export default function AssetGrid({
         setMoveTarget(null)
         setMoveTo('')
       } else {
-        alert(json.error || 'Move failed')
+        toastMsg(json.error || 'Move failed')
       }
     } catch {
-      alert('Move failed — please try again')
+      toastMsg('Move failed — please try again')
     } finally {
       setMoveBusy(false)
     }
@@ -731,7 +775,7 @@ export default function AssetGrid({
       })
       const json = await res.json()
       if (res.status === 403 && json.code === 'sold') {
-        alert('This asset was exclusively sold — only its owner can download it.')
+        toastMsg('Exclusively sold — only its owner can download it')
         return
       }
       if (res.status === 402 && json.code === 'credits') {
@@ -755,26 +799,28 @@ export default function AssetGrid({
         const dlUrl = json.url.includes('/storage/v1/') ? json.url + (json.url.includes('?') ? '&' : '?') + 'download' : json.url
         window.location.href = dlUrl
       } else {
-        alert(json.error || 'Download failed')
+        toastMsg(json.error || 'Download failed')
       }
     } catch {
-      alert('Download failed — please try again')
+      toastMsg('Download failed — please try again')
     } finally {
       setDownloading(null)
     }
   }
 
-  // Admin: price override via prompts. Empty input = follow the tier
-  // default from Admin → Pricing (credit_cost stays NULL in the DB).
-  async function handlePrice(asset: Asset) {
-    const cur = priceEdits[asset.id] ?? { creditCost: asset.creditCost ?? 5, exclusivePrice: asset.exclusivePrice ?? 50 }
-    const p1 = window.prompt('Override цены скачивания ⚡ (пусто = по тиру из Admin → Pricing):', String(cur.creditCost))
-    if (p1 === null) return
-    const p2 = window.prompt('Override цены эксклюзива 👑⚡ (пусто = по тиру):', String(cur.exclusivePrice))
-    if (p2 === null) return
-    const creditCost = p1.trim() === '' ? null : Math.max(0, Math.round(Number(p1)))
-    const exclusivePrice = p2.trim() === '' ? null : Math.max(0, Math.round(Number(p2)))
-    if ((creditCost !== null && !Number.isFinite(creditCost)) || (exclusivePrice !== null && !Number.isFinite(exclusivePrice))) { alert('Нужно число или пусто'); return }
+  // Admin: price override — styled modal, no prompts (spec 4b)
+  function handlePrice(asset: Asset) {
+    setPriceTarget(asset)
+    setPOverride('')
+    setPExclusive('')
+  }
+
+  async function savePriceOverride() {
+    const asset = priceTarget
+    if (!asset) return
+    const creditCost = pOverride.trim() === '' ? null : Math.max(0, Math.round(Number(pOverride)))
+    const exclusivePrice = pExclusive.trim() === '' ? null : Math.max(0, Math.round(Number(pExclusive)))
+    if ((creditCost !== null && !Number.isFinite(creditCost)) || (exclusivePrice !== null && !Number.isFinite(exclusivePrice))) { toastMsg('Enter a number or leave empty'); return }
     try {
       const res = await fetch('/api/admin/assets', {
         method: 'PATCH',
@@ -782,17 +828,27 @@ export default function AssetGrid({
         body: JSON.stringify({ id: asset.id, credit_cost: creditCost, exclusive_price: exclusivePrice }),
       })
       const json = await res.json()
-      if (json.ok) setPriceEdits(prev => ({ ...prev, [asset.id]: { creditCost: creditCost ?? asset.creditCost ?? 5, exclusivePrice: exclusivePrice ?? asset.exclusivePrice ?? 50 } }))
-      else alert(json.error || 'Не сохранилось')
-    } catch { alert('Не сохранилось — попробуй ещё раз') }
+      if (json.ok) {
+        setPriceEdits(prev => ({ ...prev, [asset.id]: { creditCost: creditCost ?? asset.creditCost ?? 5, exclusivePrice: exclusivePrice ?? asset.exclusivePrice ?? 50 } }))
+        setPriceTarget(null)
+        toastMsg('Price saved')
+      } else toastMsg(json.error || 'Save failed')
+    } catch { toastMsg('Save failed — try again') }
   }
 
-  // Exclusive buyout: Pro-only, hides the asset from the catalog forever
-  async function handleBuyout(asset: Asset) {
+  // Exclusive buyout: styled modal (no window.confirm), Pro-only
+  function handleBuyout(asset: Asset) {
     if (buying) return
     if (!user) { setShowUpgrade(true); return }
-    const price = priceEdits[asset.id]?.exclusivePrice ?? asset.exclusivePrice ?? 50
-    if (!window.confirm(`Spend ${price} credits on this exclusive?\nRemoves it from the catalog — only you can use it.`)) return
+    setBuyTarget(asset)
+  }
+
+  async function confirmBuyout(e: React.MouseEvent) {
+    const asset = buyTarget
+    if (!asset || buying) return
+    // celebration burst from the Confirm button itself
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const bx = rect.left + rect.width / 2, by = rect.top + rect.height / 2
     setBuying(asset.id)
     try {
       const res = await fetch('/api/buyout', {
@@ -802,6 +858,7 @@ export default function AssetGrid({
       })
       const json = await res.json()
       if ((res.status === 403 && json.code === 'pro') || (res.status === 402 && json.code === 'credits') || (res.status === 401 && json.code === 'auth')) {
+        setBuyTarget(null)
         setShowUpgrade(true)
         return
       }
@@ -812,13 +869,18 @@ export default function AssetGrid({
         recordDownload(asset.id)
         // SOLD: the card stays in the catalog, now marked «Owned by you»
         setOwnedIds(prev => { const next = new Set(prev); next.add(asset.id); return next })
+        confettiBurst(bx, by)
+        toastMsg('Yours now — exclusive')
+        setTimeout(() => setBuyTarget(null), 650)
         const buyUrl = json.url.includes('/storage/v1/') ? json.url + (json.url.includes('?') ? '&' : '?') + 'download' : json.url
-        window.location.href = buyUrl
+        setTimeout(() => { window.location.href = buyUrl }, 700)
       } else {
-        alert(json.error || 'Выкуп не прошёл')
+        toastMsg(json.error || 'Purchase failed — try again')
+        setBuyTarget(null)
       }
     } catch {
-      alert('Выкуп не прошёл — попробуй ещё раз')
+      toastMsg('Purchase failed — try again')
+      setBuyTarget(null)
     } finally {
       setBuying(null)
     }
@@ -846,10 +908,10 @@ export default function AssetGrid({
       if (json.ok) {
         setDeletedIds(prev => { const next = new Set(prev); next.add(asset.id); return next })
       } else {
-        alert(json.error || 'Delete failed')
+        toastMsg(json.error || 'Delete failed')
       }
     } catch {
-      alert('Delete failed — please try again')
+      toastMsg('Delete failed — please try again')
     } finally {
       setDeleting(null)
     }
@@ -857,7 +919,7 @@ export default function AssetGrid({
 
   // Hide (reversible) — the main admin action; PATCH is_public=false
   async function handleHide(asset: Asset) {
-    if (!window.confirm(`Скрыть "${asset.title}" из каталога?\nАссет останется в базе — вернуть можно в Admin → Assets.`)) return
+    if (!window.confirm(`Hide "${asset.title}" from the catalog?\nIt stays in the base — restore anytime in Admin → Assets.`)) return
     try {
       const res = await fetch('/api/admin/assets', {
         method: 'PATCH',
@@ -866,8 +928,8 @@ export default function AssetGrid({
       })
       const json = await res.json()
       if (json.ok) setDeletedIds(prev => { const next = new Set(prev); next.add(asset.id); return next })
-      else alert(json.error || 'Hide failed')
-    } catch { alert('Hide failed — please try again') }
+      else toastMsg(json.error || 'Hide failed')
+    } catch { toastMsg('Hide failed — please try again') }
   }
 
   const visibleAssets = (deletedIds.size === 0 ? assets : assets.filter(a => !deletedIds.has(a.id)))
@@ -952,6 +1014,128 @@ export default function AssetGrid({
       )}
 
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
+
+      {/* Exclusive buyout confirm — styled, no browser dialogs (spec 4a) */}
+      {buyTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(8,5,15,0.80)', backdropFilter: 'blur(8px)' }}
+          onClick={() => !buying && setBuyTarget(null)}
+        >
+          <div
+            className="relative max-w-sm w-full rounded-2xl p-7 text-center"
+            style={{
+              background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(0,194,186,0.07) 100%)',
+              border: '1px solid rgba(94,234,212,0.35)',
+              boxShadow: '0 0 60px rgba(0,194,186,0.18)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-3 flex justify-center"><CrownIcon size={26} /></div>
+            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Own this exclusively?</h2>
+            <p className="text-sm mb-1 flex items-center justify-center gap-1.5" style={{ color: 'var(--fg-muted)' }}>
+              Spend {buyTarget.exclusivePrice ?? 50} <CreditGem size={14} /> to buy exclusive rights.
+            </p>
+            <p className="text-xs mb-6" style={{ color: 'var(--fg-subtle)' }}>
+              Nobody else can buy or download it after.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setBuyTarget(null)}
+                disabled={buying === buyTarget.id}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium"
+                style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmBuyout}
+                disabled={buying === buyTarget.id}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white"
+                style={{ background: 'linear-gradient(135deg, #00C2BA, #0B8763)', opacity: buying === buyTarget.id ? 0.6 : 1 }}
+              >
+                {buying === buyTarget.id ? 'Processing…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Admin price override — styled input modal, English (spec 4b) */}
+      {priceTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(8,5,15,0.80)', backdropFilter: 'blur(8px)' }}
+          onClick={() => setPriceTarget(null)}
+        >
+          <div
+            className="relative max-w-sm w-full rounded-2xl p-7"
+            style={{
+              background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(151,101,224,0.08) 100%)',
+              border: '1px solid rgba(151,101,224,0.35)',
+              boxShadow: '0 0 60px rgba(151,101,224,0.25)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Asset price</h2>
+            <p className="text-xs mb-5 truncate" style={{ color: 'var(--fg-muted)' }}>{sentenceCase(priceTarget.title)}</p>
+
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>
+              Override download price <span style={{ color: 'var(--fg-subtle)' }}>(leave empty = tier default)</span>
+            </label>
+            <input
+              type="number" min={0}
+              value={pOverride}
+              onChange={e => setPOverride(e.target.value)}
+              placeholder={`current: ${priceTarget.creditCost ?? 5}`}
+              className="input-field w-full text-sm mb-4"
+              style={{ padding: '9px 12px' }}
+            />
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>
+              Override exclusive price <span style={{ color: 'var(--fg-subtle)' }}>(leave empty = default)</span>
+            </label>
+            <input
+              type="number" min={0}
+              value={pExclusive}
+              onChange={e => setPExclusive(e.target.value)}
+              placeholder={`current: ${priceTarget.exclusivePrice ?? 50}`}
+              className="input-field w-full text-sm mb-5"
+              style={{ padding: '9px 12px' }}
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={savePriceOverride}
+                className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white"
+                style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)' }}
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setPriceTarget(null)}
+                className="px-5 py-2.5 rounded-xl text-sm font-medium"
+                style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast — replaces every native alert() */}
+      {toast && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-2.5 rounded-xl text-sm font-semibold fade-in-up"
+          style={{
+            backgroundColor: 'rgba(8,5,15,0.92)',
+            border: '1px solid rgba(94,234,212,0.4)',
+            color: 'var(--fg)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          {toast}
+        </div>
+      )}
 
       {/* Admin: move-to-section modal */}
       {moveTarget && (

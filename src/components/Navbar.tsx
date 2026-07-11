@@ -5,6 +5,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useTheme } from '@/components/ThemeProvider'
 import { useAuth } from '@/components/AuthProvider'
 import { isAdminEmail } from '@/components/AdminGate'
+import { CreditGem } from '@/components/AssetGrid'
 import { supabase } from '@/lib/supabase'
 
 // ── Cineman Logo Icon ─────────────────────────────────────────
@@ -164,7 +165,7 @@ export default function Navbar() {
                 animation: pulse ? 'cine-chip-pulse .45s ease-out' : undefined,
               }}
             >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="#CE95FB" stroke="none"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" /></svg>
+              <CreditGem size={14} />
               {credits}
             </Link>
           )}
