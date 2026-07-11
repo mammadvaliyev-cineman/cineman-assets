@@ -542,10 +542,10 @@ function AdminDashboard() {
     setSelectedIds(prev => prev.size === visibleRows.length ? new Set() : new Set(visibleRows.map(r => r.id)))
   }
 
-  async function bulkAction(kind: 'hide' | 'delete') {
+  async function bulkAction(kind: 'show' | 'hide' | 'delete') {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
-    const verb = kind === 'delete' ? 'УДАЛИТЬ НАВСЕГДА (вместе с файлами)' : 'скрыть из каталога (обратимо)'
+    const verb = kind === 'delete' ? 'УДАЛИТЬ НАВСЕГДА (вместе с файлами)' : kind === 'hide' ? 'скрыть из каталога (обратимо)' : 'ОТКРЫТЬ в публичный каталог'
     if (!confirm(`${ids.length} ассетов — ${verb}. Продолжить?`)) return
     setBulkBusy(true)
     const headers = await adminHeaders()
@@ -556,8 +556,9 @@ function AdminDashboard() {
           const r = await fetch(`/api/admin/assets?id=${encodeURIComponent(id)}`, { method: 'DELETE', headers })
           if (r.ok) { done++; setAssets(prev => prev.filter(a => a.id !== id)) }
         } else {
-          const r = await fetch('/api/admin/assets', { method: 'PATCH', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ id, is_public: false }) })
-          if (r.ok) { done++; setAssets(prev => prev.map(a => a.id === id ? { ...a, is_public: false } : a)) }
+          const pub = kind === 'show'
+          const r = await fetch('/api/admin/assets', { method: 'PATCH', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ id, is_public: pub }) })
+          if (r.ok) { done++; setAssets(prev => prev.map(a => a.id === id ? { ...a, is_public: pub } : a)) }
         }
       } catch { /* keep going */ }
     }
@@ -1046,6 +1047,14 @@ function AdminDashboard() {
                       style={{ color: '#CE95FB', border: '1px solid rgba(206,149,251,0.4)', backgroundColor: 'rgba(206,149,251,0.08)' }}
                     >
                       {bulkBusy ? '…' : 'Задать стиль'}
+                    </button>
+                    <button
+                      onClick={() => bulkAction('show')}
+                      disabled={bulkBusy}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: 'rgba(0,194,100,0.12)', color: '#00C264', border: '1px solid rgba(0,194,100,0.4)' }}
+                    >
+                      {bulkBusy ? '…' : 'Показать выбранные'}
                     </button>
                     <button
                       onClick={() => bulkAction('hide')}
