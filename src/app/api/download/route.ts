@@ -47,8 +47,9 @@ export async function POST(req: NextRequest) {
             .select('credits').eq('tier', String(data.price_tier ?? 'standard')).single()
           cost = Number(pd?.credits ?? 5)
         }
-        // 4K costs double — same rule for download and generation
-        if (String(data.resolution ?? '2K') === '4K') cost *= 2
+        // Native 4K is INCLUDED at the same price (owner's decision):
+        // the resolution badge tells the truth, the price doesn't change.
+        // 10-credit price is reserved for on-demand 2K→4K upscaling.
         const { data: remaining, error: rpcErr } = await admin.rpc('spend_credits', { p_user: userId, p_cost: cost })
         if (rpcErr) {
           return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
