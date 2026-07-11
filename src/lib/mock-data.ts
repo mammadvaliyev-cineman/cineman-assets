@@ -11,6 +11,9 @@ export type Asset = {
   creditCost?: number // download price in credits (default 5)
   exclusivePrice?: number // exclusive buyout price in credits (default = tier)
   priceTier?: string // 'standard' | 'premium' | 'exclusive' — pricing_defaults key
+  resolution?: string // '2K' | '4K' — 4K doubles the download price
+  exclusiveOwner?: string | null // uuid — set = exclusively sold (asset stays in catalog, locked)
+  exclusiveSoldAt?: string | null
 }
 
 // No mock data — all assets come from Supabase
