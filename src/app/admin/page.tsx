@@ -596,6 +596,7 @@ function AdminDashboard() {
   const PRICE_LABELS: Record<string, string> = {
     standard: 'Standard — цена скачивания', premium: 'Premium — топовые ассеты', exclusive: 'Exclusive — выкуп эксклюзива',
     plan_free: 'Free — кредитов в месяц', plan_personal: 'Personal — кредитов в месяц', plan_pro: 'Pro — кредитов в месяц',
+    gen_base: 'Генерация — база (Nano Banana)', gen_4k: 'Генерация — 4K / high',
   }
   const [priceRows, setPriceRows] = useState<Record<string, number>>({})
   const [priceBusy, setPriceBusy] = useState(false)
@@ -1522,6 +1523,29 @@ function AdminDashboard() {
             </p>
             <div className="space-y-3">
               {['plan_free', 'plan_personal', 'plan_pro'].map(t => (
+                <label key={t} className="flex items-center justify-between gap-4">
+                  <span className="text-sm" style={{ color: 'var(--fg-muted)' }}>{PRICE_LABELS[t]}</span>
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="number" min={0}
+                      value={priceRows[t] ?? ''}
+                      onChange={e => setPriceRows(prev => ({ ...prev, [t]: Number(e.target.value) }))}
+                      className="input-field text-sm text-right"
+                      style={{ width: 90, padding: '7px 10px' }}
+                    />
+                    <span className="text-sm font-bold" style={{ color: '#CE95FB' }}>⚡</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="card p-7">
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Генерация (Studio)</h2>
+            <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
+              Одна валюта со скачиваниями. Себестоимость $0.02–0.12 за картинку — маржа заложена в цену.
+            </p>
+            <div className="space-y-3">
+              {['gen_base', 'gen_4k'].map(t => (
                 <label key={t} className="flex items-center justify-between gap-4">
                   <span className="text-sm" style={{ color: 'var(--fg-muted)' }}>{PRICE_LABELS[t]}</span>
                   <span className="flex items-center gap-2">
