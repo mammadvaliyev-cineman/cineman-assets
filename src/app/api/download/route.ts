@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
 
     // Look up the asset server-side — never trust client-provided URLs
     const { data, error } = await supabase
-      .from('assets').select('file_url, title, credit_cost, price_tier').eq('id', assetId).eq('is_public', true).single()
+      .from('assets').select('file_url, title, credit_cost, price_tier, resolution, exclusive_owner').eq('id', assetId).eq('is_public', true).single()
     if (error || !data?.file_url) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
     }
@@ -34,6 +34,12 @@ export async function POST(req: NextRequest) {
       const { data: userData, error: userErr } = await admin.auth.getUser(token)
       if (!userErr && userData?.user) {
         const userId = userData.user.id
+        // EXCLUSIVELY SOLD: stays in the catalog but only the owner can
+        // download it — and the owner already paid, so it's free for them
+        if (data.exclusive_owner) {
+          if (data.exclusive_owner === userId) return NextResponse.json({ url: data.file_url, owned: true })
+          return NextResponse.json({ error: 'Exclusively sold', code: 'sold' }, { status: 403 })
+        }
         // NULL credit_cost = follows the tier default (pricing_defaults)
         let cost = data.credit_cost == null ? NaN : Number(data.credit_cost)
         if (!Number.isFinite(cost)) {
@@ -41,6 +47,8 @@ export async function POST(req: NextRequest) {
             .select('credits').eq('tier', String(data.price_tier ?? 'standard')).single()
           cost = Number(pd?.credits ?? 5)
         }
+        // 4K costs double — same rule for download and generation
+        if (String(data.resolution ?? '2K') === '4K') cost *= 2
         const { data: remaining, error: rpcErr } = await admin.rpc('spend_credits', { p_user: userId, p_cost: cost })
         if (rpcErr) {
           return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
@@ -57,7 +65,11 @@ export async function POST(req: NextRequest) {
       // invalid/expired token → fall through as anonymous
     }
 
-    // Anonymous flow — unchanged (client enforces the free limit)
+    // Anonymous flow — unchanged (client enforces the free limit),
+    // but sold assets are locked for everyone except the owner
+    if (data.exclusive_owner) {
+      return NextResponse.json({ error: 'Exclusively sold', code: 'sold' }, { status: 403 })
+    }
     return NextResponse.json({ url: data.file_url })
   } catch (err) {
     console.error('Download error:', err)
