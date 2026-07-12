@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     // Look up the asset server-side — never trust client-provided URLs
     const { data, error } = await supabase
-      .from('assets').select('file_url, title, credit_cost, price_tier, resolution, exclusive_owner, r2_key').eq('id', assetId).eq('is_public', true).single()
+      .from('assets').select('file_url, title, credit_cost, price_tier, resolution, exclusive_owner, r2_key, is_public').eq('id', assetId).single()
     if (error || !data?.file_url) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
     }
@@ -65,6 +65,11 @@ export async function POST(req: NextRequest) {
         if (purchased) {
           await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost: 0 }).then(() => {}, () => {})
           return NextResponse.json({ url: servedUrl(data), owned: true, cost: 0 })
+        }
+        // HIDDEN assets (e.g. private generated videos) are only for owners —
+        // reaching here means this user does NOT own it
+        if (!data.is_public && !adminFree) {
+          return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
         }
         if (adminFree) {
           await admin.from('purchases').upsert(
@@ -106,7 +111,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Anonymous flow — unchanged (client enforces the free limit),
-    // but sold assets are locked for everyone except the owner
+    // but hidden assets are invisible and sold assets are locked
+    if (!data.is_public) {
+      return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
+    }
     if (data.exclusive_owner) {
       return NextResponse.json({ error: 'Exclusively sold', code: 'sold' }, { status: 403 })
     }
