@@ -51,12 +51,21 @@ function BookmarkIcon({ filled, size = 13 }: { filled: boolean; size?: number })
   )
 }
 
+function TrashIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+    </svg>
+  )
+}
+
 export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 'saved'; onSavedChanged?: () => void }) {
   const { user } = useAuth()
   const [purchased, setPurchased] = useState<Row[]>([])
   const [saved, setSaved] = useState<Row[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
   const [activeCol, setActiveCol] = useState<Collection | null>(null)
+  const [delCol, setDelCol] = useState<Collection | null>(null) // delete-board confirm
   const [colAssets, setColAssets] = useState<Row[]>([])
   const [newName, setNewName] = useState('')
   const [loading, setLoading] = useState(true)
@@ -165,11 +174,22 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
     if (activeCol?.id === c.id) setActiveCol({ ...c, name })
   }
 
-  async function deleteCollection(c: Collection) {
+  // Deleting a BOARD never touches the assets — they stay in «All saved»
+  // and in every other collection (owner's spec). Empty boards delete
+  // silently; boards with assets ask first.
+  function askDeleteCollection(c: Collection) {
+    if ((c.count ?? 0) > 0) setDelCol(c)
+    else doDeleteCollection(c)
+  }
+
+  async function doDeleteCollection(c: Collection) {
+    setDelCol(null)
     await supabase.from('collection_items').delete().eq('collection_id', c.id)
-    await supabase.from('collections').delete().eq('id', c.id)
+    const { error } = await supabase.from('collections').delete().eq('id', c.id)
+    if (error) { say('Could not delete the collection — try again'); return }
     setCollections(prev => prev.filter(x => x.id !== c.id))
     if (activeCol?.id === c.id) { setActiveCol(null); setColAssets([]) }
+    say('Collection deleted — assets stay in your saved')
   }
 
   async function openCollection(c: Collection) {
@@ -258,7 +278,7 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
             <button onClick={() => setActiveCol(null)} className="text-sm" style={{ color: 'var(--fg-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>← Collections</button>
             <h2 className="text-lg font-bold" style={{ color: 'var(--fg)' }}>{activeCol.name}</h2>
             <button onClick={() => renameCollection(activeCol)} className="text-[11px]" style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>Rename</button>
-            <button onClick={() => deleteCollection(activeCol)} className="text-[11px]" style={{ color: '#e06060', background: 'none', border: 'none', cursor: 'pointer' }}>Delete</button>
+            <button onClick={() => askDeleteCollection({ ...activeCol, count: colAssets.length })} className="text-[11px]" style={{ color: '#e06060', background: 'none', border: 'none', cursor: 'pointer' }}>Delete</button>
           </div>
           {colAssets.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
@@ -288,7 +308,7 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
           {collections.length > 0 && (
             <div className="mb-8" style={{ display: 'flex', flexWrap: 'wrap', gap: 14 }}>
               {collections.map(c => (
-                <button key={c.id} onClick={() => openCollection(c)} className="card text-left" style={{ width: 200, cursor: 'pointer', overflow: 'hidden', padding: 0, border: '1px solid var(--border)', background: 'var(--bg-card)' }}>
+                <div key={c.id} onClick={() => openCollection(c)} className="card text-left group" style={{ width: 200, cursor: 'pointer', overflow: 'hidden', padding: 0, border: '1px solid var(--border)', background: 'var(--bg-card)', position: 'relative' }}>
                   <div style={{ aspectRatio: '16/10', backgroundColor: 'var(--bg-subtle)', overflow: 'hidden' }}>
                     {c.cover
                       /* eslint-disable-next-line @next/next/no-img-element */
@@ -299,7 +319,16 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
                     <p className="text-xs font-bold truncate" style={{ color: 'var(--fg)' }}>{c.name}</p>
                     <p className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>{c.count ?? 0} assets</p>
                   </div>
-                </button>
+                  {/* delete the BOARD only — assets stay saved */}
+                  <button
+                    onClick={e => { e.stopPropagation(); askDeleteCollection(c) }}
+                    title="Delete collection"
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                    style={{ padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer', backgroundColor: 'rgba(220,60,60,0.6)', color: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <TrashIcon />
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -316,6 +345,22 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
               ), true))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Delete-collection confirm (only for boards WITH assets) */}
+      {delCol && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(8,5,15,0.8)', backdropFilter: 'blur(6px)' }} onClick={() => setDelCol(null)}>
+          <div className="rounded-2xl p-6 max-w-xs w-full" style={{ backgroundColor: '#120D1D', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
+            <p className="text-sm font-bold mb-1" style={{ color: 'var(--fg)' }}>Delete collection?</p>
+            <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
+              «{delCol.name}» — {delCol.count} asset{(delCol.count ?? 0) === 1 ? '' : 's'}. Assets stay in your saved.
+            </p>
+            <div className="flex gap-2">
+              <button onClick={() => doDeleteCollection(delCol)} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ backgroundColor: '#DC3C3C', border: 'none', cursor: 'pointer' }}>Delete</button>
+              <button onClick={() => setDelCol(null)} className="px-4 py-2.5 rounded-xl text-sm font-bold" style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 

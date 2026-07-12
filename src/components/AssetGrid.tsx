@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Asset } from '@/lib/mock-data'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
@@ -18,6 +18,7 @@ const TYPE_STYLE: Record<string, { bg: string; color: string; icon: string }> = 
   Architecture:      { bg: 'rgba(54,0,156,0.75)',    color: '#CE95FB', icon: '🏛'  },
   Nature:            { bg: 'rgba(0,194,100,0.7)',    color: '#EEE8FF', icon: '🌿' },
   Creature:          { bg: 'rgba(220,80,80,0.7)',    color: '#EEE8FF', icon: '🐉' },
+  Zombie:            { bg: 'rgba(140,180,60,0.7)',   color: '#EEE8FF', icon: '🧟' },
   Fantasy:           { bg: 'rgba(206,149,251,0.75)', color: '#1a0a2e', icon: '✨' },
   'Sci-Fi':          { bg: 'rgba(0,194,186,0.7)',    color: '#EEE8FF', icon: '🚀' },
   Prop:              { bg: 'rgba(151,101,224,0.6)',   color: '#EEE8FF', icon: '📦' },
@@ -256,9 +257,10 @@ function displayPrice(a: Asset): number {
   return a.creditCost ?? 5
 }
 
-// Confetti burst for exclusive buyouts (spec §5): ~40 sparks from a
-// point, canvas-based, ~600ms, zero dependencies.
-function confettiBurst(x: number, y: number) {
+// Confetti burst: exclusive buyouts get the full ~42-spark blast,
+// regular PAID downloads a humbler one (count/life params). Canvas-
+// based, zero dependencies. Never fires on free re-downloads.
+function confettiBurst(x: number, y: number, count = 42, life = 650) {
   const canvas = document.createElement('canvas')
   canvas.width = window.innerWidth
   canvas.height = window.innerHeight
@@ -266,14 +268,14 @@ function confettiBurst(x: number, y: number) {
   document.body.appendChild(canvas)
   const ctx = canvas.getContext('2d')!
   const colors = ['#3BE3D0', '#9765E0', '#ffffff', '#F4B41A']
-  const parts = Array.from({ length: 42 }, () => {
+  const parts = Array.from({ length: count }, () => {
     const a = Math.random() * Math.PI * 2
     const v = 2.5 + Math.random() * 4.5
     return { x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 2, r: 1.5 + Math.random() * 2.5, c: colors[Math.floor(Math.random() * colors.length)] }
   })
   const t0 = performance.now()
   const tick = (now: number) => {
-    const k = (now - t0) / 650
+    const k = (now - t0) / life
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     if (k >= 1) { canvas.remove(); return }
     ctx.globalAlpha = 1 - k
@@ -867,10 +869,16 @@ export default function AssetGrid({
   }, [])
 
   // Re-sync from localStorage on mount (SSR-safe) + pull DB favorites
-  // for signed-in users so hearts follow the account across devices
+  // for signed-in users so hearts follow the account across devices.
+  // Also remember the last pointer-down spot — the paid-download
+  // confetti bursts from the Download button the user just pressed.
+  const lastClickRef = useRef({ x: 0, y: 0 })
   useEffect(() => {
     setFavs(getFavs())
     setFreeUsed(getFreeDownloadsUsed())
+    const rec = (e: PointerEvent) => { lastClickRef.current = { x: e.clientX, y: e.clientY } }
+    document.addEventListener('pointerdown', rec, true)
+    return () => document.removeEventListener('pointerdown', rec, true)
   }, [])
   useEffect(() => {
     if (!user) return
@@ -924,6 +932,13 @@ export default function AssetGrid({
       if (json.url) {
         if (typeof json.credits === 'number') {
           window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: json.credits }))
+          // credits really spent (owner's reminder): a humble spark burst
+          // from the Download button. Free re-downloads of owned assets
+          // return cost 0 / no credits field — no burst for those.
+          if (Number(json.cost) > 0) {
+            const { x, y } = lastClickRef.current
+            confettiBurst(x || window.innerWidth / 2, y || window.innerHeight / 2, 22, 520)
+          }
         } else {
           setFreeUsed(incrementFreeDownloads())
         }
