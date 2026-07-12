@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
           .select('id').eq('user_id', userId).eq('asset_id', assetId).maybeSingle()
         if (purchased) {
           await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost: 0 }).then(() => {}, () => {})
+          admin.rpc('bump_download_count', { p_asset: assetId }).then(() => {}, () => {})
           return NextResponse.json({ url: servedUrl(data), owned: true, cost: 0 })
         }
         // HIDDEN assets (e.g. private generated videos) are only for owners —
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
             { onConflict: 'user_id,asset_id', ignoreDuplicates: true },
           ).then(() => {}, () => {})
           await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost: 0 }).then(() => {}, () => {})
+          admin.rpc('bump_download_count', { p_asset: assetId }).then(() => {}, () => {})
           return NextResponse.json({ url: servedUrl(data), owned: true, cost: 0, admin: true })
         }
         // NULL credit_cost = follows the tier default (pricing_defaults)
@@ -105,6 +107,7 @@ export async function POST(req: NextRequest) {
           { onConflict: 'user_id,asset_id', ignoreDuplicates: true },
         ).then(() => {}, () => {})
         await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost }).then(() => {}, () => {})
+        admin.rpc('bump_download_count', { p_asset: assetId }).then(() => {}, () => {})
         return NextResponse.json({ url: servedUrl(data), credits: remaining, cost })
       }
       // invalid/expired token → fall through as anonymous
