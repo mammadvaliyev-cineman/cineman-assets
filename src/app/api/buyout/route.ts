@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
+import { isAdminEmail } from '@/lib/adminAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,10 +55,16 @@ export async function POST(req: NextRequest) {
       const { data: pd } = await admin.from('pricing_defaults').select('credits').eq('tier', 'exclusive').single()
       cost = Number(pd?.credits ?? 50)
     }
-    const { data: remaining, error: rpcErr } = await admin.rpc('spend_credits', { p_user: userId, p_cost: cost })
-    if (rpcErr) return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
-    if (typeof remaining === 'number' && remaining < 0) {
-      return NextResponse.json({ error: 'Not enough credits', code: 'credits', cost }, { status: 402 })
+    // A-batch: admin buys exclusives free (testing)
+    const adminFree = isAdminEmail(userData?.user?.email)
+    let remaining: number | null = null
+    if (!adminFree) {
+      const { data: rem, error: rpcErr } = await admin.rpc('spend_credits', { p_user: userId, p_cost: cost })
+      if (rpcErr) return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
+      if (typeof rem === 'number' && rem < 0) {
+        return NextResponse.json({ error: 'Not enough credits', code: 'credits', cost }, { status: 402 })
+      }
+      remaining = typeof rem === 'number' ? rem : null
     }
 
     // SOLD state (owner's spec v2): the asset STAYS in the catalog with a
@@ -67,7 +74,7 @@ export async function POST(req: NextRequest) {
       .update({ exclusive_owner: userId, exclusive_sold_at: new Date().toISOString() })
       .eq('id', assetId).is('exclusive_owner', null)
     if (updErr) {
-      await admin.rpc('spend_credits', { p_user: userId, p_cost: -cost }).then(() => {}, () => {})
+      if (!adminFree) await admin.rpc('spend_credits', { p_user: userId, p_cost: -cost }).then(() => {}, () => {})
       return NextResponse.json({ error: 'Buyout failed, credits refunded' }, { status: 500 })
     }
 
