@@ -932,15 +932,16 @@ export default function AssetGrid({
       if (json.url) {
         if (typeof json.credits === 'number') {
           window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: json.credits }))
-          // credits really spent (owner's reminder): a humble spark burst
-          // from the Download button. Free re-downloads of owned assets
-          // return cost 0 / no credits field — no burst for those.
-          if (Number(json.cost) > 0) {
-            const { x, y } = lastClickRef.current
-            confettiBurst(x || window.innerWidth / 2, y || window.innerHeight / 2, 22, 520)
-          }
-        } else {
+        } else if (!user) {
           setFreeUsed(incrementFreeDownloads())
+        }
+        // Humble spark burst when credits are REALLY spent — and for the
+        // admin account too (downloads are free there by design, but the
+        // owner still wants to SEE the effect). Free re-downloads of
+        // already-owned assets never burst.
+        if ((typeof json.credits === 'number' && Number(json.cost) > 0) || json.admin) {
+          const { x, y } = lastClickRef.current
+          confettiBurst(x || window.innerWidth / 2, y || window.innerHeight / 2, 22, 520)
         }
         recordDownload(asset.id)
         if (user) setPurchasedIds(prev => { const n = new Set(prev); n.add(asset.id); return n })
