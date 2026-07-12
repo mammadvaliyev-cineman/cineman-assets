@@ -56,6 +56,11 @@ export default function LibraryPage() {
 
   const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500) }
 
+  // deep link from the sidebar: /library?tab=saved (default stays Purchased)
+  useEffect(() => {
+    try { if (new URLSearchParams(window.location.search).get('tab') === 'saved') setTab('saved') } catch { /* noop */ }
+  }, [])
+
   // ── Purchased: one card per asset + download counts ─────────
   const loadPurchased = useCallback(async () => {
     if (!user) return
