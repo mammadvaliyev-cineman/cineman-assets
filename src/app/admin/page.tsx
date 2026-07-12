@@ -250,6 +250,81 @@ type BatchItem = {
 }
 
 // ── Main Component ──────────────────────────────────────────
+// ── Provider balances (owner's spec): Kie.ai credits via their API,
+// Gemini → deep link to Google Cloud Billing (pay-as-you-go, no
+// prepaid balance). Goal: see at a glance when to top up.
+function ProviderBalances() {
+  const [data, setData] = useState<{
+    kie: { ok: boolean; credits?: number; error?: string }
+    gemini: { billingUrl: string; note: string }
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const r = await fetch('/api/admin/provider-balance', { headers: await adminHeaders(), cache: 'no-store' })
+      setData(await r.json())
+    } catch { setData(null) }
+    setLoading(false)
+  }, [])
+  useEffect(() => { load() }, [load])
+  const kie = data?.kie
+  const low = (kie?.credits ?? Infinity) < 200
+  const empty = (kie?.credits ?? Infinity) < 50
+  return (
+    <div className="card p-6 mb-8" style={{ borderTop: '2px solid #F4B41A' }}>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-semibold text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Provider balances</h3>
+        <button
+          onClick={load}
+          className="text-xs font-semibold px-3 py-1 rounded-lg"
+          style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}
+        >
+          {loading ? 'Checking…' : 'Refresh'}
+        </button>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Kie.ai — real credits number */}
+        <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Kie.ai</span>
+            <a href="https://kie.ai/billing" target="_blank" rel="noreferrer" className="text-[11px] font-semibold" style={{ color: '#CE95FB' }}>Top up →</a>
+          </div>
+          {loading ? (
+            <div className="text-2xl font-bold" style={{ color: 'var(--fg-subtle)' }}>…</div>
+          ) : kie?.ok ? (
+            <>
+              <div className="text-2xl font-bold" style={{ color: empty ? '#DC3C3C' : low ? '#F4B41A' : '#00C2BA' }}>
+                {kie.credits?.toLocaleString('en-US')} <span className="text-sm font-semibold" style={{ color: 'var(--fg-muted)' }}>credits</span>
+              </div>
+              <p className="text-[11px] mt-1" style={{ color: empty ? '#DC3C3C' : low ? '#F4B41A' : 'var(--fg-subtle)' }}>
+                {empty ? 'Almost empty — 4K upscale and Studio will fail. Top up now.' : low ? 'Running low — top up before a long run.' : 'Powers 4K upscale (Topaz) and Studio video (Seedance).'}
+              </p>
+            </>
+          ) : (
+            <p className="text-sm font-semibold" style={{ color: '#DC3C3C' }}>{kie?.error || 'Unavailable'}</p>
+          )}
+        </div>
+        {/* Gemini — no prepaid balance, link to billing */}
+        <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Gemini / Google AI</span>
+          </div>
+          <p className="text-[11px] mb-3" style={{ color: 'var(--fg-subtle)' }}>{data?.gemini?.note || 'Pay-as-you-go — check month spend and the cap in Google Cloud Billing.'}</p>
+          <a
+            href={data?.gemini?.billingUrl || 'https://console.cloud.google.com/billing'}
+            target="_blank" rel="noreferrer"
+            className="inline-block text-xs font-bold px-3 py-1.5 rounded-lg"
+            style={{ backgroundColor: 'rgba(151,101,224,0.15)', border: '1px solid #9765E0', color: '#CE95FB' }}
+          >
+            Open Google Billing →
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AdminDashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories' | 'pricing' | 'settings'>('overview')
   const [stats, setStats] = useState<Stats>({ total: 0, byType: {}, byPlan: {} })
@@ -1002,6 +1077,9 @@ function AdminDashboard() {
       {/* ── Overview Tab ────────────────────────────────────── */}
       {activeTab === 'overview' && (
         <div>
+          {/* Provider balances — Kie.ai credits + Gemini billing link */}
+          <ProviderBalances />
+
           {/* Stat cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {[
