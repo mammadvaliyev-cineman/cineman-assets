@@ -600,6 +600,7 @@ function AdminDashboard() {
     standard: 'Standard — цена скачивания', premium: 'Premium — топовые ассеты', exclusive: 'Exclusive — выкуп эксклюзива',
     plan_free: 'Free — кредитов в месяц', plan_personal: 'Personal — кредитов в месяц', plan_pro: 'Pro — кредитов в месяц',
     gen_base: 'Генерация — база (Nano Banana)', gen_4k: 'Апскейл 2K→4K (по запросу)',
+    gen_video: 'Видео-генерация (Seedance)',
   }
   const [priceRows, setPriceRows] = useState<Record<string, number>>({})
   const [priceBusy, setPriceBusy] = useState(false)
@@ -1715,7 +1716,7 @@ function AdminDashboard() {
               Одна валюта со скачиваниями. Себестоимость $0.02–0.12 за картинку — маржа заложена в цену.
             </p>
             <div className="space-y-3">
-              {['gen_base', 'gen_4k'].map(t => (
+              {['gen_base', 'gen_4k', 'gen_video'].map(t => (
                 <label key={t} className="flex items-center justify-between gap-4">
                   <span className="text-sm" style={{ color: 'var(--fg-muted)' }}>{PRICE_LABELS[t]}</span>
                   <span className="flex items-center gap-2">
