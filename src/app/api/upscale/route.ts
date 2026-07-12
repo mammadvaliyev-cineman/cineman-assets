@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { presignR2Get, r2Configured, r2Put } from '@/lib/r2'
 import { requireUser, isAdminEmail } from '@/lib/adminAuth'
+import { kieCreateTask, kieGetTask } from '@/lib/kie'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -21,6 +22,29 @@ export const maxDuration = 60
 // • Requires FAL_KEY in env — without it responds 503 {code:'soon'}.
 // ─────────────────────────────────────────────────────────────
 
+// PRIMARY: Topaz on kie.ai — one provider for generation AND upscaling
+// (owner already works with Kie, cheaper). Model: topaz/image-upscale,
+// input { image_url, upscale_factor: '2' }. fal stays as the backup.
+async function kieUpscale(sourceUrl: string): Promise<Buffer> {
+  const taskId = await kieCreateTask('topaz/image-upscale', {
+    image_url: sourceUrl,
+    upscale_factor: '2',
+  })
+  // Topaz renders in ~10-30s; poll within the route's 60s budget
+  for (let i = 0; i < 22; i++) {
+    await new Promise(r => setTimeout(r, 2000))
+    const info = await kieGetTask(taskId)
+    if (info.state === 'success' && info.resultUrls[0]) {
+      const img = await fetch(info.resultUrls[0])
+      if (!img.ok) throw new Error('kie result fetch ' + img.status)
+      return Buffer.from(await img.arrayBuffer())
+    }
+    if (info.state === 'fail') throw new Error('kie: ' + (info.failMsg || 'upscale failed'))
+  }
+  throw new Error('kie: upscale timed out')
+}
+
+// BACKUP: same Topaz on fal.ai — used only when KIE_API_KEY is missing
 const FAL_MODEL = 'fal-ai/topaz/upscale/image'
 
 async function falUpscale(sourceUrl: string): Promise<Buffer> {
@@ -37,6 +61,9 @@ async function falUpscale(sourceUrl: string): Promise<Buffer> {
   if (!img.ok) throw new Error('fal result fetch ' + img.status)
   return Buffer.from(await img.arrayBuffer())
 }
+
+const upscaleProvider = (): 'kie' | 'fal' | null =>
+  process.env.KIE_API_KEY ? 'kie' : (process.env.FAL_KEY ? 'fal' : null)
 
 export async function POST(req: NextRequest) {
   try {
@@ -75,7 +102,7 @@ export async function POST(req: NextRequest) {
     const adminFree = isAdminEmail(gate.email)
 
     // Need a render but no engine configured → don't charge anyone
-    if (!asset.r2_key_4k && !process.env.FAL_KEY) {
+    if (!asset.r2_key_4k && !upscaleProvider()) {
       return NextResponse.json({ error: '4K upscale is coming soon', code: 'soon' }, { status: 503 })
     }
 
@@ -92,7 +119,7 @@ export async function POST(req: NextRequest) {
       let key4k = asset.r2_key_4k as string | null
       if (!key4k) {
         const sourceUrl = presignR2Get(String(asset.r2_key), undefined, 600)
-        const buf = await falUpscale(sourceUrl)
+        const buf = upscaleProvider() === 'kie' ? await kieUpscale(sourceUrl) : await falUpscale(sourceUrl)
         key4k = String(asset.r2_key).replace(/^orig\//, '4k/').replace(/\.[a-z0-9]+$/i, '.png')
         await r2Put(key4k, buf, 'image/png')
         await admin.from('assets').update({ r2_key_4k: key4k }).eq('id', assetId)
