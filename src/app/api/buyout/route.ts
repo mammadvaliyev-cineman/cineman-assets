@@ -71,6 +71,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Buyout failed, credits refunded' }, { status: 500 })
     }
 
+    // exclusive buyout = ownership too (shows up in the Library, re-downloads free)
+    await admin.from('purchases').upsert(
+      { user_id: userId, asset_id: assetId, cost },
+      { onConflict: 'user_id,asset_id', ignoreDuplicates: true },
+    ).then(() => {}, () => {})
     await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost }).then(() => {}, () => {})
     return NextResponse.json({ url: asset.file_url, credits: remaining, cost, exclusive: true })
   } catch (err) {
