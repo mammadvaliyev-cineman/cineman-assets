@@ -293,7 +293,7 @@ function sentenceCase(s: string): string {
 function AssetCard({
   asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete, onMove, onHide,
   onPrice, onBuyout, isBuying = false, downloadState = 'idle', currentUserId = null,
-  displayCfg = DEFAULT_CATALOG_CONFIG,
+  displayCfg = DEFAULT_CATALOG_CONFIG, owned = false,
 }: {
   asset: Asset
   isFav: boolean
@@ -312,6 +312,8 @@ function AssetCard({
   downloadState?: 'idle' | 'done' | 'nocredits'
   currentUserId?: string | null
   displayCfg?: CatalogConfig
+  /** OWNERSHIP: user already paid for this asset once — downloads are free */
+  owned?: boolean
 }) {
   const typeStyle = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
   // SOLD state: exclusively bought assets stay in the catalog but are
@@ -407,7 +409,7 @@ function AssetCard({
               }}
             >
               {isDownloading ? <SpinnerIcon /> : <DownloadIcon />}
-              {isDownloading ? '…' : mine ? 'Download · Free' : (<>Download · {displayPrice(asset)} <CreditGem size={13} /></>)}
+              {isDownloading ? '…' : mine ? 'Download · Free' : owned ? 'Download · Owned' : (<>Download · {displayPrice(asset)} <CreditGem size={13} /></>)}
             </button>
           ))}
         </div>
@@ -551,7 +553,7 @@ function AssetCard({
 
         {asset.fileUrl && (
           <div className="mt-auto" style={{ position: 'relative' }}>
-            {downloadState === 'done' && (
+            {downloadState === 'done' && !owned && !mine && (
               <span style={{
                 position: 'absolute', top: -10, left: '50%', pointerEvents: 'none',
                 fontSize: 13, fontWeight: 800, color: '#5EEAD4',
@@ -608,6 +610,8 @@ function AssetCard({
                     >
                       {mine ? (
                         <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
+                      ) : owned ? (
+                        <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Owned</span>
                       ) : (
                         <>
                           <CreditGem size={14} />
@@ -679,7 +683,8 @@ export default function AssetGrid({
   // per-card download feedback: 'done' shows ✓ Downloaded ~1.4s,
   // 'nocredits' flips the button to Get credits (→ /pricing)
   const [doneIds, setDoneIds]         = useState<Set<string>>(new Set())
-  const [ownedIds, setOwnedIds]       = useState<Set<string>>(new Set()) // bought this session
+  const [ownedIds, setOwnedIds]       = useState<Set<string>>(new Set()) // exclusive bought this session
+  const [purchasedIds, setPurchasedIds] = useState<Set<string>>(new Set()) // OWNERSHIP: paid once → free forever
   const [noCreditIds, setNoCreditIds] = useState<Set<string>>(new Set())
   // local overrides so the card badge updates right after an admin price edit
   const [priceEdits, setPriceEdits]   = useState<Record<string, { creditCost: number; exclusivePrice: number }>>({})
@@ -763,13 +768,22 @@ export default function AssetGrid({
       localStorage.setItem('cineman_favs', JSON.stringify(Array.from(merged)))
       setFavs(merged)
     })
+    // OWNERSHIP RULE: everything the user already bought (downloads,
+    // exclusives, generations) is free to re-download — load once per login
+    supabase.from('purchases').select('asset_id').eq('user_id', user.id).then(({ data }) => {
+      if (data) setPurchasedIds(new Set(data.map(r => String(r.asset_id))))
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
   async function handleDownload(asset: Asset) {
     if (!asset.fileUrl) return
-    const used = getFreeDownloadsUsed()
-    if (used >= FREE_LIMIT) { setShowUpgrade(true); return }
+    // the anonymous free limit must NEVER block signed-in users — they
+    // pay with credits (or own the asset already)
+    if (!user) {
+      const used = getFreeDownloadsUsed()
+      if (used >= FREE_LIMIT) { setShowUpgrade(true); return }
+    }
 
     setDownloading(asset.id)
     try {
@@ -798,6 +812,7 @@ export default function AssetGrid({
           setFreeUsed(incrementFreeDownloads())
         }
         recordDownload(asset.id)
+        if (user) setPurchasedIds(prev => { const n = new Set(prev); n.add(asset.id); return n })
         // ✓ Downloaded + flying −N⚡, then back to normal
         setDoneIds(prev => { const n = new Set(prev); n.add(asset.id); return n })
         setTimeout(() => setDoneIds(prev => { const n = new Set(prev); n.delete(asset.id); return n }), 1400)
@@ -1021,6 +1036,7 @@ export default function AssetGrid({
                 downloadState={doneIds.has(asset.id) ? 'done' : (noCreditIds.has(asset.id) ? 'nocredits' : 'idle')}
                 currentUserId={user?.id ?? null}
                 displayCfg={displayCfg}
+                owned={purchasedIds.has(asset.id)}
               />
             </div>
           ))}
