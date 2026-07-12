@@ -150,14 +150,18 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-3">
+          {/* ONE Library entry (spec C1): purchased + saved live inside */}
           {user && (
-            <Link href="/library" title="My library — everything you own" className="text-sm font-medium" style={{ color: 'var(--fg-muted)' }}>
+            <Link
+              href="/library"
+              title="Library — everything you own and saved"
+              className="flex items-center gap-1.5 text-sm font-medium"
+              style={{ color: 'var(--fg-muted)' }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+              </svg>
               Library
-            </Link>
-          )}
-          {user && (
-            <Link href="/favorites" title="My favorites & collections" className="text-sm font-medium" style={{ color: 'var(--fg-muted)' }}>
-              ♥
             </Link>
           )}
           {user && credits !== null && (

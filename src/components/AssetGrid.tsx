@@ -132,13 +132,22 @@ function TrashIcon() {
   )
 }
 
-function HeartIcon({ filled }: { filled: boolean }) {
+function BookmarkIcon({ filled, size = 13 }: { filled: boolean; size?: number }) {
   return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill={filled ? '#CE95FB' : 'none'} stroke={filled ? '#CE95FB' : 'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
     </svg>
   )
 }
+
+function PencilIcon({ size = 12 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+    </svg>
+  )
+}
+
 
 // ── Upgrade modal ─────────────────────────────────────────────
 function UpgradeModal({ onClose }: { onClose: () => void }) {
@@ -294,6 +303,7 @@ function AssetCard({
   asset, isFav, isDownloading, onFav, onDownload, viewMode, isAdmin = false, isDeleting = false, onDelete, onMove, onHide,
   onPrice, onBuyout, isBuying = false, downloadState = 'idle', currentUserId = null,
   displayCfg = DEFAULT_CATALOG_CONFIG, owned = false,
+  collections = [], onSaveToCollection, onUpscale, isUpscaling = false,
 }: {
   asset: Asset
   isFav: boolean
@@ -314,6 +324,12 @@ function AssetCard({
   displayCfg?: CatalogConfig
   /** OWNERSHIP: user already paid for this asset once — downloads are free */
   owned?: boolean
+  /** SAVE/COLLECTIONS (spec D): boards for the ⌄ picker */
+  collections?: { id: string; name: string }[]
+  onSaveToCollection?: (collectionId: string | null, newName?: string) => void
+  /** UPSCALE (spec B3): «Get in 4K» option inside the Download button */
+  onUpscale?: () => void
+  isUpscaling?: boolean
 }) {
   const typeStyle = TYPE_STYLE[asset.type] ?? TYPE_STYLE['photo']
   // SOLD state: exclusively bought assets stay in the catalog but are
@@ -331,6 +347,82 @@ function AssetCard({
   // In auto mode the image defines its own height. Until it loads we
   // reserve a 4:5 placeholder so cards never collapse or jump.
   const [imgLoaded, setImgLoaded] = useState(false)
+  // SAVE picker (spec D) + формат-меню Download (spec B3)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [newCol, setNewCol] = useState('')
+  const [fmtOpen, setFmtOpen] = useState(false)
+
+  // ONE Save button, two levels (spec D): tap = instant save to «Saved»,
+  // ⌄ = pick a collection (or create one) without leaving the catalog.
+  const saveControl = (
+    <div
+      onClick={e => e.stopPropagation()}
+      className={`flex items-stretch ${isFav || pickerOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity duration-200`}
+      style={{ position: 'relative', zIndex: 5 }}
+    >
+      <button
+        onClick={e => { e.stopPropagation(); onFav() }}
+        title={isFav ? 'Saved — click to remove' : 'Save'}
+        className="flex items-center gap-1"
+        style={{
+          padding: '5px 8px', border: 'none', cursor: 'pointer', borderRadius: '7px 0 0 7px',
+          backgroundColor: isFav ? '#9765E0' : 'rgba(0,0,0,0.55)', color: 'white',
+          backdropFilter: 'blur(6px)', fontSize: 11, fontWeight: 700,
+        }}
+      >
+        <BookmarkIcon filled={isFav} /> {isFav ? 'Saved' : 'Save'}
+      </button>
+      <button
+        onClick={e => { e.stopPropagation(); setPickerOpen(v => !v) }}
+        title="Save to collection…"
+        style={{
+          padding: '5px 5px', border: 'none', borderLeft: '1px solid rgba(255,255,255,0.25)',
+          cursor: 'pointer', borderRadius: '0 7px 7px 0',
+          backgroundColor: isFav ? '#8657CE' : 'rgba(0,0,0,0.55)', color: 'white',
+          backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center',
+        }}
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {pickerOpen && (
+        <div style={{
+          position: 'absolute', top: '115%', right: 0, width: 195,
+          backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
+          padding: 6, boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+        }}>
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--fg-subtle)', padding: '4px 6px' }}>Save to collection</p>
+          {collections.map(c => (
+            <button
+              key={c.id}
+              onClick={() => { onSaveToCollection?.(c.id); setPickerOpen(false) }}
+              className="w-full text-left"
+              style={{ padding: '6px 8px', borderRadius: 6, fontSize: 12, color: 'var(--fg)', background: 'none', border: 'none', cursor: 'pointer', display: 'block', width: '100%', textAlign: 'left' }}
+              onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(151,101,224,0.15)')}
+              onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
+            >
+              {c.name}
+            </button>
+          ))}
+          <div style={{ display: 'flex', gap: 4, padding: '4px 2px 2px' }}>
+            <input
+              value={newCol}
+              onChange={e => setNewCol(e.target.value)}
+              placeholder="New collection…"
+              className="input-field"
+              style={{ flex: 1, fontSize: 11, padding: '5px 7px', minWidth: 0 }}
+              onKeyDown={e => { if (e.key === 'Enter' && newCol.trim()) { onSaveToCollection?.(null, newCol.trim()); setNewCol(''); setPickerOpen(false) } }}
+            />
+            <button
+              onClick={() => { if (newCol.trim()) { onSaveToCollection?.(null, newCol.trim()); setNewCol(''); setPickerOpen(false) } }}
+              style={{ fontSize: 12, fontWeight: 800, padding: '5px 9px', borderRadius: 6, background: 'linear-gradient(135deg,#9765E0,#534FA5)', color: 'white', border: 'none', cursor: 'pointer' }}
+            >
+              +
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 
   if (viewMode === 'list') {
     return (
@@ -386,13 +478,7 @@ function AssetCard({
               <MoveIcon />
             </button>
           )}
-          <button
-            onClick={onFav}
-            title={isFav ? 'Remove favorite' : 'Add to favorites'}
-            style={{ padding: 6, borderRadius: 6, backgroundColor: isFav ? 'rgba(206,149,251,0.12)' : 'transparent', border: '1px solid var(--border)', color: isFav ? '#CE95FB' : 'var(--fg-subtle)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-          >
-            <HeartIcon filled={isFav} />
-          </button>
+          {saveControl}
           {asset.fileUrl && (locked ? (
             <span style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600, border: '1px solid var(--border)', color: 'var(--fg-subtle)' }}>
               <LockIcon size={12} /> Exclusively sold
@@ -494,6 +580,19 @@ function AssetCard({
                 <EyeOffIcon />
               </button>
             )}
+            {onPrice && (
+              <button
+                onClick={e => { e.stopPropagation(); onPrice() }}
+                title="Edit price (admin)"
+                style={{
+                  padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer',
+                  backgroundColor: 'rgba(0,194,186,0.55)', color: 'rgba(255,255,255,0.9)',
+                  backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <PencilIcon />
+              </button>
+            )}
           </div>
         )}
 
@@ -514,31 +613,10 @@ function AssetCard({
           </span>
         )}
 
-        {/* Heart button (top-right; drops below the SOLD chip when present) */}
-        <button
-          onClick={e => { e.stopPropagation(); onFav() }}
-          title={isFav ? 'Remove favorite' : 'Add to favorites'}
-          className={`absolute ${soldTo ? 'top-10' : 'top-2'} right-2 transition-all duration-200`}
-          style={{
-            zIndex: 3,
-            padding: 6,
-            borderRadius: 7,
-            border: 'none',
-            cursor: 'pointer',
-            backgroundColor: isFav ? 'rgba(206,149,251,0.25)' : 'rgba(0,0,0,0.4)',
-            color: isFav ? '#CE95FB' : 'rgba(255,255,255,0.7)',
-            backdropFilter: 'blur(6px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: isFav ? 1 : 0,
-          }}
-          // Show on hover via JS class
-          onMouseEnter={e => { if (!isFav) (e.currentTarget as HTMLButtonElement).style.opacity = '1' }}
-          onMouseLeave={e => { if (!isFav) (e.currentTarget as HTMLButtonElement).style.opacity = '0' }}
-        >
-          <HeartIcon filled={isFav} />
-        </button>
+        {/* SAVE (spec D) — top-right; drops below the SOLD chip when present */}
+        <div className={`absolute ${soldTo ? 'top-10' : 'top-2'} right-2`} style={{ zIndex: 5 }}>
+          {saveControl}
+        </div>
 
       </div>
 
@@ -604,9 +682,9 @@ function AssetCard({
                     </span>
                     <span
                       className="flex items-center gap-1.5 px-2.5"
-                      onClick={isAdmin && onPrice ? (e => { e.stopPropagation(); onPrice() }) : undefined}
-                      title={isAdmin && onPrice ? 'Edit price (admin)' : undefined}
-                      style={{ backgroundColor: 'rgba(0,0,0,0.22)', cursor: isAdmin && onPrice ? 'pointer' : undefined }}
+                      onClick={(asset.resolution ?? '2K') !== '4K' && onUpscale ? (e => { e.stopPropagation(); setFmtOpen(v => !v) }) : undefined}
+                      title={(asset.resolution ?? '2K') !== '4K' && onUpscale ? 'Choose resolution' : undefined}
+                      style={{ backgroundColor: 'rgba(0,0,0,0.22)', cursor: (asset.resolution ?? '2K') !== '4K' && onUpscale ? 'pointer' : undefined }}
                     >
                       {mine ? (
                         <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
@@ -628,6 +706,39 @@ function AssetCard({
                   </>
                 )}
               </button>
+            )}
+
+            {/* Format menu (spec B3): one place inside the Download button —
+                2K as bought, or «Get in 4K» (Topaz render, cached in R2) */}
+            {fmtOpen && (
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{
+                  position: 'absolute', bottom: '110%', right: 0, minWidth: 190, zIndex: 7,
+                  backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
+                  padding: 6, boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                }}
+              >
+                <button
+                  onClick={() => { setFmtOpen(false); onDownload() }}
+                  className="w-full"
+                  style={{ padding: '7px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: 'var(--fg)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}
+                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(151,101,224,0.15)')}
+                  onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
+                >
+                  Download 2K · {mine || owned ? 'Owned' : (<>{displayPrice(asset)} <CreditGem size={12} /></>)}
+                </button>
+                <button
+                  onClick={() => { setFmtOpen(false); onUpscale?.() }}
+                  disabled={isUpscaling}
+                  className="w-full"
+                  style={{ padding: '7px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: '#5EEAD4', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}
+                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(94,234,212,0.1)')}
+                  onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
+                >
+                  {isUpscaling ? <SpinnerIcon /> : null} Get in 4K · 10 <CreditGem size={12} />
+                </button>
+              </div>
             )}
 
             {onBuyout && !soldTo && (
@@ -685,6 +796,8 @@ export default function AssetGrid({
   const [doneIds, setDoneIds]         = useState<Set<string>>(new Set())
   const [ownedIds, setOwnedIds]       = useState<Set<string>>(new Set()) // exclusive bought this session
   const [purchasedIds, setPurchasedIds] = useState<Set<string>>(new Set()) // OWNERSHIP: paid once → free forever
+  const [collections, setCollections] = useState<{ id: string; name: string }[]>([]) // SAVE picker boards
+  const [upscaling, setUpscaling] = useState<string | null>(null)
   const [noCreditIds, setNoCreditIds] = useState<Set<string>>(new Set())
   // local overrides so the card badge updates right after an admin price edit
   const [priceEdits, setPriceEdits]   = useState<Record<string, { creditCost: number; exclusivePrice: number }>>({})
@@ -773,6 +886,9 @@ export default function AssetGrid({
     supabase.from('purchases').select('asset_id').eq('user_id', user.id).then(({ data }) => {
       if (data) setPurchasedIds(new Set(data.map(r => String(r.asset_id))))
     })
+    supabase.from('collections').select('id,name').eq('user_id', user.id).order('created_at', { ascending: true }).then(({ data }) => {
+      if (data) setCollections(data as { id: string; name: string }[])
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
@@ -828,6 +944,51 @@ export default function AssetGrid({
     } finally {
       setDownloading(null)
     }
+  }
+
+  // SAVE → collection (spec D): the ⌄ picker on the card. Creating a
+  // board inline; adding to a board also marks the asset Saved (union).
+  async function handleSaveToCollection(asset: Asset, collectionId: string | null, newName?: string) {
+    if (!user) { setShowUpgrade(true); return }
+    try {
+      let colId = collectionId
+      let colName = collections.find(c => c.id === collectionId)?.name || newName || 'collection'
+      if (!colId && newName) {
+        const { data, error } = await supabase.from('collections').insert({ user_id: user.id, name: newName }).select('id,name').single()
+        if (error || !data) { toastMsg('Could not create the collection'); return }
+        colId = String(data.id); colName = String(data.name)
+        setCollections(prev => [...prev, { id: colId!, name: colName }])
+      }
+      if (!colId) return
+      const { error: itemErr } = await supabase.from('collection_items').insert({ collection_id: colId, asset_id: asset.id })
+      if (itemErr && !String(itemErr.message || '').includes('duplicate')) { toastMsg('Could not save — try again'); return }
+      if (!favs.has(asset.id)) handleFav(asset.id) // Saved = union of everything saved
+      toastMsg(`Added to ${colName}`)
+    } catch { toastMsg('Could not save — try again') }
+  }
+
+  // UPSCALE 2K→4K (spec B3/B4): pay 10, Topaz render is cached in R2 —
+  // repeat 4K downloads of the same asset are free for the buyer.
+  async function handleUpscale(asset: Asset) {
+    if (!user) { setShowUpgrade(true); return }
+    if (upscaling) return
+    setUpscaling(asset.id)
+    try {
+      const res = await fetch('/api/upscale', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ assetId: asset.id }),
+      })
+      const json = await res.json()
+      if (res.status === 402 && json.code === 'credits') { setShowUpgrade(true); return }
+      if (res.status === 503) { toastMsg('4K upscale — coming soon'); return }
+      if (json.url) {
+        setPurchasedIds(prev => { const n = new Set(prev); n.add(asset.id); return n })
+        toastMsg(json.cost === 0 ? '4K is yours — downloading' : '4K ready — downloading')
+        window.location.href = json.url
+      } else toastMsg(json.error || 'Upscale failed')
+    } catch { toastMsg('Upscale failed — try again') }
+    finally { setUpscaling(null) }
   }
 
   // Admin: price override — styled modal, no prompts (spec 4b)
@@ -992,6 +1153,10 @@ export default function AssetGrid({
               key={asset.id}
               asset={asset}
               isFav={favs.has(asset.id)}
+              collections={collections}
+              onSaveToCollection={(cid, name) => handleSaveToCollection(asset, cid, name)}
+              onUpscale={() => handleUpscale(asset)}
+              isUpscaling={upscaling === asset.id}
               isDownloading={downloading === asset.id}
               onFav={() => handleFav(asset.id)}
               onDownload={() => handleDownload(asset)}
@@ -1021,6 +1186,10 @@ export default function AssetGrid({
               <AssetCard
                 asset={asset}
                 isFav={favs.has(asset.id)}
+              collections={collections}
+              onSaveToCollection={(cid, name) => handleSaveToCollection(asset, cid, name)}
+              onUpscale={() => handleUpscale(asset)}
+              isUpscaling={upscaling === asset.id}
                 isDownloading={downloading === asset.id}
                 onFav={() => handleFav(asset.id)}
                 onDownload={() => handleDownload(asset)}
