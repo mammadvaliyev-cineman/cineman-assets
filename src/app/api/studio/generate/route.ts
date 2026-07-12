@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { kieCreateTask, kieGetTask, KIE_MODELS } from '@/lib/kie'
 import { supabaseAdmin } from '@/lib/supabase'
-import { requireUser } from '@/lib/adminAuth'
+import { requireUser, isAdminEmail } from '@/lib/adminAuth'
 import { checkUsage, incrementUsage } from '@/lib/usage'
 
 export const maxDuration = 60
@@ -50,10 +50,16 @@ export async function POST(req: NextRequest) {
     const admin = supabaseAdmin()
     const { data: pd } = await admin.from('pricing_defaults').select('credits').eq('tier', 'gen_base').single()
     const cost = Number(pd?.credits ?? 5)
-    const { data: remaining, error: rpcErr } = await admin.rpc('spend_credits', { p_user: gate.userId, p_cost: cost })
-    if (rpcErr) return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
-    if (typeof remaining === 'number' && remaining < 0) {
-      return NextResponse.json({ error: 'Not enough credits', code: 'credits', cost }, { status: 402 })
+    // A-batch: admin generates free (testing) — no spend, no refunds later
+    const adminFree = isAdminEmail(gate.email)
+    let remaining: number | null = null
+    if (!adminFree) {
+      const { data: rem, error: rpcErr } = await admin.rpc('spend_credits', { p_user: gate.userId, p_cost: cost })
+      if (rpcErr) return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
+      if (typeof rem === 'number' && rem < 0) {
+        return NextResponse.json({ error: 'Not enough credits', code: 'credits', cost }, { status: 402 })
+      }
+      remaining = typeof rem === 'number' ? rem : null
     }
 
     const prompt = `${description}. ${STYLE[assetType] || ''}`
@@ -66,8 +72,8 @@ export async function POST(req: NextRequest) {
         ...(assetType === 'Character' ? { image_size: '16:9' } : {}),
       })
     } catch (err) {
-      // task never started — give the money back
-      await admin.rpc('spend_credits', { p_user: gate.userId, p_cost: -cost }).then(() => {}, () => {})
+      // task never started — give the money back (admins never paid)
+      if (!adminFree) await admin.rpc('spend_credits', { p_user: gate.userId, p_cost: -cost }).then(() => {}, () => {})
       throw err
     }
     await incrementUsage(gate.userId)
@@ -96,7 +102,7 @@ export async function GET(req: NextRequest) {
         if (token) {
           const admin = supabaseAdmin()
           const { data: userData } = await admin.auth.getUser(token)
-          if (userData?.user) {
+          if (userData?.user && !isAdminEmail(userData.user.email)) {
             const { data: pd } = await admin.from('pricing_defaults').select('credits').eq('tier', 'gen_base').single()
             const cost = Number(pd?.credits ?? 5)
             const { data: remaining } = await admin.rpc('spend_credits', { p_user: userData.user.id, p_cost: -cost })
