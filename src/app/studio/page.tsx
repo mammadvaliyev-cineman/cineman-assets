@@ -1,1329 +1,609 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ENGINE_CATS, CAM_GROUPS, DEFAULT_ENGINE_CONFIG, EngineConfig } from '@/lib/engine'
 import { supabase } from '@/lib/supabase'
-import { adminHeaders } from '@/components/AdminGate'
+import { useAuth } from '@/components/AuthProvider'
 import { CreditGem } from '@/components/AssetGrid'
 
 // ─────────────────────────────────────────────────────────────
-// CINEMAN AI STUDIO — chat-first director agent.
-// Работает как чат (Claude/GPT): лента сообщений, строка ввода
-// с голосом, готовые варианты чипсами из Cineman Engine.
-// Retrieval-first: герои и локации из базы, генерация — fallback.
+// CINEMAN STUDIO — clean one-screen generator (Higgsfield/Seedance
+// style, owner's spec). No wizard. Three columns:
+//   1) controls: preset · upload · prompt with @-asset mentions ·
+//      audio · model/duration/aspect/resolution · Generate · N💎
+//   2) big preview of the selected video
+//   3) generation details: model, structured prompt, settings, rerun
+// History below: List/Grid, expand, size slider, date groups,
+// multi-select bulk download/delete. Generations are owned by the
+// creator (free re-downloads, also land in the Library).
+// Director's Engine (shot-list mode) stays a separate Pro mode later.
 // ─────────────────────────────────────────────────────────────
 
-type Asset = {
-  id: string
-  title: string
-  type: string
-  tags: string[] | null
-  description: string | null
-  file_url: string
-  thumbnail_url: string | null
+type RefAsset = { id: string; title: string; image: string; kind: string }
+type Gen = {
+  id: string; model: string | null; prompt: string | null
+  structured: Record<string, string> | null
+  settings: { model?: string; duration?: number; aspect?: string; resolution?: string; audio?: boolean; preset?: string } | null
+  refs: RefAsset[] | null
+  r2_key: string | null; state: string; favorite: boolean; cost: number; created_at: string; url: string | null
 }
 
-type Step = 'type' | 'hero' | 'location' | 'action' | 'camera' | 'details' | 'confirm' | 'render' | 'result'
-
-// ── Thin line icons (lucide-style) ───────────────────────────
-function Icon({ d, size = 20 }: { d: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      {d.split('|').map((p, i) => <path key={i} d={p} />)}
-    </svg>
-  )
-}
-const I = {
-  megaphone: 'M3 11l18-5v12L3 13v-2z|M11.6 16.8a3 3 0 1 1-5.8-1.6',
-  clapper: 'M20.2 6L3 11l-.9-3.2a2 2 0 0 1 1.4-2.5l13.5-3.6a2 2 0 0 1 2.4 1.4L20.2 6z|M6.2 5.3l3.1 3.9|M12.4 3.6l3.1 4|M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-8z',
-  box: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8z|M3.3 7l8.7 5 8.7-5|M12 22V12',
-  music: 'M9 18V5l12-2v13|M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z|M21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
-  search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z|M21 21l-4.3-4.3',
-  sparkles: 'M12 3l1.9 5.8L19.7 11l-5.8 1.9L12 18.7l-1.9-5.8L4.3 11l5.8-2.2L12 3z|M19 3v4|M17 5h4',
-  refresh: 'M3 12a9 9 0 0 1 15-6.7L21 8|M21 3v5h-5|M21 12a9 9 0 0 1-15 6.7L3 16|M3 21v-5h5',
-  user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2|M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
-  pin: 'M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z|M12 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
-  camera: 'M23 7l-7 5 7 5V7z|M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z',
-  wand: 'M15 4V2|M15 16v-2|M8 9h2|M20 9h2|M17.8 11.8L19 13|M17.8 6.2L19 5|M12.2 6.2L11 5|M12 22l5-5-8-8-5 5 8 8z',
-  check: 'M20 6L9 17l-5-5',
-  download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4|M7 10l5 5 5-5|M12 15V3',
-  film: 'M19.8 3H4.2A1.2 1.2 0 0 0 3 4.2v15.6A1.2 1.2 0 0 0 4.2 21h15.6a1.2 1.2 0 0 0 1.2-1.2V4.2A1.2 1.2 0 0 0 19.8 3z|M7 3v18|M17 3v18|M3 7.5h4|M3 12h18|M3 16.5h4|M17 7.5h4|M17 16.5h4',
-  arrowR: 'M5 12h14|M12 5l7 7-7 7',
-  arrowL: 'M19 12H5|M12 19l-7-7 7-7',
-  sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z|M12 1v2|M12 21v2|M4.2 4.2l1.4 1.4|M18.4 18.4l1.4 1.4|M1 12h2|M21 12h2|M4.2 19.8l1.4-1.4|M18.4 5.6l1.4-1.4',
-  mic: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z|M19 10v2a7 7 0 0 1-14 0v-2|M12 19v4|M8 23h8',
-  send: 'M22 2L11 13|M22 2l-7 20-4-9-9-4 20-7z',
-  bolt: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
-  upload: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4|M17 8l-5-5-5 5|M12 3v12',
-  dice: 'M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z|M8.5 8.5h.01|M15.5 8.5h.01|M12 12h.01|M8.5 15.5h.01|M15.5 15.5h.01',
-  library: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20|M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z',
-  scroll: 'M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4|M19 17V5a2 2 0 0 0-2-2H4|M13 7h4|M13 11h4',
-  copy: 'M20 9h-9a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2z|M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1',
-  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 7v5l3 2',
-  cloud: 'M17.5 19a4.5 4.5 0 0 0 .42-8.98 7 7 0 0 0-13.42 1.9A4 4 0 0 0 6 19h11.5',
-  aperture: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M14.3 8L8.6 4.7|M9.7 8h6.9|M12 12l-3.5 6.1|M9.7 16L6.2 9.9|M14.3 16H7.4|M12 12l3.5-6.1|M15.4 9.9l3.4 5.8',
-  target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z|M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
-  palette: 'M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3 3h-2a2 2 0 0 0-2 2c0 1 .5 1.5.5 2.5S13.5 21 12 21z|M7.5 11a1 1 0 1 0 0-2|M12 8a1 1 0 1 0 0-2|M16.5 11a1 1 0 1 0 0-2',
-  sliders: 'M4 21v-7|M4 10V3|M12 21v-9|M12 8V3|M20 21v-5|M20 12V3|M1 14h6|M9 8h6|M17 16h6',
-  smile: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M8 14s1.5 2 4 2 4-2 4-2|M9 9h.01|M15 9h.01',
-  videoCam: 'M23 7l-7 5 7 5V7z|M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z',
-  frame: 'M3 7V5a2 2 0 0 1 2-2h2|M17 3h2a2 2 0 0 1 2 2v2|M21 17v2a2 2 0 0 1-2 2h-2|M7 21H5a2 2 0 0 1-2-2v-2|M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
-  compass: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M16 8l-2.5 5.5L8 16l2.5-5.5L16 8z',
+const PRESETS: Record<string, { label: string; hint: string; lighting: string; mood: string; color: string }> = {
+  commercial: { label: 'Commercial', hint: 'Clean, high-key, aspirational', lighting: 'clean high-key commercial lighting', mood: 'energetic, aspirational', color: '#9765E0' },
+  film: { label: 'Film', hint: 'Cinematic, moody, film grain', lighting: 'cinematic low-key lighting, soft film grain', mood: 'dramatic, atmospheric', color: '#534FA5' },
+  product: { label: 'Product', hint: 'Studio softbox, precise', lighting: 'studio softbox lighting, seamless background', mood: 'premium, precise', color: '#00C2BA' },
+  music: { label: 'Music', hint: 'Neon, rhythm, stylized', lighting: 'neon practicals and strobe accents', mood: 'stylized, rhythmic', color: '#CE95FB' },
 }
 
-// ── RU-названия значений движка (профи-термины остаются EN) ──
-const RU_VAL: Record<string, string> = {
-  // weather
-  'Clear': 'Ясно', 'Light breeze': 'Лёгкий бриз', 'Windy': 'Ветрено', 'Snow': 'Снег',
-  'Snowstorm': 'Метель', 'Rain': 'Дождь', 'Downpour': 'Ливень', 'Thunderstorm': 'Гроза',
-  'Fog': 'Туман', 'Heat haze': 'Марево', 'Overcast': 'Пасмурно', 'Drizzle': 'Морось',
-  'Dust in light': 'Пыль в лучах', 'Steam': 'Пар', 'God rays': 'Лучи света',
-  'Volumetric fog': 'Объёмный туман', 'Floating particles': 'Частицы', 'Embers': 'Искры',
-  'Falling leaves': 'Листопад',
-  // time
-  'Sunrise': 'Рассвет', 'Morning': 'Утро', 'Midday': 'Полдень', 'Afternoon': 'День',
-  'Golden hour': 'Золотой час', 'Sunset': 'Закат', 'Blue hour': 'Синий час',
-  'Night': 'Ночь', 'Midnight': 'Полночь', 'Dawn': 'Заря',
-  // genre
-  'Drama': 'Драма', 'Thriller': 'Триллер', 'Comedy': 'Комедия', 'Romance': 'Романтика',
-  'Horror': 'Хоррор', 'Action': 'Экшн', 'Noir': 'Нуар', 'Documentary': 'Доку',
-  'Fantasy': 'Фэнтези', 'Western': 'Вестерн', 'Commercial': 'Реклама', 'Poetic': 'Поэтика',
-  'Melancholic': 'Меланхолия', 'Nightmare': 'Кошмар', 'Catastrophic': 'Катастрофа',
-  'War': 'Война', 'Travel': 'Тревел', 'Sport': 'Спорт',
-  // shot size
-  'Extreme wide': 'Сверхобщий', 'Wide': 'Общий', 'Full shot': 'В полный рост',
-  'Medium': 'Средний', 'Medium close-up': 'Средне-крупный', 'Close-up': 'Крупный',
-  'Extreme close-up': 'Сверхкрупный', 'Insert / detail': 'Деталь',
-  'Over-the-shoulder': 'Через плечо', 'Two-shot': 'Двое в кадре',
-  // light (часть)
-  'Natural': 'Естественный', 'Soft key': 'Мягкий свет', 'Hard contrast': 'Жёсткий контраст',
-  'Neon practical': 'Неон', 'Backlit rim': 'Контровой', 'Window daylight': 'Свет из окна',
-  'Candlelight': 'Свечи', 'Silhouette': 'Силуэт', 'Lens flare': 'Блики',
-  'Warm sunlight': 'Тёплое солнце', 'Dark dramatic': 'Тёмный драматичный',
-  // camera (базовые)
-  'Static': 'Статика',
-}
-const ruVal = (label: string) => label // interface is English-only; RU map kept for later localization
-void RU_VAL
+const MENTION_TABS = [
+  { id: 'Characters', types: ['People', 'Character'] },
+  { id: 'Locations', types: ['Location'] },
+  { id: 'Props', types: ['Prop', 'Vehicle'] },
+] as const
 
-// Иконки категорий движка для карточек
-const CAT_ICON: Record<string, string> = {
-  camera: 'M23 7l-7 5 7 5V7z|M14 5H3a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z',
-  shottype: 'M3 7V5a2 2 0 0 1 2-2h2|M17 3h2a2 2 0 0 1 2 2v2|M21 17v2a2 2 0 0 1-2 2h-2|M7 21H5a2 2 0 0 1-2-2v-2|M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
-  angle: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M16 8l-2.5 5.5L8 16l2.5-5.5L16 8z',
-  lens: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M14.3 8L8.6 4.7|M9.7 8h6.9|M12 12l-3.5 6.1|M9.7 16L6.2 9.9|M14.3 16H7.4|M12 12l3.5-6.1|M15.4 9.9l3.4 5.8',
-  focus: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z|M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z',
-  camtype: 'M19.8 3H4.2A1.2 1.2 0 0 0 3 4.2v15.6A1.2 1.2 0 0 0 4.2 21h15.6a1.2 1.2 0 0 0 1.2-1.2V4.2A1.2 1.2 0 0 0 19.8 3z|M7 3v18|M17 3v18|M3 7.5h4|M3 12h18|M3 16.5h4|M17 7.5h4|M17 16.5h4',
-  light: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10z|M12 1v2|M12 21v2|M4.2 4.2l1.4 1.4|M18.4 18.4l1.4 1.4|M1 12h2|M21 12h2|M4.2 19.8l1.4-1.4|M18.4 5.6l1.4-1.4',
-  time: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M12 7v5l3 2',
-  weather: 'M17.5 19a4.5 4.5 0 0 0 .42-8.98 7 7 0 0 0-13.42 1.9A4 4 0 0 0 6 19h11.5',
-  genre: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z|M8 14s1.5 2 4 2 4-2 4-2|M9 9h.01|M15 9h.01',
-  styles: 'M12 21a9 9 0 1 1 9-9c0 2-1.5 3-3 3h-2a2 2 0 0 0-2 2c0 1 .5 1.5.5 2.5S13.5 21 12 21z|M7.5 11a1 1 0 1 0 0-2|M12 8a1 1 0 1 0 0-2|M16.5 11a1 1 0 1 0 0-2',
-  colorgrade: 'M4 21v-7|M4 10V3|M12 21v-9|M12 8V3|M20 21v-5|M20 12V3|M1 14h6|M9 8h6|M17 16h6',
-  music: 'M9 18V5l12-2v13|M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z|M21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
-  delivery: 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z|M19 10v2a7 7 0 0 1-14 0v-2|M12 19v4|M8 23h8',
+function thumb(url: string, w = 200): string {
+  if (!url || !url.includes('/storage/v1/object/public/')) return url
+  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + `?width=${w}&quality=62&resize=contain`
 }
 
-const VIDEO_TYPES = [
-  { id: 'ad', label: 'Commercial', icon: I.megaphone, hint: 'Product, brand, promo' },
-  { id: 'film', label: 'Film / Scene', icon: I.clapper, hint: 'Cinema, drama, action' },
-  { id: 'product', label: 'Product Video', icon: I.box, hint: 'Review, showcase' },
-  { id: 'music', label: 'Music Video', icon: I.music, hint: 'Rhythm, style, vibe' },
-]
-
-const STEP_LABELS: { id: Step; label: string }[] = [
-  { id: 'type', label: 'Type' },
-  { id: 'hero', label: 'Hero' },
-  { id: 'location', label: 'Location' },
-  { id: 'action', label: 'Action' },
-  { id: 'camera', label: 'Camera' },
-  { id: 'details', label: 'Mood' },
-  { id: 'confirm', label: 'Final' },
-]
-
-// Engine categories per step + RU titles
-const CAMERA_CATS = ['camera', 'shottype', 'angle', 'lens', 'focus', 'camtype']
-const DETAIL_CATS = ['light', 'time', 'weather', 'genre', 'styles', 'colorgrade', 'music', 'delivery']
-const RU_CAT: Record<string, string> = {
-  camera: 'Camera Move', shottype: 'Shot Size', angle: 'Angle', lens: 'Lens',
-  focus: 'Focus', camtype: 'Camera Body', light: 'Light', time: 'Time of Day',
-  weather: 'Weather', genre: 'Genre / Mood', styles: 'Style', colorgrade: 'Color Grade',
-  music: 'Music', delivery: 'Voice Delivery',
+function refSheet(url: string): string {
+  // full reference sheet at a resolution Seedance can actually use
+  if (!url || !url.includes('/storage/v1/object/public/')) return url
+  return url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + '?width=1400&quality=80&resize=contain'
 }
 
-const BOT_LINES: Record<Step, string> = {
-  type: 'What are we shooting today? Pick a type — or describe your own.',
-  hero: "Who's in the cast? Describe the first hero — you can add up to 4 (and more later on the final step).",
-  location: 'Where does the action happen? Describe the location.',
-  action: 'What happens in the frame? Type it or dictate with the mic.',
-  camera: 'How does the camera move? Pick options — or trust me.',
-  details: 'Add atmosphere? Optional — I can decide myself.',
-  confirm: 'All set! Review the scene and hit Generate.',
-  render: 'Shooting your video…',
-  result: "Done! Here's your video.",
-}
-
-const PLACEHOLDERS: Record<Step, string> = {
-  type: 'Or type your own format: travel vlog, teaser…',
-  hero: 'E.g.: young athlete, 25, confident',
-  location: 'E.g.: night city, neon, rain',
-  action: 'E.g.: he runs down the street looking into the camera',
-  camera: 'A note for the director (optional)…',
-  details: 'Atmosphere note (optional)…',
-  confirm: 'Final scene note (optional)…',
-  render: '',
-  result: '',
-}
-
-// ── Living mascot: floats, blinks, switches expressions ──────
-// Ищет PNG-эмоции в /public; чего нет — работает на neutral.
-const EXPR_SRC: Record<string, string> = {
-  neutral: '/cineman-neutral.png',
-  blink: '/cineman-blink.png',
-  thinking: '/cineman-thinking.png',
-  happy: '/cineman-happy.png',
-  excited: '/cineman-excited.png',
-  talking: '/cineman-talking.png',
-}
-const FALLBACK_SRC = '/cineman-mascot.png'
-let exprCache: Record<string, boolean> | null = null
-let exprPromise: Promise<Record<string, boolean>> | null = null
-function probeExpressions(): Promise<Record<string, boolean>> {
-  if (exprCache) return Promise.resolve(exprCache)
-  if (!exprPromise) {
-    exprPromise = Promise.all(
-      Object.entries(EXPR_SRC).map(([k, src]) => new Promise<[string, boolean]>(res => {
-        const img = new Image()
-        img.onload = () => res([k, true])
-        img.onerror = () => res([k, false])
-        img.src = src
-      })),
-    ).then(pairs => { exprCache = Object.fromEntries(pairs); return exprCache })
-  }
-  return exprPromise
-}
-
-function Mascot({ size = 96, mood = 'neutral' }: { size?: number; mood?: string }) {
-  const [avail, setAvail] = useState<Record<string, boolean>>(exprCache || {})
-  const [blinking, setBlinking] = useState(false)
-  // Expression set disabled — using the approved Cineman mascot (bowler hat + mustache)
-  useEffect(() => { /* probeExpressions().then(setAvail) */ }, [])
-  useEffect(() => {
-    if (!avail.blink) return
-    let alive = true
-    let t: ReturnType<typeof setTimeout>
-    const loop = () => {
-      t = setTimeout(() => {
-        if (!alive) return
-        setBlinking(true)
-        setTimeout(() => { if (alive) setBlinking(false); loop() }, 150)
-      }, 2600 + Math.random() * 2400)
-    }
-    loop()
-    return () => { alive = false; clearTimeout(t) }
-  }, [avail.blink])
-
-  // ВАЖНО: один набор кадров. Если neutral не загружен — базой служит
-  // happy из того же сета, чтобы маскот не «прыгал» в размере при
-  // смене выражения (mascot.png отрисован с другим кадрированием).
-  const base = avail.neutral ? 'neutral' : (avail.happy ? 'happy' : '')
-  const pick = blinking && avail.blink ? 'blink' : (avail[mood] ? mood : base)
-  const src = pick ? EXPR_SRC[pick] : FALLBACK_SRC
-  const amp = Math.max(6, Math.round(size * 0.14))
-  return (
-    <span
-      className="relative inline-flex flex-col items-center shrink-0"
-      style={{ width: size, transition: 'width .5s cubic-bezier(.16,1,.3,1)' }}
-    >
-      <style>{`
-        @keyframes cinemanFloat { 0%, 100% { transform: translateY(0) rotate(-3deg) } 25% { transform: translateY(-${Math.round(amp * 0.6)}px) rotate(0deg) } 50% { transform: translateY(-${amp}px) rotate(3deg) } 75% { transform: translateY(-${Math.round(amp * 0.5)}px) rotate(0.5deg) } }
-        @keyframes cinemanShadow { 0%, 100% { transform: scaleX(1); opacity: 0.5 } 50% { transform: scaleX(0.6); opacity: 0.22 } }
-      `}</style>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={src}
-        alt=""
-        onError={e => { const el = e.target as HTMLImageElement; if (el.src.indexOf(FALLBACK_SRC) < 0) el.src = FALLBACK_SRC; else el.style.visibility = 'hidden' }}
-        className="shrink-0 object-contain"
-        style={{ width: size, height: size, transition: 'width .5s cubic-bezier(.16,1,.3,1), height .5s cubic-bezier(.16,1,.3,1)', animation: 'cinemanFloat 2.6s ease-in-out infinite', filter: 'drop-shadow(0 10px 20px rgba(139,92,246,0.4))' }}
-      />
-      {size >= 60 && (
-        <span
-          aria-hidden
-          style={{
-            width: Math.round(size * 0.5),
-            height: Math.max(4, Math.round(size * 0.06)),
-            borderRadius: '50%',
-            background: 'radial-gradient(closest-side, rgba(139,92,246,0.5), transparent)',
-            animation: 'cinemanShadow 2.6s ease-in-out infinite',
-            marginTop: 3,
-          }}
-        />
-      )}
-    </span>
-  )
-}
-
-function Chip({ active, onClick, children }: { active?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`px-3.5 py-1.5 rounded-full border text-[13px] transition-all ${
-        active
-          ? 'bg-violet-600 border-violet-400/60 text-white shadow-[0_0_16px_rgba(139,92,246,0.35)]'
-          : 'bg-zinc-900/60 border-zinc-800 text-zinc-300 hover:border-violet-500/50 hover:text-zinc-100'
-      }`}
-    >
-      {children}
-    </button>
-  )
-}
-
-function AssetCard({ asset, selected, onClick, wide }: { asset: Asset; selected: boolean; onClick: () => void; wide?: boolean }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`relative rounded-2xl overflow-hidden border transition-all text-left group ${
-        selected
-          ? 'border-violet-500 shadow-[0_0_24px_rgba(139,92,246,0.35)]'
-          : 'border-zinc-800 hover:border-zinc-600 hover:-translate-y-0.5'
-      }`}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={asset.thumbnail_url || asset.file_url} alt={asset.title} className={wide ? 'w-full aspect-video object-cover' : 'w-full aspect-[3/4] object-cover'} style={wide ? undefined : { objectPosition: 'center top' }} loading="lazy" />
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-2.5">
-        <p className="text-xs text-zinc-200 line-clamp-2">{asset.title}</p>
-      </div>
-      {selected && (
-        <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-violet-500 flex items-center justify-center text-white">
-          <Icon d={I.check} size={13} />
-        </div>
-      )}
-    </button>
-  )
-}
-
-// The 8 moves directors reach for first — the rest live in group tabs
-const POPULAR_MOVES = ['Static', 'Slow zoom in', 'Dolly in', 'Tracking shot', 'Orbit clockwise', 'Handheld', 'Crane up', 'FPV drone']
-
-// Категории движка — карточки с иконками (как в референсе), клик
-// открывает вопрос «Категория?» и варианты чипсами.
-function CategoryPicker({
-  cats, engineSel, onPick, openCat, setOpenCat, expanded, onToggleExpand,
-}: {
-  cats: string[]
-  engineSel: Record<string, string>
-  onPick: (catId: string, label: string) => void
-  openCat: string | null
-  setOpenCat: (c: string | null) => void
-  expanded: Record<string, boolean>
-  onToggleExpand: (c: string) => void
-}) {
-  const [camGroup, setCamGroup] = useState('Popular')
-  const open = openCat && cats.includes(openCat) ? openCat : null
-  const cat = open ? ENGINE_CATS[open] : null
-  const items = cat ? (expanded[open!] ? cat.items : cat.items.slice(0, 10)) : []
-  return (
-    <div>
-      <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 mb-6">
-        {cats.map(c => {
-          const sel = engineSel[c]
-          const isOpen = open === c
-          return (
-            <button
-              key={c}
-              onClick={() => setOpenCat(isOpen ? null : c)}
-              className={`p-4 rounded-2xl border text-center transition-all ${
-                isOpen
-                  ? 'border-violet-400/70 bg-violet-500/10 shadow-[0_0_20px_rgba(139,92,246,0.25)]'
-                  : sel
-                    ? 'border-violet-500/40 bg-violet-500/5'
-                    : 'border-zinc-800 bg-zinc-900/50 hover:border-zinc-600 hover:-translate-y-0.5'
-              }`}
-            >
-              <div className={`mx-auto mb-2.5 w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                isOpen || sel ? 'text-violet-300 bg-violet-500/15 border border-violet-500/30' : 'text-zinc-400 bg-zinc-800/60 border border-zinc-700/50'
-              }`}>
-                <Icon d={CAT_ICON[c] || CAT_ICON.camera} size={19} />
-              </div>
-              <div className="text-[13px] text-zinc-200 leading-tight">{RU_CAT[c] || c}</div>
-              {sel ? (
-                <div className="text-[11px] text-violet-300 mt-1 truncate">{ruVal(sel)}</div>
-              ) : (
-                <div className="text-[11px] text-zinc-600 mt-1">—</div>
-              )}
-            </button>
-          )
-        })}
-      </div>
-      {open && cat && (
-        <div className="fade-in-up mb-2" key={open}>
-          <div className="inline-block bg-zinc-900/80 border border-zinc-800 rounded-2xl rounded-bl-md px-4 py-2 text-zinc-200 text-sm mb-3">
-            {RU_CAT[open] || open}?
-          </div>
-          <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4">
-            {open === 'camera' ? (
-              // 50 camera moves — group tabs, one clean row at a time
-              <div>
-                <div className="flex flex-wrap gap-1.5 mb-4 pb-3 border-b border-zinc-800/70">
-                  {['Popular', ...Object.keys(CAM_GROUPS)].map(g => (
-                    <button
-                      key={g}
-                      onClick={() => setCamGroup(g)}
-                      className={`px-3 py-1.5 rounded-lg text-[11px] uppercase tracking-wider transition-all ${
-                        camGroup === g
-                          ? 'bg-violet-600/25 text-violet-200 border border-violet-500/50 shadow-[0_0_10px_rgba(139,92,246,0.2)]'
-                          : 'text-zinc-500 hover:text-zinc-300 border border-zinc-800'
-                      }`}
-                    >
-                      {g}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-1.5" key={camGroup}>
-                  {(camGroup === 'Popular' ? POPULAR_MOVES : CAM_GROUPS[camGroup] || []).map(label => (
-                    <Chip key={label} active={engineSel[open] === label} onClick={() => onPick(open, engineSel[open] === label ? '' : label)}>
-                      {label}
-                    </Chip>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {items.map(([label]) => (
-                  <Chip key={label} active={engineSel[open] === label} onClick={() => onPick(open, engineSel[open] === label ? '' : label)}>
-                    {ruVal(label)}
-                  </Chip>
-                ))}
-                {cat.items.length > 10 && (
-                  <button onClick={() => onToggleExpand(open)} className="px-3 py-1.5 rounded-full text-[13px] text-violet-400 hover:text-violet-300 transition-colors">
-                    {expanded[open] ? 'Show less' : `+${cat.items.length - 10} more`}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Web Speech API (голосовой ввод, ru-RU) ───────────────────
-type SpeechRec = {
-  lang: string
-  continuous: boolean
-  interimResults: boolean
-  start: () => void
-  stop: () => void
-  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null
-  onend: (() => void) | null
-  onerror: (() => void) | null
-}
-function getSpeechRec(): SpeechRec | null {
-  if (typeof window === 'undefined') return null
-  const w = window as unknown as { webkitSpeechRecognition?: new () => SpeechRec; SpeechRecognition?: new () => SpeechRec }
-  const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition
-  return Ctor ? new Ctor() : null
+const dateLabel = (iso: string) => {
+  const d = new Date(iso), now = new Date()
+  const today = d.toDateString() === now.toDateString()
+  const yest = new Date(now.getTime() - 864e5).toDateString() === d.toDateString()
+  return today ? 'Today' : yest ? 'Yesterday' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
 export default function StudioPage() {
-  const [step, setStep] = useState<Step>('type')
-  const [videoType, setVideoType] = useState<string>('')
-  const [customType, setCustomType] = useState('')
+  const { user } = useAuth()
 
-  // hero / location
-  const [heroQuery, setHeroQuery] = useState('')
-  const [locQuery, setLocQuery] = useState('')
-  const [heroResults, setHeroResults] = useState<Asset[]>([])
-  const [locResults, setLocResults] = useState<Asset[]>([])
-  const [heroOffset, setHeroOffset] = useState(0)
-  const [locOffset, setLocOffset] = useState(0)
-  const [heroMatched, setHeroMatched] = useState<number | null>(null)
-  const [locMatched, setLocMatched] = useState<number | null>(null)
-  const [heroes, setHeroes] = useState<Asset[]>([]) // cast: до 4 героев
-  const [location, setLocation] = useState<Asset | null>(null)
-  const [searching, setSearching] = useState(false)
-  const [genState, setGenState] = useState<'idle' | 'working'>('idle')
-
-  // scene
-  const [action, setAction] = useState('')
-  const [extraNote, setExtraNote] = useState('')
-  const [engineSel, setEngineSel] = useState<Record<string, string>>({})
-  const [expandedCat, setExpandedCat] = useState<Record<string, boolean>>({})
-  const [engineCfg, setEngineCfg] = useState<EngineConfig>(DEFAULT_ENGINE_CONFIG)
-  const [openCat, setOpenCat] = useState<string | null>(null)
-
-  // Director's script preview (compiled Seedance prompt)
-  const [script, setScript] = useState('')
-  const [scriptLoading, setScriptLoading] = useState(false)
-  const [scriptCopied, setScriptCopied] = useState(false)
-
-  // "Surprise me" — a coherent random cinematic setup from the engine
-  const surpriseMe = useCallback(() => {
-    const pick = (catId: string) => {
-      const items = ENGINE_CATS[catId]?.items || []
-      return items.length ? items[Math.floor(Math.random() * items.length)][0] : ''
-    }
-    setEngineSel({
-      camera: POPULAR_MOVES[Math.floor(Math.random() * POPULAR_MOVES.length)],
-      shottype: pick('shottype'),
-      light: pick('light'),
-      time: pick('time'),
-      weather: pick('weather'),
-      genre: pick('genre'),
-    })
-    setScript('')
-  }, [])
-
-  // render
-  const [quality, setQuality] = useState<'draft' | 'final'>('draft')
-  const [duration, setDuration] = useState(5)
-  const [progress, setProgress] = useState(0)
-  const [videoUrl, setVideoUrl] = useState('')
-  const [error, setError] = useState('')
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [typing, setTyping] = useState(false)
-  const [speaking, setSpeaking] = useState(false)
-
-  // chat input + voice
-  const [input, setInput] = useState('')
-  const [micOn, setMicOn] = useState(false)
+  // ── controls state ──────────────────────────────────────────
+  const [preset, setPreset] = useState<keyof typeof PRESETS>('commercial')
+  const [presetOpen, setPresetOpen] = useState(false)
+  const [prompt, setPrompt] = useState('')
+  const [refs, setRefs] = useState<RefAsset[]>([])
+  const [uploads, setUploads] = useState<{ image?: string; video?: string; audio?: string }>({})
   const [uploading, setUploading] = useState(false)
-  // «My library» — герои/локации/пропсы из Favorites и Downloads юзера
-  const [libFor, setLibFor] = useState<'hero' | 'location' | 'prop' | null>(null)
-  const [libAssets, setLibAssets] = useState<Asset[]>([])
-  const [libLoading, setLibLoading] = useState(false)
-  const [extraRefs, setExtraRefs] = useState<Asset[]>([])
-  const fileRef = useRef<HTMLInputElement | null>(null)
-  const recRef = useRef<SpeechRec | null>(null)
-  const chatRef = useRef<HTMLDivElement | null>(null)
+  const [audio, setAudio] = useState(false)
+  const [model, setModel] = useState<'seedance-2' | 'seedance-2-fast'>('seedance-2')
+  const [duration, setDuration] = useState(5)
+  const [aspect, setAspect] = useState('16:9')
+  const [resolution, setResolution] = useState('720p')
+  const [price, setPrice] = useState(25)
+  const [generating, setGenerating] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [toast, setToast] = useState('')
+  const fileRef = useRef<HTMLInputElement>(null)
+  const promptRef = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
+  // ── mention picker ──────────────────────────────────────────
+  const [pickOpen, setPickOpen] = useState(false)
+  const [pickTab, setPickTab] = useState<(typeof MENTION_TABS)[number]['id']>('Characters')
+  const [pickQuery, setPickQuery] = useState('')
+  const [pickRows, setPickRows] = useState<{ id: string; title: string; type: string; file_url: string; mine: boolean }[]>([])
+  const [mineIds, setMineIds] = useState<Set<string>>(new Set())
 
-  useEffect(() => {
-    fetch('/api/engine').then(r => r.json()).then(d => { if (d.config) setEngineCfg(d.config) }).catch(() => {})
+  // ── history ─────────────────────────────────────────────────
+  const [history, setHistory] = useState<Gen[]>([])
+  const [selected, setSelected] = useState<Gen | null>(null)
+  const [view, setView] = useState<'grid' | 'list'>('grid')
+  const [size, setSize] = useState(100)
+  const [expanded, setExpanded] = useState(false)
+  const [checked, setChecked] = useState<Set<string>>(new Set())
+
+  const say = (m: string) => { setToast(m); setTimeout(() => setToast(''), 3000) }
+
+  const authHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const { data: { session } } = await supabase.auth.getSession()
+    return session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}
   }, [])
 
+  // price + user's owned/saved ids (they rank first in the @-picker)
   useEffect(() => {
-    setTyping(true)
-    setSpeaking(false)
-    // печатает → говорит (рот двигается) → нейтральный
-    const t = setTimeout(() => { setTyping(false); setSpeaking(true) }, 650)
-    const t2 = setTimeout(() => setSpeaking(false), 2800)
-    if (chatRef.current) chatRef.current.scrollTop = 0
-    return () => { clearTimeout(t); clearTimeout(t2) }
-  }, [step])
+    supabase.from('pricing_defaults').select('credits').eq('tier', 'gen_video').single()
+      .then(({ data }) => { if (data) setPrice(Number(data.credits)) })
+  }, [])
+  useEffect(() => {
+    if (!user) return
+    Promise.all([
+      supabase.from('purchases').select('asset_id').eq('user_id', user.id),
+      supabase.from('favorites').select('asset_id').eq('user_id', user.id),
+    ]).then(([p, f]) => {
+      const s = new Set<string>()
+      for (const r of p.data || []) s.add(String(r.asset_id))
+      for (const r of f.data || []) s.add(String(r.asset_id))
+      setMineIds(s)
+    })
+  }, [user])
 
-  const search = useCallback(async (assetType: 'Character' | 'Location', text: string, offset: number) => {
-    setSearching(true)
-    setError('')
+  const loadHistory = useCallback(async () => {
+    if (!user) return
     try {
-      const res = await fetch('/api/studio/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, assetType, offset }),
-      })
+      const res = await fetch('/api/studio/video?list=1', { headers: await authHeaders() })
       const json = await res.json()
-      if (json.error) throw new Error(json.error)
-      if (assetType === 'Character') { setHeroResults(json.results); setHeroOffset(offset); setHeroMatched(json.matched ?? null) }
-      else { setLocResults(json.results); setLocOffset(offset); setLocMatched(json.matched ?? null) }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Search failed')
-    } finally {
-      setSearching(false)
-    }
-  }, [])
-
-  // Generation price for the button label — same price-on-button rule
-  // as Download. Falls back to 10 until pricing_defaults loads.
-  const [genCost, setGenCost] = useState(5)
-  useEffect(() => {
-    supabase.from('pricing_defaults').select('credits').eq('tier', 'gen_base').single()
-      .then(({ data }) => { if (data?.credits) setGenCost(Number(data.credits)) })
-  }, [])
-
-  const generateAsset = useCallback(async (assetType: 'Character' | 'Location', description: string) => {
-    setGenState('working')
-    setError('')
-    try {
-      const res = await fetch('/api/studio/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) },
-        body: JSON.stringify({ assetType, description }),
-      })
-      const json = await res.json()
-      if (json.code === 'auth') throw new Error('Sign in to generate.')
-      if (json.code === 'credits') throw new Error(`Not enough credits — generation costs ${json.cost ?? genCost} credits. Top up on the pricing page.`)
-      if (json.code === 'quota') throw new Error(json.error || 'Daily limit reached.')
-      const { taskId, error: err } = json
-      if (err) throw new Error(err)
-      if (typeof json.credits === 'number') {
-        window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: json.credits }))
+      if (json.items) {
+        setHistory(json.items)
+        setSelected(prev => prev ? json.items.find((i: Gen) => i.id === prev.id) ?? json.items[0] ?? null : json.items[0] ?? null)
       }
-      await new Promise<void>((resolve, reject) => {
-        const iv = setInterval(async () => {
-          const r = await fetch(`/api/studio/generate?taskId=${taskId}&assetType=${assetType}&title=${encodeURIComponent(description.slice(0, 60))}&description=${encodeURIComponent(description)}`, { headers: await adminHeaders() })
-          const j = await r.json()
-          if (typeof j.credits === 'number') window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: j.credits }))
-          if (j.state === 'success' && j.asset) {
-            clearInterval(iv)
-            // Невыбранные варианты уходят — остаётся только новый герой
-            if (assetType === 'Character') { setHeroes(prev => [...prev, j.asset].slice(0, 4)); setHeroResults([j.asset]); setHeroMatched(1) }
-            else { setLocation(j.asset); setLocResults([j.asset]); setLocMatched(1) }
-            resolve()
-          } else if (j.state === 'fail' || j.error) {
-            clearInterval(iv)
-            reject(new Error(j.error || 'Generation failed'))
-          }
-        }, 4000)
-      })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Generation failed')
-    } finally {
-      setGenState('idle')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [genCost])
+    } catch { /* noop */ }
+  }, [user, authHeaders])
+  useEffect(() => { loadHistory() }, [loadHistory])
 
-  const startRender = useCallback(async () => {
-    setStep('render')
-    setProgress(0)
-    setError('')
-    try {
-      const fullAction = [action, extraNote].filter(Boolean).join('. ')
-      const compileRes = await fetch('/api/studio/compile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videoType: videoType || 'other',
-          heroes: heroes.map(h => ({ title: h.title, description: h.description })),
-          location: location ? { title: location.title, description: location.description } : null,
-          action: fullAction,
-          engine: engineSel,
-          masterPreset: engineCfg.masterPreset,
-        }),
-      })
-      const { prompt, error: cErr } = await compileRes.json()
-      if (cErr) throw new Error(cErr)
+  // ── @ mention search ────────────────────────────────────────
+  useEffect(() => {
+    if (!pickOpen) return
+    const types = MENTION_TABS.find(t => t.id === pickTab)!.types
+    const q = supabase.from('assets').select('id,title,type,file_url').in('type', types as unknown as string[]).eq('is_public', true).limit(40)
+    ;(pickQuery.trim() ? q.ilike('title', `%${pickQuery.trim()}%`) : q).then(({ data }) => {
+      const rows = (data || []).map(a => ({ ...a, id: String(a.id), mine: mineIds.has(String(a.id)) }))
+      rows.sort((a, b) => Number(b.mine) - Number(a.mine))
+      setPickRows(rows)
+    })
+  }, [pickOpen, pickTab, pickQuery, mineIds])
 
-      const refs = [...heroes.map(h => h.file_url), location?.file_url, ...extraRefs.map(r => r.file_url)].filter(Boolean)
-      const authHdr = await adminHeaders()
-      const videoRes = await fetch('/api/studio/video', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...authHdr },
-        body: JSON.stringify({ prompt, referenceImageUrls: refs, quality, duration }),
-      })
-      const videoJson = await videoRes.json()
-      const { taskId, error: vErr } = videoJson
-      if (videoJson.code === 'auth') { setError('Sign in to generate videos.'); setStep('confirm'); return }
-      if (videoJson.code === 'quota') { setError(videoJson.error || 'Daily limit reached — upgrade for more renders.'); setStep('confirm'); return }
-      if (vErr) throw new Error(vErr)
-
-      pollRef.current = setInterval(async () => {
-        const r = await fetch(`/api/studio/video?taskId=${taskId}&quality=${quality}`)
-        const j = await r.json()
-        setProgress(j.progress || 0)
-        if (j.state === 'success' && j.resultUrls?.length) {
-          if (pollRef.current) clearInterval(pollRef.current)
-          setVideoUrl(j.resultUrls[0])
-          setStep('result')
-        } else if (j.state === 'fail') {
-          if (pollRef.current) clearInterval(pollRef.current)
-          setError(j.failMsg || 'Video generation failed')
-          setStep('confirm')
-        }
-      }, 5000)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error')
-      setStep('confirm')
-    }
-  }, [videoType, heroes, location, action, extraNote, extraRefs, engineSel, engineCfg.masterPreset, quality, duration])
-
-  const openLibrary = useCallback(async (kind: 'hero' | 'location' | 'prop') => {
-    setLibFor(kind)
-    setLibLoading(true)
-    try {
-      const favs: string[] = JSON.parse(localStorage.getItem('cineman_favs') ?? '[]')
-      const dls: string[] = JSON.parse(localStorage.getItem('cineman_dl_ids') ?? '[]')
-      const idSet = new Set<string>()
-      favs.forEach(x => idSet.add(x))
-      dls.forEach(x => idSet.add(x))
-      const ids: string[] = []
-      idSet.forEach(x => ids.push(x))
-      ids.splice(60)
-      if (!ids.length) { setLibAssets([]); return }
-      const { data } = await supabase
-        .from('assets')
-        .select('id,title,type,tags,description,file_url,thumbnail_url')
-        .in('id', ids)
-      const wantType = kind === 'hero' ? 'Character' : kind === 'location' ? 'Location' : null
-      const list = (data || []).filter(a => !wantType || a.type === wantType) as Asset[]
-      setLibAssets(list)
-    } catch { setLibAssets([]) }
-    finally { setLibLoading(false) }
-  }, [])
-
-  const pickFromLibrary = useCallback((a: Asset) => {
-    if (libFor === 'hero') setHeroes(prev => prev.some(h => h.id === a.id) ? prev : [...prev, a].slice(0, 4))
-    else if (libFor === 'location') setLocation(a)
-    else setExtraRefs(prev => prev.some(r => r.id === a.id) ? prev : [...prev, a].slice(0, 3))
-    setLibFor(null)
-  }, [libFor])
-
-  // ── User uploads: own character / location / prop ───────────
-  const toJpeg = (file: File, max = 1600, q = 0.85): Promise<Blob> => new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      const sc = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight))
-      const c = document.createElement('canvas')
-      c.width = Math.round(img.naturalWidth * sc)
-      c.height = Math.round(img.naturalHeight * sc)
-      c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height)
-      c.toBlob(b => { URL.revokeObjectURL(url); b ? resolve(b) : reject(new Error('convert failed')) }, 'image/jpeg', q)
-    }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('image load failed')) }
-    img.src = url
-  })
-
-  const handleUpload = useCallback(async (file: File) => {
-    setUploading(true)
-    setError('')
-    try {
-      const blob = await toJpeg(file)
-      let meta: { title?: string; category?: string; description?: string; tags?: string } = {}
-      try {
-        const fd = new FormData()
-        fd.append('file', new File([blob], 'upload.jpg', { type: 'image/jpeg' }))
-        meta = await (await fetch('/api/ai-name', { method: 'POST', headers: await adminHeaders(), body: fd })).json()
-      } catch { /* best-effort naming */ }
-      const assetType = step === 'location' ? 'Location' : step === 'hero' ? 'Character' : 'Prop'
-      // Server-mediated write: the browser never touches storage/DB directly
-      const fd2 = new FormData()
-      fd2.append('file', new File([blob], 'upload.jpg', { type: 'image/jpeg' }))
-      fd2.append('type', assetType)
-      fd2.append('title', meta.title || file.name.replace(/\.[^.]+$/, ''))
-      fd2.append('category', meta.category || 'User Upload')
-      fd2.append('description', meta.description || '')
-      fd2.append('tags', typeof meta.tags === 'string' ? meta.tags : '')
-      const upRes = await fetch('/api/user-upload', { method: 'POST', headers: await adminHeaders(), body: fd2 })
-      const upJson = await upRes.json()
-      if (!upRes.ok || !upJson.asset) throw new Error(upJson.error || 'Upload failed')
-      const asset = upJson.asset as Asset
-      if (assetType === 'Character') { setHeroes(prev => [...prev, asset].slice(0, 4)); setHeroResults([asset]); setHeroMatched(1) }
-      else if (assetType === 'Location') { setLocation(asset); setLocResults([asset]); setLocMatched(1) }
-      else setExtraRefs(prev => [...prev, asset].slice(0, 3))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Upload failed')
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
-  }, [step])
-
-  const loadScript = useCallback(async () => {
-    if (script) { setScript(''); return }
-    setScriptLoading(true)
-    try {
-      const fullAction = [action, extraNote].filter(Boolean).join('. ')
-      const res = await fetch('/api/studio/compile', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          videoType: videoType || 'other',
-          heroes: heroes.map(h => ({ title: h.title, description: h.description })),
-          location: location ? { title: location.title, description: location.description } : null,
-          action: fullAction,
-          engine: engineSel,
-          masterPreset: engineCfg.masterPreset,
-        }),
-      })
-      const { prompt } = await res.json()
-      setScript(prompt || '')
-    } catch { setScript('') }
-    finally { setScriptLoading(false) }
-  }, [script, action, extraNote, videoType, heroes, location, engineSel, engineCfg.masterPreset])
-
-  // ── chat input: контекстное действие по шагу ────────────────
-  const submitInput = useCallback(() => {
-    const text = input.trim()
-    if (!text) return
-    setInput('')
-    if (step === 'type') { setVideoType('other'); setCustomType(text); setStep('hero') }
-    else if (step === 'hero') { setHeroQuery(text); search('Character', text, 0) }
-    else if (step === 'location') { setLocQuery(text); search('Location', text, 0) }
-    else if (step === 'action') { setAction(text); setStep('camera') }
-    else { setExtraNote(prev => (prev ? prev + '. ' : '') + text) }
-  }, [input, step, search])
-
-  const toggleMic = useCallback(() => {
-    if (micOn) { recRef.current?.stop(); setMicOn(false); return }
-    const rec = getSpeechRec()
-    if (!rec) { setError('Voice input is not supported in this browser — try Chrome'); return }
-    rec.lang = 'ru-RU'
-    rec.continuous = false
-    rec.interimResults = true
-    rec.onresult = e => {
-      const t = Array.from({ length: e.results.length }, (_, i) => e.results[i][0].transcript).join(' ')
-      setInput(t)
-    }
-    rec.onend = () => setMicOn(false)
-    rec.onerror = () => setMicOn(false)
-    recRef.current = rec
-    setMicOn(true)
-    rec.start()
-  }, [micOn])
-
-  const STEPS: Step[] = ['type', 'hero', 'location', 'action', 'camera', 'details', 'confirm']
-  const stepIndex = STEPS.indexOf(step)
-
-  const mood = searching || genState === 'working' || step === 'render' ? 'thinking'
-    : speaking ? 'talking'
-    : step === 'result' ? 'happy'
-    : step === 'confirm' ? 'excited'
-    : 'neutral'
-
-  // Живые подсказки: маскот ведёт за руку по шагам
-  let botLine = BOT_LINES[step]
-  if (step === 'hero' && heroResults.length > 0) botLine = heroes.length > 0
-    ? `Great, ${heroes.length} selected. Add more heroes — or hit Next to pick a location!`
-    : 'Pick a hero — you can select several! Next we choose a location.'
-  if (step === 'location' && locResults.length > 0) botLine = location
-    ? "Location locked! Hit Next — let's describe the action."
-    : 'Pick a location — then we move to the action.'
-
-  // История ответов — клик возвращает на шаг
-  const history: { step: Step; q: string; a: string }[] = []
-  if (stepIndex > 0 || step === 'render' || step === 'result') {
-    const past = (s: Step) => STEPS.indexOf(s) < (stepIndex === -1 ? STEPS.length : stepIndex)
-    if (past('hero') || stepIndex === -1) history.push({ step: 'type', q: BOT_LINES.type, a: customType || VIDEO_TYPES.find(t => t.id === videoType)?.label || '—' })
-    if (past('location')) history.push({ step: 'hero', q: BOT_LINES.hero, a: heroes.length ? heroes.map(h => h.title).join(', ') : 'No hero' })
-    if (past('action')) history.push({ step: 'location', q: BOT_LINES.location, a: location ? location.title : 'Skipped' })
-    if (past('camera')) history.push({ step: 'action', q: BOT_LINES.action, a: action.slice(0, 80) + (action.length > 80 ? '…' : '') })
-    if (past('details')) {
-      const camSel = CAMERA_CATS.map(c => engineSel[c]).filter(Boolean).map(ruVal).join(', ')
-      history.push({ step: 'camera', q: BOT_LINES.camera, a: camSel || 'Up to Cineman' })
-    }
-    if (past('confirm')) {
-      const detSel = DETAIL_CATS.map(c => engineSel[c]).filter(Boolean).map(ruVal).join(', ')
-      history.push({ step: 'details', q: BOT_LINES.details, a: detSel || 'Up to Cineman' })
-    }
+  function onPromptChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const v = e.target.value
+    setPrompt(v)
+    const caret = e.target.selectionStart ?? v.length
+    const before = v.slice(0, caret)
+    const m = before.match(/@([\w-]*)$/)
+    if (m) { setPickOpen(true); setPickQuery(m[1]) } else setPickOpen(false)
   }
 
-  const visibleCameraCats = CAMERA_CATS.filter(c => engineCfg.visible[c])
-  const visibleDetailCats = DETAIL_CATS.filter(c => engineCfg.visible[c])
-  const canSend = step !== 'render' && step !== 'result'
+  function pickAsset(a: { id: string; title: string; file_url: string; type: string }) {
+    // replace the trailing "@query" with a @Name token + attach the reference sheet
+    setPrompt(prev => prev.replace(/@([\w-]*)$/, `@${a.title.replace(/\s+/g, '')} `))
+    setRefs(prev => prev.some(r => r.id === a.id) ? prev : [...prev, { id: a.id, title: a.title, image: refSheet(a.file_url), kind: a.type }])
+    setPickOpen(false)
+    promptRef.current?.focus()
+  }
 
-  const noMatchBanner = (matched: number | null, kind: 'Character' | 'Location', query: string) =>
-    matched === 0 ? (
-      <div className="mb-4 px-4 py-3 rounded-xl bg-amber-950/40 border border-amber-700/40 text-amber-200/90 text-sm fade-in-up">
-        No exact match in the base — showing the closest. I can{' '}
-        <button
-          onClick={() => generateAsset(kind, query)}
-          disabled={genState === 'working'}
-          className="underline decoration-amber-400/60 hover:text-amber-100 font-medium"
-        >
-          generate {kind === 'Character' ? 'a new hero' : 'a new location'}
-        </button>{' '}
-        from your description.
-      </div>
-    ) : null
+  // ── upload media (optional) ─────────────────────────────────
+  async function onUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !user) return
+    if (file.size > 25 * 1024 * 1024) { say('Max 25 MB'); return }
+    setUploading(true)
+    try {
+      const kind = file.type.startsWith('video') ? 'video' : file.type.startsWith('audio') ? 'audio' : 'image'
+      const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, '')
+      const path = `genrefs/${user.id}-${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('assets').upload(path, file, { contentType: file.type })
+      if (error) { say('Upload failed'); return }
+      const url = supabase.storage.from('assets').getPublicUrl(path).data.publicUrl
+      setUploads(prev => ({ ...prev, [kind]: url }))
+      say(`${kind[0].toUpperCase() + kind.slice(1)} attached`)
+    } finally { setUploading(false); if (fileRef.current) fileRef.current.value = '' }
+  }
 
+  // ── generate ────────────────────────────────────────────────
+  async function generate(overrides?: { prompt?: string; settings?: Gen['settings']; refs?: RefAsset[] }) {
+    if (!user) { say('Sign in to generate'); return }
+    const p = (overrides?.prompt ?? prompt).trim()
+    if (!p) { say('Describe your shot first'); return }
+    if (generating) return
+    setGenerating(true)
+    setProgress(2)
+    try {
+      const pr = PRESETS[(overrides?.settings?.preset as keyof typeof PRESETS) ?? preset]
+      const useRefs = overrides?.refs ?? refs
+      const structured = {
+        Character: useRefs.filter(r => ['People', 'Character'].includes(r.kind)).map(r => r.title).join(', ') || '—',
+        Action: p,
+        Scene: useRefs.filter(r => r.kind === 'Location').map(r => r.title).join(', ') || '—',
+        Lighting: pr.lighting,
+        Mood: pr.mood,
+      }
+      const settings = overrides?.settings ?? { model, duration, aspect, resolution, audio, preset }
+      const fullPrompt = overrides?.prompt ? p : `${p}. ${pr.lighting}, ${pr.mood}.`
+      const res = await fetch('/api/studio/video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ prompt: fullPrompt, structured, settings, refs: useRefs, uploads }),
+      })
+      const json = await res.json()
+      if (res.status === 402 && json.code === 'credits') { say(`Not enough credits (${json.cost} needed)`); return }
+      if (res.status === 503 && json.code === 'soon') { say('Video generation — coming soon'); return }
+      if (!json.genId) { say(json.error || 'Could not start the render'); return }
+      if (typeof json.credits === 'number') window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: json.credits }))
+      await loadHistory()
+
+      // poll until done (Seedance renders take a few minutes)
+      for (let i = 0; i < 120; i++) {
+        await new Promise(r => setTimeout(r, 5000))
+        const pres = await fetch(`/api/studio/video?genId=${json.genId}`, { headers: await authHeaders() })
+        const pj = await pres.json()
+        if (pj.state === 'done') { say('Ready — saved to History and your Library'); break }
+        if (pj.state === 'fail') { say(pj.error || 'Render failed — credits refunded'); break }
+        setProgress(Math.max(4, Math.min(96, Number(pj.progress) || (4 + i * 2))))
+      }
+      await loadHistory()
+    } catch { say('Generation failed — try again') }
+    finally { setGenerating(false); setProgress(0) }
+  }
+
+  // ── history actions ─────────────────────────────────────────
+  async function toggleFavorite(g: Gen) {
+    await supabase.from('generations').update({ favorite: !g.favorite }).eq('id', g.id)
+    setHistory(prev => prev.map(x => x.id === g.id ? { ...x, favorite: !g.favorite } : x))
+    setSelected(prev => prev?.id === g.id ? { ...prev, favorite: !g.favorite } : prev)
+  }
+  async function removeGens(ids: string[]) {
+    await fetch('/api/studio/video', { method: 'DELETE', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ ids }) })
+    setChecked(new Set())
+    setSelected(prev => prev && ids.includes(prev.id) ? null : prev)
+    await loadHistory()
+    say('Deleted')
+  }
+  function bulkDownload() {
+    const items = history.filter(g => checked.has(g.id) && g.url)
+    items.forEach((g, i) => setTimeout(() => { const a = document.createElement('a'); a.href = g.url!; a.download = ''; a.click() }, i * 600))
+  }
+  const copyPrompt = (g: Gen) => { navigator.clipboard.writeText(g.prompt || '').then(() => say('Prompt copied')) }
+
+  const groups: [string, Gen[]][] = []
+  for (const g of history) {
+    const label = dateLabel(g.created_at)
+    const last = groups[groups.length - 1]
+    if (last && last[0] === label) last[1].push(g)
+    else groups.push([label, [g]])
+  }
+  const cardW = Math.round(120 + (size / 100) * 340)
+
+  const inputStyle: React.CSSProperties = { padding: '7px 9px', fontSize: 12 }
+
+  // ── UI ──────────────────────────────────────────────────────
   return (
-    <div className="relative min-h-screen overflow-hidden">
-      <div className="pointer-events-none absolute inset-0" style={{ background: 'radial-gradient(800px 480px at 50% -100px, rgba(124,58,237,0.18), transparent 70%)' }} />
+    <div className="max-w-[1500px] mx-auto px-5 py-6">
+      {/* Top bar: title + history controls */}
+      <div className="flex items-center gap-3 mb-5">
+        <h1 className="text-xl font-bold mr-2" style={{ color: 'var(--fg)' }}>Cineman Studio</h1>
+        <span className="text-[11px] px-2 py-0.5 rounded-full font-bold" style={{ backgroundColor: 'rgba(0,194,186,0.12)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}>Seedance 2.0</span>
+        <div className="flex-1" />
+        <div className="flex items-center gap-1 rounded-lg p-0.5" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+          {(['grid', 'list'] as const).map(v => (
+            <button key={v} onClick={() => setView(v)} className="px-3 py-1 rounded-md text-xs font-bold"
+              style={view === v ? { background: 'linear-gradient(135deg,#9765E0,#534FA5)', color: 'white' } : { color: 'var(--fg-muted)' }}>
+              {v === 'grid' ? 'Grid' : 'List'}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setExpanded(v => !v)} title={expanded ? 'Back to the generator' : 'Expand history'}
+          className="p-1.5 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d={expanded ? 'M8 3v5H3M16 3v5h5M8 21v-5H3M16 21v-5h5' : 'M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7'} /></svg>
+        </button>
+        <span className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>Preview size</span>
+        <input type="range" min={0} max={100} value={size} onChange={e => setSize(Number(e.target.value))} style={{ width: 110, accentColor: '#9765E0' }} />
+      </div>
 
-      {/* ЭКРАН — большая округлая рамка студии */}
-      <div className="relative max-w-4xl mx-auto px-4 py-8">
-        <div
-          className="rounded-[2rem] border border-zinc-800/80 bg-zinc-950/60 backdrop-blur-xl shadow-[0_20px_80px_rgba(0,0,0,0.6),inset_0_1px_0_rgba(255,255,255,0.04)] overflow-hidden flex flex-col"
-          style={{ minHeight: 'calc(100vh - 4rem)' }}
-        >
-          {/* Шапка экрана: маскот + имя + шаги */}
-          <div className="px-6 pt-6 pb-4 border-b border-zinc-800/60" style={{ background: 'linear-gradient(180deg, rgba(139,92,246,0.07), transparent)' }}>
-            <div className="flex items-center gap-4 mb-4">
-              <Mascot size={step === 'type' ? 180 : 132} mood={mood} />
-              <div>
-                <p className="text-zinc-50 font-semibold text-lg leading-tight">Cineman</p>
-                <p className="text-violet-400/80 text-xs">AI Director · online</p>
-              </div>
-            </div>
-            {stepIndex >= 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {STEP_LABELS.map((sl, i) => {
-                  const isCurrent = i === stepIndex
-                  const isPast = i < stepIndex
-                  return (
-                    <button
-                      key={sl.id}
-                      onClick={() => isPast && setStep(sl.id)}
-                      disabled={!isPast}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs transition-all"
-                      style={{
-                        background: isCurrent ? 'linear-gradient(135deg,#8b5cf6,#6d28d9)' : isPast ? 'rgba(139,92,246,0.12)' : 'rgba(39,39,42,0.5)',
-                        color: isCurrent ? '#fff' : isPast ? '#c4b5fd' : '#52525b',
-                        border: `1px solid ${isCurrent ? 'rgba(167,139,250,0.6)' : isPast ? 'rgba(139,92,246,0.25)' : 'rgba(63,63,70,0.5)'}`,
-                        boxShadow: isCurrent ? '0 0 16px rgba(139,92,246,0.4)' : 'none',
-                        cursor: isPast ? 'pointer' : 'default',
-                      }}
-                    >
-                      <span className="flex items-center justify-center rounded-full text-[10px] font-bold" style={{ width: 16, height: 16, background: isCurrent ? 'rgba(255,255,255,0.25)' : isPast ? 'rgba(139,92,246,0.3)' : 'rgba(63,63,70,0.6)' }}>
-                        {isPast ? '✓' : i + 1}
-                      </span>
-                      {sl.label}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Лента чата */}
-          <div ref={chatRef} className="flex-1 overflow-y-auto px-6 py-6">
-            {/* История: вопрос бота + ответ юзера (клик = вернуться) */}
-            {history.map(h => (
-              <div key={h.step} className="mb-4">
-                <div className="flex items-start gap-2.5 mb-2">
-                  <div className="w-7 h-7 shrink-0"><Mascot size={28} /></div>
-                  <div className="bg-zinc-900/60 border border-zinc-800/70 rounded-2xl rounded-tl-md px-4 py-2 text-zinc-400 text-sm max-w-lg">{h.q}</div>
+      {/* 3 columns (hidden when history is expanded) */}
+      {!expanded && (
+        <div className="grid gap-5 mb-8" style={{ gridTemplateColumns: '320px 1fr 280px' }}>
+          {/* ── LEFT: controls ─────────────────────────────── */}
+          <div className="card p-4 flex flex-col gap-4" style={{ alignSelf: 'start' }}>
+            {/* Preset */}
+            <div className="rounded-xl p-3" style={{ border: `1px solid ${PRESETS[preset].color}55`, backgroundColor: `${PRESETS[preset].color}14` }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)' }}>Type</p>
+                  <p className="text-sm font-bold" style={{ color: PRESETS[preset].color }}>{PRESETS[preset].label}</p>
+                  <p className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>{PRESETS[preset].hint}</p>
                 </div>
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => canSend && setStep(h.step)}
-                    title="Click to edit"
-                    className="bg-violet-600/20 border border-violet-500/30 hover:border-violet-400/60 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md text-left transition-colors"
-                  >
-                    {h.a}
-                  </button>
-                </div>
+                <button onClick={() => setPresetOpen(v => !v)} className="text-[11px] font-bold px-3 py-1.5 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--fg)', background: 'none', cursor: 'pointer' }}>Change</button>
               </div>
-            ))}
-
-            {/* Текущее сообщение бота */}
-            <div className="flex items-end gap-3 mb-6" key={`bot-${step}`}>
-              <div className="w-14 h-14 shrink-0"><Mascot size={56} mood={mood} /></div>
-              <div className="bg-zinc-900/80 backdrop-blur border border-zinc-800 rounded-3xl rounded-bl-md px-5 py-3.5 text-zinc-100 text-[15px] leading-relaxed max-w-xl shadow-[0_8px_30px_rgba(0,0,0,0.4)]">
-                {typing ? (
-                  <span className="flex items-center gap-1.5 py-1 px-0.5">
-                    <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
-                  </span>
-                ) : (
-                  <span className="fade-in-up" style={{ display: 'block' }}>{botLine}</span>
-                )}
-              </div>
-            </div>
-
-            {error && (
-              <div className="mb-5 px-4 py-3 rounded-xl bg-red-950/60 border border-red-800 text-red-300 text-sm">{error}</div>
-            )}
-
-            {/* My library picker (Favorites + Downloads) */}
-            {libFor && (
-              <div className="mb-6 rounded-2xl border border-violet-500/40 bg-zinc-900/70 p-4 fade-in-up">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm text-zinc-200 flex items-center gap-2">
-                    <Icon d={I.library} size={16} /> My library — {libFor === 'hero' ? 'characters' : libFor === 'location' ? 'locations' : 'any asset as a prop'}
-                  </p>
-                  <button onClick={() => setLibFor(null)} className="text-zinc-500 hover:text-zinc-300 text-sm">Close</button>
-                </div>
-                {libLoading ? (
-                  <p className="text-zinc-500 text-sm py-4">Loading your library…</p>
-                ) : libAssets.length === 0 ? (
-                  <p className="text-zinc-500 text-sm py-4">Nothing here yet — add favorites or download assets in the catalog first.</p>
-                ) : (
-                  <div className="grid grid-cols-4 gap-2 max-h-64 overflow-y-auto pr-1">
-                    {libAssets.map(a => (
-                      <button key={a.id} onClick={() => pickFromLibrary(a)} className="relative rounded-xl overflow-hidden border border-zinc-800 hover:border-violet-500/70 transition-all text-left group">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={a.thumbnail_url || a.file_url} alt={a.title} className="w-full aspect-square object-cover" style={{ objectPosition: 'center top' }} loading="lazy" />
-                        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-1.5">
-                          <p className="text-[10px] text-zinc-200 line-clamp-1">{a.title}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div key={step} className="fade-in-up">
-              {/* TYPE */}
-              {step === 'type' && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-left">
-                  {VIDEO_TYPES.map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => { setVideoType(t.id); setCustomType(''); setStep('hero') }}
-                      className="group p-4 rounded-2xl bg-zinc-900/50 backdrop-blur border border-zinc-800 hover:border-violet-500/70 hover:-translate-y-1 hover:shadow-[0_8px_32px_rgba(139,92,246,0.18)] transition-all"
-                    >
-                      <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400 mb-3 group-hover:bg-violet-500/20 transition-colors">
-                        <Icon d={t.icon} />
-                      </div>
-                      <div className="text-zinc-100 font-medium text-sm mb-0.5">{t.label}</div>
-                      <div className="text-zinc-600 text-xs">{t.hint}</div>
+              {presetOpen && (
+                <div className="grid grid-cols-2 gap-1.5 mt-3">
+                  {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map(k => (
+                    <button key={k} onClick={() => { setPreset(k); setPresetOpen(false) }}
+                      className="text-xs font-bold px-2 py-2 rounded-lg text-left"
+                      style={{ border: `1px solid ${k === preset ? PRESETS[k].color : 'var(--border)'}`, color: k === preset ? PRESETS[k].color : 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
+                      {PRESETS[k].label}
                     </button>
                   ))}
                 </div>
               )}
+            </div>
 
-              {/* HERO */}
-              {step === 'hero' && (
-                <div>
-                  {heroQuery && (
-                    <div className="flex justify-end mb-4">
-                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{heroQuery}</div>
-                    </div>
-                  )}
-                  {noMatchBanner(heroMatched, 'Character', heroQuery)}
-                  {(genState === 'working' || uploading) && (
-                    <div className="rounded-2xl border border-violet-500/40 bg-zinc-900/60 p-8 flex flex-col items-center gap-3 mb-6 fade-in-up">
-                      <Mascot size={72} mood="thinking" />
-                      <p className="text-zinc-300 text-sm">{uploading ? 'Uploading your image…' : 'Generating your hero… ~20s'}</p>
-                      <div className="w-44 h-1.5 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full w-1/2 rounded-full animate-pulse" style={{ background: 'linear-gradient(90deg,#8b5cf6,#22d3ee)' }} /></div>
-                    </div>
-                  )}
-                  {genState !== 'working' && !uploading && heroResults.length > 0 && (
-                    <>
-                      <div className="grid grid-cols-4 gap-3 mb-4">
-                        {heroResults.map(a => (
-                          <AssetCard
-                            key={a.id}
-                            asset={a}
-                            selected={heroes.some(h => h.id === a.id)}
-                            onClick={() => setHeroes(prev => prev.some(h => h.id === a.id) ? prev.filter(h => h.id !== a.id) : [...prev, a].slice(0, 4))}
-                          />
-                        ))}
-                        <button
-                          onClick={() => fileRef.current?.click()}
-                          className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-[3/4] flex flex-col items-center justify-center gap-2 transition-all text-xs"
-                        >
-                          <Icon d={I.upload} size={20} /> Add your own
-                        </button>
-                        <button
-                          onClick={() => openLibrary('hero')}
-                          className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-[3/4] flex flex-col items-center justify-center gap-2 transition-all text-xs"
-                        >
-                          <Icon d={I.library} size={20} /> My library
-                        </button>
-                      </div>
-                      {heroes.length > 0 && (
-                        <p className="text-violet-300/90 text-sm mb-4 fade-in-up">
-                          Cast: {heroes.map(h => h.title).join(' · ')} ({heroes.length}/4)
-                        </p>
-                      )}
-                      <div className="flex gap-5 mb-6 text-sm">
-                        <button onClick={() => search('Character', heroQuery, heroOffset + 4)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors" disabled={searching}>
-                          <Icon d={I.refresh} size={15} /> More options
-                        </button>
-                        <button onClick={() => generateAsset('Character', heroQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors">
-                          <Icon d={I.sparkles} size={15} /> Generate new · {genCost} <CreditGem size={13} />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                  {heroResults.length === 0 && !searching && (
-                    <p className="text-zinc-600 text-sm mb-6">Describe the hero in the input below — options will appear here.</p>
-                  )}
-                  {searching && <p className="text-violet-300/80 text-sm mb-6 fade-in-up">Searching the base…</p>}
-                  <div className="flex justify-end gap-3 items-center">
-                    <button onClick={() => { setHeroes([]); setStep('location') }} className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">No hero</button>
-                    <button onClick={() => setStep('location')} disabled={heroes.length === 0} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-30 transition-colors">
-                      Next <Icon d={I.arrowR} size={15} />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* LOCATION */}
-              {step === 'location' && (
-                <div>
-                  {locQuery && (
-                    <div className="flex justify-end mb-4">
-                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{locQuery}</div>
-                    </div>
-                  )}
-                  {noMatchBanner(locMatched, 'Location', locQuery)}
-                  {(genState === 'working' || uploading) && (
-                    <div className="rounded-2xl border border-violet-500/40 bg-zinc-900/60 p-8 flex flex-col items-center gap-3 mb-6 fade-in-up">
-                      <Mascot size={72} mood="thinking" />
-                      <p className="text-zinc-300 text-sm">{uploading ? 'Uploading your image…' : 'Generating your location… ~20s'}</p>
-                      <div className="w-44 h-1.5 bg-zinc-800 rounded-full overflow-hidden"><div className="h-full w-1/2 rounded-full animate-pulse" style={{ background: 'linear-gradient(90deg,#8b5cf6,#22d3ee)' }} /></div>
-                    </div>
-                  )}
-                  {genState !== 'working' && !uploading && locResults.length > 0 && (
-                    <>
-                      <div className="grid grid-cols-2 gap-3 mb-4">
-                        {locResults.map(a => (
-                          <AssetCard key={a.id} asset={a} selected={location?.id === a.id} onClick={() => setLocation(a)} wide />
-                        ))}
-                        <button
-                          onClick={() => fileRef.current?.click()}
-                          className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-video flex flex-col items-center justify-center gap-2 transition-all text-xs"
-                        >
-                          <Icon d={I.upload} size={20} /> Add your own
-                        </button>
-                        <button
-                          onClick={() => openLibrary('location')}
-                          className="rounded-2xl border border-dashed border-zinc-700 hover:border-violet-500/70 text-zinc-500 hover:text-violet-300 aspect-video flex flex-col items-center justify-center gap-2 transition-all text-xs"
-                        >
-                          <Icon d={I.library} size={20} /> My library
-                        </button>
-                      </div>
-                      <div className="flex gap-5 mb-6 text-sm">
-                        <button onClick={() => search('Location', locQuery, locOffset + 4)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors" disabled={searching}>
-                          <Icon d={I.refresh} size={15} /> More options
-                        </button>
-                        <button onClick={() => generateAsset('Location', locQuery)} className="flex items-center gap-1.5 text-zinc-400 hover:text-violet-400 transition-colors">
-                          <Icon d={I.sparkles} size={15} /> Generate new · {genCost} <CreditGem size={13} />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                  {locResults.length === 0 && !searching && (
-                    <p className="text-zinc-600 text-sm mb-6">Describe the location below — I'll search the base.</p>
-                  )}
-                  {searching && <p className="text-violet-300/80 text-sm mb-6 fade-in-up">Searching the base…</p>}
-                  <div className="flex justify-end gap-3 items-center">
-                    <button onClick={() => { setLocation(null); setStep('action') }} className="text-zinc-500 hover:text-zinc-300 text-sm transition-colors">Skip</button>
-                    <button onClick={() => setStep('action')} disabled={!location} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-30 transition-colors">
-                      Next <Icon d={I.arrowR} size={15} />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* ACTION */}
-              {step === 'action' && (
-                <div>
-                  {action && (
-                    <div className="flex justify-end mb-5">
-                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2.5 text-violet-100 text-sm max-w-lg">{action}</div>
-                    </div>
-                  )}
-                  <p className="text-zinc-600 text-sm mb-6">Type below or tap the mic and dictate.</p>
-                  {action && (
-                    <div className="flex justify-end">
-                      <button onClick={() => setStep('camera')} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
-                        Next <Icon d={I.arrowR} size={15} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* CAMERA — карточки категорий движка */}
-              {step === 'camera' && (
-                <div>
-                  <CategoryPicker
-                    cats={visibleCameraCats}
-                    engineSel={engineSel}
-                    onPick={(c, label) => setEngineSel(s => ({ ...s, [c]: label }))}
-                    openCat={openCat}
-                    setOpenCat={setOpenCat}
-                    expanded={expandedCat}
-                    onToggleExpand={c => setExpandedCat(s => ({ ...s, [c]: !s[c] }))}
-                  />
-                  {extraNote && (
-                    <div className="flex justify-end my-3">
-                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{extraNote}</div>
-                    </div>
-                  )}
-                  <div className="flex justify-between mt-3">
-                    <button onClick={surpriseMe} title="Random cinematic setup" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-violet-500/40 text-violet-300 hover:bg-violet-950/40 transition-colors text-sm">
-                      <Icon d={I.dice} size={16} /> Surprise me
-                    </button>
-                    <button onClick={() => { setOpenCat(null); setStep('details') }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
-                      Next <Icon d={I.arrowR} size={15} />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* DETAILS — карточки категорий движка */}
-              {step === 'details' && (
-                <div>
-                  <CategoryPicker
-                    cats={visibleDetailCats}
-                    engineSel={engineSel}
-                    onPick={(c, label) => setEngineSel(s => ({ ...s, [c]: label }))}
-                    openCat={openCat}
-                    setOpenCat={setOpenCat}
-                    expanded={expandedCat}
-                    onToggleExpand={c => setExpandedCat(s => ({ ...s, [c]: !s[c] }))}
-                  />
-                  {extraNote && (
-                    <div className="flex justify-end my-3">
-                      <div className="bg-violet-600/20 border border-violet-500/30 rounded-2xl rounded-tr-md px-4 py-2 text-violet-100 text-sm max-w-md">{extraNote}</div>
-                    </div>
-                  )}
-                  <div className="flex justify-between mt-3">
-                    <button onClick={surpriseMe} title="Random cinematic setup" className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-violet-500/40 text-violet-300 hover:bg-violet-950/40 transition-colors text-sm">
-                      <Icon d={I.dice} size={16} /> Surprise me
-                    </button>
-                    <button onClick={() => { setOpenCat(null); setStep('confirm') }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
-                      Next <Icon d={I.arrowR} size={15} />
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* CONFIRM */}
-              {step === 'confirm' && (
-                <div>
-                  <div className="p-5 rounded-2xl bg-zinc-900/50 backdrop-blur border border-zinc-800 mb-6">
-                    <div className="flex gap-3 mb-5 flex-wrap">
-                      {heroes.map(h => (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img key={h.id} src={h.thumbnail_url || h.file_url} alt={h.title} className="h-36 w-28 object-cover rounded-xl border border-zinc-800" style={{ objectPosition: 'center top' }} />
-                      ))}
-                      {location && (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img src={location.thumbnail_url || location.file_url} alt="location" className="h-36 flex-1 min-w-[200px] object-cover rounded-xl border border-zinc-800" />
-                      )}
-                    </div>
-                    <ul className="text-sm text-zinc-300 space-y-2.5">
-                      <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.film} size={15} /></span> {customType || VIDEO_TYPES.find(t => t.id === videoType)?.label || 'Video'}</li>
-                      {heroes.length > 0 && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.user} size={15} /></span> {heroes.map(h => h.title).join(', ')}</li>}
-                      {location && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.pin} size={15} /></span> {location.title || 'Location selected'}</li>}
-                      <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.wand} size={15} /></span> {action.slice(0, 70)}{action.length > 70 ? '…' : ''}</li>
-                      {Object.entries(engineSel).filter(([, v]) => v).length > 0 && (
-                        <li className="flex items-start gap-2"><span className="text-violet-400 mt-0.5"><Icon d={I.camera} size={15} /></span> {Object.entries(engineSel).filter(([, v]) => v).map(([, v]) => ruVal(v)).join(' · ')}</li>
-                      )}
-                      {extraRefs.length > 0 && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.upload} size={15} /></span> {extraRefs.map(r => r.title).join(', ')}</li>}
-                      {extraNote && <li className="flex items-center gap-2"><span className="text-violet-400"><Icon d={I.bolt} size={15} /></span> {extraNote.slice(0, 70)}</li>}
-                    </ul>
-                  </div>
-
-                  {/* Director's script — the exact Seedance prompt */}
-                  <div className="mb-6">
-                    <button onClick={loadScript} className="flex items-center gap-2 text-sm text-violet-300 hover:text-violet-200 transition-colors">
-                      <Icon d={I.scroll} size={16} />
-                      {scriptLoading ? 'Writing the script…' : script ? 'Hide director\u2019s script' : 'Show director\u2019s script'}
-                    </button>
-                    {script && (
-                      <div className="mt-3 relative rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 fade-in-up">
-                        <p className="text-[13px] leading-relaxed text-zinc-300 font-mono whitespace-pre-wrap pr-10">{script}</p>
-                        <button
-                          onClick={() => { navigator.clipboard.writeText(script).catch(() => {}); setScriptCopied(true); setTimeout(() => setScriptCopied(false), 1500) }}
-                          title="Copy prompt"
-                          className="absolute top-3 right-3 p-2 rounded-lg text-zinc-500 hover:text-violet-300 hover:bg-violet-500/10 transition-all"
-                        >
-                          {scriptCopied ? <Icon d={I.check} size={15} /> : <Icon d={I.copy} size={15} />}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quick-add: вернуться и дополнить сцену */}
-                  <div className="flex flex-wrap gap-2 mb-6">
-                    <button onClick={() => setStep('hero')} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-zinc-700 text-zinc-300 hover:border-violet-500/60 hover:text-violet-200 transition-colors text-sm">
-                      <Icon d={I.user} size={15} /> {heroes.length ? 'Add / change heroes' : 'Add a hero'}
-                    </button>
-                    <button onClick={() => setStep('location')} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-zinc-700 text-zinc-300 hover:border-violet-500/60 hover:text-violet-200 transition-colors text-sm">
-                      <Icon d={I.pin} size={15} /> {location ? 'Change location' : 'Add a location'}
-                    </button>
-                    <button onClick={() => fileRef.current?.click()} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-zinc-700 text-zinc-300 hover:border-violet-500/60 hover:text-violet-200 transition-colors text-sm">
-                      <Icon d={I.upload} size={15} /> Add a prop
-                    </button>
-                    <button onClick={() => openLibrary('prop')} className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-zinc-700 text-zinc-300 hover:border-violet-500/60 hover:text-violet-200 transition-colors text-sm">
-                      <Icon d={I.library} size={15} /> From my library
-                    </button>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-4 mb-7">
-                    <div className="flex gap-2">
-                      <Chip active={quality === 'draft'} onClick={() => setQuality('draft')}>Draft · 720p</Chip>
-                      <Chip active={quality === 'final'} onClick={() => setQuality('final')}>Final · 1080p + audio</Chip>
-                    </div>
-                    <div className="flex gap-2">
-                      {[5, 10, 15].map(d => <Chip key={d} active={duration === d} onClick={() => setDuration(d)}>{d}s</Chip>)}
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end">
-                    <button onClick={startRender} className="btn-shimmer glow-pulse flex items-center gap-2.5 px-10 py-3.5 rounded-2xl text-white text-lg font-semibold tracking-wide transition-all hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg,#8b5cf6,#6d28d9)' }}>
-                      <Icon d={I.bolt} /> Generate
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* RENDER */}
-              {step === 'render' && (
-                <div className="text-center py-12">
-                  <div className="flex justify-center mb-6"><Mascot size={110} mood="thinking" /></div>
-                  <h2 className="text-xl text-zinc-100 font-medium mb-2">Shooting your video…</h2>
-                  <p className="text-zinc-500 text-sm mb-10">Usually takes 1–2 minutes</p>
-                  <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden border border-zinc-800">
-                    <div className="h-2 rounded-full transition-all duration-1000" style={{ width: `${Math.max(progress, 5)}%`, background: 'linear-gradient(90deg,#8b5cf6,#22d3ee)' }} />
-                  </div>
-                  <p className="text-zinc-600 text-sm mt-3">{progress > 0 ? `${progress}%` : 'Queued…'}</p>
-                </div>
-              )}
-
-              {/* RESULT */}
-              {step === 'result' && (
-                <div>
-                  <video src={videoUrl} controls autoPlay loop className="w-full rounded-2xl border border-zinc-800 mb-6 shadow-[0_8px_40px_rgba(0,0,0,0.5)]" />
-                  <div className="flex flex-wrap gap-3">
-                    <a href={videoUrl} download className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white transition-colors">
-                      <Icon d={I.download} size={16} /> Download
-                    </a>
-                    {quality === 'draft' && (
-                      <button onClick={() => { setQuality('final'); startRender() }} className="flex items-center gap-2 px-6 py-2.5 rounded-xl border border-violet-500/60 text-violet-300 hover:bg-violet-950/40 transition-colors">
-                        <Icon d={I.sparkles} size={16} /> Final quality
-                      </button>
-                    )}
-                    <button onClick={() => window.location.reload()} className="px-6 py-2.5 rounded-xl border border-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors">
-                      New video
-                    </button>
-                  </div>
-                  <p className="text-zinc-600 text-xs mt-4">Saved to your Cineman library — this link is permanent.</p>
+            {/* Upload */}
+            <div>
+              <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" onChange={onUpload} style={{ display: 'none' }} />
+              <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                className="w-full text-xs font-bold py-2.5 rounded-lg"
+                style={{ border: '1px dashed var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
+                {uploading ? 'Uploading…' : '+ Upload media (image / video / audio)'}
+              </button>
+              {(uploads.image || uploads.video || uploads.audio) && (
+                <div className="flex gap-1.5 mt-2 flex-wrap">
+                  {(['image', 'video', 'audio'] as const).filter(k => uploads[k]).map(k => (
+                    <span key={k} className="text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1" style={{ backgroundColor: 'rgba(0,194,186,0.12)', color: '#00C2BA' }}>
+                      {k}
+                      <button onClick={() => setUploads(prev => { const n = { ...prev }; delete n[k]; return n })} style={{ color: '#00C2BA', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+                    </span>
+                  ))}
                 </div>
               )}
             </div>
-          </div>
 
-          {/* Строка ввода — как в Claude/GPT: текст + голос */}
-          {canSend && (
-            <div className="px-6 pb-8 pt-4 border-t border-zinc-800/60" style={{ background: 'linear-gradient(0deg, rgba(139,92,246,0.05), transparent)' }}>
-              <div className="flex items-center gap-2 bg-zinc-900/80 backdrop-blur border border-zinc-800 focus-within:border-violet-500/70 rounded-2xl px-4 py-2 transition-colors shadow-[0_8px_30px_rgba(0,0,0,0.35)]">
-                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f) }} />
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  title="Upload your own character, location or prop"
-                  className={`p-2 rounded-xl transition-all ${uploading ? 'text-violet-400 animate-pulse' : 'text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10'}`}
-                >
-                  <Icon d={I.upload} size={18} />
-                </button>
-                <input
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && submitInput()}
-                  placeholder={micOn ? 'Listening…' : PLACEHOLDERS[step]}
-                  className="flex-1 bg-transparent text-zinc-100 placeholder-zinc-600 outline-none py-1.5 text-[15px]"
-                />
-                <button
-                  onClick={toggleMic}
-                  title="Voice input"
-                  className={`p-2 rounded-xl transition-all ${micOn ? 'bg-red-500/20 text-red-400 animate-pulse' : 'text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10'}`}
-                >
-                  <Icon d={I.mic} size={18} />
-                </button>
-                <button
-                  onClick={submitInput}
-                  disabled={!input.trim()}
-                  className="p-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white disabled:opacity-30 disabled:hover:bg-violet-600 transition-all"
-                >
-                  <Icon d={I.send} size={17} />
-                </button>
+            {/* Prompt + @mentions */}
+            <div style={{ position: 'relative' }}>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Prompt · type @ to insert an asset</p>
+              {refs.length > 0 && (
+                <div className="flex gap-1.5 flex-wrap mb-1.5">
+                  {refs.map(r => (
+                    <span key={r.id} className="text-[11px] font-bold px-2 py-1 rounded-md flex items-center gap-1.5"
+                      style={{ backgroundColor: 'rgba(151,101,224,0.16)', color: '#CE95FB', border: '1px solid rgba(151,101,224,0.35)' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={r.image} alt="" style={{ width: 18, height: 14, borderRadius: 3, objectFit: 'cover' }} />
+                      @{r.title.replace(/\s+/g, '')}
+                      <button onClick={() => setRefs(prev => prev.filter(x => x.id !== r.id))} style={{ color: '#CE95FB', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <textarea
+                ref={promptRef}
+                value={prompt}
+                onChange={onPromptChange}
+                rows={4}
+                placeholder="A hero walks through the city at dusk… (@ = pick your character or location)"
+                className="input-field w-full text-sm"
+                style={{ padding: '10px 12px', resize: 'vertical' }}
+              />
+              {pickOpen && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30,
+                  backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 12,
+                  boxShadow: '0 14px 40px rgba(0,0,0,0.65)', padding: 8,
+                }}>
+                  <div className="flex gap-1 mb-2">
+                    {MENTION_TABS.map(t => (
+                      <button key={t.id} onClick={() => setPickTab(t.id)} className="text-[11px] font-bold px-2.5 py-1 rounded-md"
+                        style={pickTab === t.id ? { background: 'linear-gradient(135deg,#9765E0,#534FA5)', color: 'white', border: 'none', cursor: 'pointer' } : { color: 'var(--fg-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        {t.id}
+                      </button>
+                    ))}
+                    <div className="flex-1" />
+                    <button onClick={() => setPickOpen(false)} style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>×</button>
+                  </div>
+                  <input
+                    value={pickQuery}
+                    onChange={e => setPickQuery(e.target.value)}
+                    placeholder="Search assets…"
+                    className="input-field w-full text-xs mb-2"
+                    style={{ padding: '6px 9px' }}
+                  />
+                  <div style={{ maxHeight: 230, overflowY: 'auto' }}>
+                    {pickRows.length === 0 && <p className="text-[11px] px-2 py-3" style={{ color: 'var(--fg-subtle)' }}>Nothing found</p>}
+                    {pickRows.map(a => (
+                      <button key={a.id} onClick={() => pickAsset(a)} className="flex items-center gap-2 p-1.5 rounded-lg text-left"
+                        onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(151,101,224,0.14)')}
+                        onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={thumb(a.file_url, 120)} alt="" style={{ width: 42, height: 28, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
+                        <span className="text-xs truncate" style={{ color: 'var(--fg)', flex: 1, textAlign: 'left' }}>{a.title}</span>
+                        {a.mine && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(126,231,199,0.14)', color: '#7EE7C7' }}>yours</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Audio toggle */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold" style={{ color: 'var(--fg-muted)' }}>Generate audio</span>
+              <button onClick={() => setAudio(v => !v)} role="switch" aria-checked={audio}
+                style={{
+                  width: 38, height: 21, borderRadius: 999, position: 'relative', border: 'none', cursor: 'pointer',
+                  backgroundColor: audio ? '#9765E0' : 'var(--bg-subtle)', transition: 'background .15s',
+                }}>
+                <span style={{ position: 'absolute', top: 2.5, left: audio ? 19 : 3, width: 16, height: 16, borderRadius: '50%', backgroundColor: 'white', transition: 'left .15s' }} />
+              </button>
+            </div>
+
+            {/* Model / duration / aspect / resolution */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Model</p>
+                <select value={model} onChange={e => setModel(e.target.value as typeof model)} className="input-field w-full" style={inputStyle}>
+                  <option value="seedance-2">Seedance 2.0</option>
+                  <option value="seedance-2-fast">Seedance 2.0 Fast</option>
+                </select>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Duration</p>
+                <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="input-field w-full" style={inputStyle}>
+                  <option value={5}>5 s</option><option value={10}>10 s</option><option value={15}>15 s</option>
+                </select>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Aspect</p>
+                <select value={aspect} onChange={e => setAspect(e.target.value)} className="input-field w-full" style={inputStyle}>
+                  <option>16:9</option><option>9:16</option><option>1:1</option><option>4:3</option>
+                </select>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Resolution</p>
+                <select value={resolution} onChange={e => setResolution(e.target.value)} className="input-field w-full" style={inputStyle}>
+                  <option>720p</option><option>1080p</option>
+                </select>
               </div>
             </div>
-          )}
+
+            {/* Generate */}
+            <button onClick={() => generate()} disabled={generating}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white"
+              style={{ background: generating ? 'rgba(151,101,224,0.45)' : 'linear-gradient(135deg,#9765E0,#534FA5)', cursor: generating ? 'default' : 'pointer', border: 'none' }}>
+              {generating ? `Rendering… ${progress}%` : (<>Generate · {price} <CreditGem size={15} /></>)}
+            </button>
+          </div>
+
+          {/* ── CENTER: preview ────────────────────────────── */}
+          <div className="card p-4 flex flex-col" style={{ minHeight: 480 }}>
+            {selected?.url ? (
+              <>
+                <video key={selected.id} src={selected.url} controls playsInline className="w-full rounded-xl" style={{ maxHeight: 520, backgroundColor: 'black' }} />
+                <div className="flex items-center gap-2 mt-3">
+                  <p className="text-xs truncate flex-1" style={{ color: 'var(--fg-muted)' }}>{selected.prompt}</p>
+                  <button onClick={() => toggleFavorite(selected)} title="Favorite" className="p-2 rounded-lg" style={{ border: '1px solid var(--border)', color: selected.favorite ? '#CE95FB' : 'var(--fg-subtle)', background: 'none', cursor: 'pointer' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill={selected.favorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
+                  </button>
+                  <button onClick={() => copyPrompt(selected)} title="Copy prompt" className="p-2 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--fg-subtle)', background: 'none', cursor: 'pointer' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                  </button>
+                  <a href={selected.url} download title="Download" className="p-2 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--fg-subtle)' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
+                  </a>
+                  <button onClick={() => say('Change voice — coming soon')} className="text-[11px] font-bold px-3 py-2 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
+                    Change voice
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex flex-col items-center justify-center text-center gap-2">
+                {generating ? (
+                  <>
+                    <div style={{ width: 220, height: 5, borderRadius: 999, backgroundColor: 'var(--bg-subtle)', overflow: 'hidden' }}>
+                      <div style={{ width: `${progress}%`, height: '100%', background: 'linear-gradient(90deg,#9765E0,#5EEAD4)', transition: 'width .5s' }} />
+                    </div>
+                    <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>Seedance is rendering your shot — a few minutes…</p>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: 34 }}>🎬</span>
+                    <p className="text-sm font-semibold" style={{ color: 'var(--fg)' }}>Your generations appear here</p>
+                    <p className="text-xs max-w-xs" style={{ color: 'var(--fg-muted)' }}>Describe a shot, @-mention your characters and locations for consistency, hit Generate.</p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── RIGHT: details ─────────────────────────────── */}
+          <div className="card p-4" style={{ alignSelf: 'start' }}>
+            {selected ? (
+              <>
+                <span className="text-[10px] font-bold px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(0,194,186,0.12)', color: '#00C2BA' }}>
+                  {selected.model === 'seedance-2-fast' ? 'Seedance 2.0 Fast' : 'Seedance 2.0'}
+                </span>
+                <div className="mt-3 space-y-2">
+                  {Object.entries(selected.structured || { Prompt: selected.prompt || '' }).map(([k, v]) => (
+                    <div key={k}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)' }}>{k}</p>
+                      <p className="text-xs" style={{ color: 'var(--fg)' }}>{String(v)}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex gap-1.5 flex-wrap mt-3">
+                  {[selected.settings?.resolution, selected.settings?.duration ? `${selected.settings.duration}s` : null, selected.settings?.aspect, selected.settings?.audio ? 'audio' : null].filter(Boolean).map(x => (
+                    <span key={String(x)} className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)' }}>{String(x)}</span>
+                  ))}
+                </div>
+                <p className="text-[11px] mt-3" style={{ color: 'var(--fg-subtle)' }}>
+                  {new Date(selected.created_at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {selected.cost} credits
+                </p>
+                <div className="flex gap-2 mt-4">
+                  <button
+                    onClick={() => generate({ prompt: selected.prompt || '', settings: selected.settings, refs: selected.refs || [] })}
+                    disabled={generating}
+                    className="flex-1 text-xs font-bold py-2 rounded-lg text-white"
+                    style={{ background: 'linear-gradient(135deg,#9765E0,#534FA5)', border: 'none', cursor: 'pointer' }}>
+                    Rerun
+                  </button>
+                  <button onClick={() => copyPrompt(selected)} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>Copy</button>
+                  <button onClick={() => removeGens([selected.id])} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ border: '1px solid rgba(220,60,60,0.4)', color: '#e06060', background: 'none', cursor: 'pointer' }}>Delete</button>
+                </div>
+              </>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Generation details will show here.</p>
+            )}
+          </div>
         </div>
+      )}
+
+      {/* ── HISTORY ──────────────────────────────────────────── */}
+      <div className="flex items-center gap-3 mb-3">
+        <h2 className="text-sm font-bold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>History</h2>
+        {checked.size > 0 && (
+          <>
+            <button onClick={bulkDownload} className="text-[11px] font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: 'linear-gradient(135deg,#9765E0,#534FA5)', border: 'none', cursor: 'pointer' }}>Download {checked.size}</button>
+            <button onClick={() => removeGens(Array.from(checked))} className="text-[11px] font-bold px-3 py-1.5 rounded-lg" style={{ border: '1px solid rgba(220,60,60,0.4)', color: '#e06060', background: 'none', cursor: 'pointer' }}>Delete {checked.size}</button>
+          </>
+        )}
       </div>
+
+      {!user ? (
+        <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Sign in to see your generation history.</p>
+      ) : history.length === 0 ? (
+        <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>No generations yet — your renders will appear here, grouped by date.</p>
+      ) : (
+        groups.map(([label, items]) => (
+          <div key={label} className="mb-5">
+            <p className="text-[11px] font-bold mb-2" style={{ color: 'var(--fg-subtle)' }}>{label}</p>
+            {view === 'grid' ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {items.map(g => (
+                  <div key={g.id} className="rounded-xl overflow-hidden" style={{ width: cardW, border: `1px solid ${selected?.id === g.id ? '#9765E0' : 'var(--border)'}`, backgroundColor: 'var(--bg-card)', position: 'relative', cursor: 'pointer' }}
+                    onClick={() => { setSelected(g); setExpanded(false) }}>
+                    <input
+                      type="checkbox"
+                      checked={checked.has(g.id)}
+                      onChange={e => { e.stopPropagation(); setChecked(prev => { const n = new Set(prev); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n }) }}
+                      onClick={e => e.stopPropagation()}
+                      style={{ position: 'absolute', top: 7, left: 7, zIndex: 3, accentColor: '#9765E0' }}
+                    />
+                    {g.url ? (
+                      <video src={`${g.url}#t=0.1`} muted playsInline preload="metadata" style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', backgroundColor: 'black', display: 'block' }} />
+                    ) : (
+                      <div className="flex items-center justify-center text-[11px]" style={{ aspectRatio: '16/9', color: g.state === 'fail' ? '#e06060' : 'var(--fg-subtle)', backgroundColor: 'var(--bg-subtle)' }}>
+                        {g.state === 'fail' ? 'Failed' : 'Rendering…'}
+                      </div>
+                    )}
+                    {g.favorite && <span style={{ position: 'absolute', top: 6, right: 7, color: '#CE95FB', fontSize: 11 }}>★</span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {items.map(g => (
+                  <div key={g.id} className="flex items-center gap-3 rounded-xl p-2" style={{ border: `1px solid ${selected?.id === g.id ? '#9765E0' : 'var(--border)'}`, backgroundColor: 'var(--bg-card)', cursor: 'pointer' }}
+                    onClick={() => { setSelected(g); setExpanded(false) }}>
+                    <input type="checkbox" checked={checked.has(g.id)}
+                      onChange={e => { e.stopPropagation(); setChecked(prev => { const n = new Set(prev); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n }) }}
+                      onClick={e => e.stopPropagation()} style={{ accentColor: '#9765E0' }} />
+                    {g.url ? (
+                      <video src={`${g.url}#t=0.1`} muted playsInline preload="metadata" style={{ width: Math.max(110, cardW * 0.6), aspectRatio: '16/9', objectFit: 'cover', borderRadius: 8, backgroundColor: 'black', flexShrink: 0 }} />
+                    ) : (
+                      <div className="flex items-center justify-center text-[11px]" style={{ width: Math.max(110, cardW * 0.6), aspectRatio: '16/9', borderRadius: 8, color: 'var(--fg-subtle)', backgroundColor: 'var(--bg-subtle)', flexShrink: 0 }}>
+                        {g.state === 'fail' ? 'Failed' : 'Rendering…'}
+                      </div>
+                    )}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <p className="text-xs" style={{ color: 'var(--fg)' }}>{g.prompt}</p>
+                      <p className="text-[10px] mt-1" style={{ color: 'var(--fg-subtle)' }}>
+                        {g.model === 'seedance-2-fast' ? 'Seedance 2.0 Fast' : 'Seedance 2.0'} · {g.settings?.resolution} · {g.settings?.duration}s · {new Date(g.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))
+      )}
+
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--fg)',
+          padding: '10px 18px', borderRadius: 10, fontSize: 13, zIndex: 200,
+        }}>{toast}</div>
+      )}
     </div>
   )
 }
