@@ -42,3 +42,8 @@ export async function requireUser(req: NextRequest): Promise<{ ok: true; userId:
     return { ok: false, error: 'Auth check failed', status: 500 }
   }
 }
+
+// A-batch: admin accounts never spend credits (unlimited testing).
+// Emails are not secrets; the allowlist above is the source of truth.
+export const isAdminEmail = (e?: string | null): boolean =>
+  !!e && ADMIN_EMAILS.map(x => x.toLowerCase()).includes(e.toLowerCase())
