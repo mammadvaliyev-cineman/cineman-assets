@@ -46,6 +46,15 @@ export const CATEGORIES: Category[] = [
     subcategories: ['Monsters', 'Aliens', 'Dinosaurs', 'Beasts'].map(sub),
   },
   {
+    // Top-level per owner's spec — promoted out of Creatures.
+    // Assets come from CHARCTER SHEET/ZOMBIES (61 files).
+    id: 'Zombie',
+    label: 'Zombies',
+    emoji: '',
+    color: '#8CB43C',
+    subcategories: ['Zombies'].map(sub),
+  },
+  {
     id: 'Robot',
     label: 'Robots',
     emoji: '',
