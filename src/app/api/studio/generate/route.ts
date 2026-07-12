@@ -136,6 +136,23 @@ export async function GET(req: NextRequest) {
       .single()
     if (dbErr) throw dbErr
 
+    // OWNERSHIP RULE: a generated asset belongs to its creator — free
+    // re-downloads forever, shows up in the Library. Cost 0 here because
+    // the generation itself was already charged at task start.
+    try {
+      const auth = req.headers.get('authorization') || ''
+      const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
+      if (token && inserted?.id) {
+        const { data: userData } = await admin.auth.getUser(token)
+        if (userData?.user) {
+          await admin.from('purchases').upsert(
+            { user_id: userData.user.id, asset_id: inserted.id, cost: 0 },
+            { onConflict: 'user_id,asset_id', ignoreDuplicates: true },
+          )
+        }
+      }
+    } catch { /* non-fatal */ }
+
     return NextResponse.json({ state: 'success', asset: inserted })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Save failed'
