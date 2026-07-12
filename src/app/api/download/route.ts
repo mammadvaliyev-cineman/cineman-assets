@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { presignR2Get, r2Configured } from '@/lib/r2'
+import { isAdminEmail } from '@/lib/adminAuth'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,6 +50,8 @@ export async function POST(req: NextRequest) {
       const { data: userData, error: userErr } = await admin.auth.getUser(token)
       if (!userErr && userData?.user) {
         const userId = userData.user.id
+        // A-batch: admin accounts download free (testing), ownership still recorded
+        const adminFree = isAdminEmail(userData.user.email)
         // EXCLUSIVELY SOLD: stays in the catalog but only the owner can
         // download it — and the owner already paid, so it's free for them
         if (data.exclusive_owner) {
@@ -62,6 +65,14 @@ export async function POST(req: NextRequest) {
         if (purchased) {
           await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost: 0 }).then(() => {}, () => {})
           return NextResponse.json({ url: servedUrl(data), owned: true, cost: 0 })
+        }
+        if (adminFree) {
+          await admin.from('purchases').upsert(
+            { user_id: userId, asset_id: assetId, cost: 0 },
+            { onConflict: 'user_id,asset_id', ignoreDuplicates: true },
+          ).then(() => {}, () => {})
+          await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost: 0 }).then(() => {}, () => {})
+          return NextResponse.json({ url: servedUrl(data), owned: true, cost: 0, admin: true })
         }
         // NULL credit_cost = follows the tier default (pricing_defaults)
         let cost = data.credit_cost == null ? NaN : Number(data.credit_cost)
