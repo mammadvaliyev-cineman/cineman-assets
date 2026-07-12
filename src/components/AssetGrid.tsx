@@ -1131,8 +1131,9 @@ export default function AssetGrid({
 
   return (
     <>
-      {/* Free counter banner */}
-      {freeUsed > 0 && freeUsed < FREE_LIMIT && (
+      {/* Free counter banner — anonymous only: signed-in users pay with
+          credits (or own the asset), the anon limit no longer applies */}
+      {!user && freeUsed > 0 && freeUsed < FREE_LIMIT && (
         <div
           className="flex items-center justify-between px-4 py-2.5 rounded-xl mb-4 text-sm"
           style={{ backgroundColor: 'rgba(151,101,224,0.08)', border: '1px solid rgba(151,101,224,0.2)' }}
