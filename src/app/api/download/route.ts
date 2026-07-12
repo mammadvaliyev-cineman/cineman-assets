@@ -52,8 +52,16 @@ export async function POST(req: NextRequest) {
         // EXCLUSIVELY SOLD: stays in the catalog but only the owner can
         // download it — and the owner already paid, so it's free for them
         if (data.exclusive_owner) {
-          if (data.exclusive_owner === userId) return NextResponse.json({ url: servedUrl(data), owned: true })
+          if (data.exclusive_owner === userId) return NextResponse.json({ url: servedUrl(data), owned: true, cost: 0 })
           return NextResponse.json({ error: 'Exclusively sold', code: 'sold' }, { status: 403 })
+        }
+        // OWNERSHIP RULE: the FIRST download buys the asset (purchases row),
+        // every repeat download of the same asset is free forever.
+        const { data: purchased } = await admin.from('purchases')
+          .select('id').eq('user_id', userId).eq('asset_id', assetId).maybeSingle()
+        if (purchased) {
+          await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost: 0 }).then(() => {}, () => {})
+          return NextResponse.json({ url: servedUrl(data), owned: true, cost: 0 })
         }
         // NULL credit_cost = follows the tier default (pricing_defaults)
         let cost = data.credit_cost == null ? NaN : Number(data.credit_cost)
@@ -75,6 +83,11 @@ export async function POST(req: NextRequest) {
             { status: 402 },
           )
         }
+        // record ownership (unique user+asset — race-safe) + the download log
+        await admin.from('purchases').upsert(
+          { user_id: userId, asset_id: assetId, cost },
+          { onConflict: 'user_id,asset_id', ignoreDuplicates: true },
+        ).then(() => {}, () => {})
         await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost }).then(() => {}, () => {})
         return NextResponse.json({ url: servedUrl(data), credits: remaining, cost })
       }
