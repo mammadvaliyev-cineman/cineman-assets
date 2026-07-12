@@ -514,8 +514,9 @@ export default function CatalogPage() {
         {/* Quick nav */}
         <div style={{ paddingTop: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
           <SidebarItem iconD={CAT_ICONS.grid} label="All Assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search} color="#9765E0" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch('') }} />
-          <SidebarItem iconD={CAT_ICONS.heart} label="Favorites" count={favIds.size} active={quickView === 'fav'} color="#CE95FB" onClick={() => setQuickView(quickView === 'fav' ? 'all' : 'fav')} />
-          <SidebarItem iconD={CAT_ICONS.download} label="Downloads" count={dlIds.size} active={quickView === 'dl'} color="#00C2BA" onClick={() => setQuickView(quickView === 'dl' ? 'all' : 'dl')} />
+          {/* spec C1: one Library entry point — the separate Downloads view
+              is gone (it lives in Library → Purchased); hearts became Saved */}
+          <SidebarItem iconD={CAT_ICONS.heart} label="Saved" count={favIds.size} active={quickView === 'fav'} color="#CE95FB" onClick={() => setQuickView(quickView === 'fav' ? 'all' : 'fav')} />
         </div>
 
         {/* Categories */}
