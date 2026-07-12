@@ -180,6 +180,7 @@ function toAsset(a: Record<string, unknown>): Asset {
     tags: Array.isArray(a.tags) ? a.tags : [],
     fileUrl: String(a.file_url ?? ''),
     creditCost: a.credit_cost == null ? undefined : Number(a.credit_cost),
+    downloadCount: Number(a.download_count ?? 0),
     exclusivePrice: a.exclusive_price == null ? undefined : Number(a.exclusive_price),
     priceTier: String(a.price_tier ?? 'standard'),
     resolution: String(a.resolution ?? '2K'),
@@ -256,8 +257,9 @@ export default function CatalogPage() {
     setActiveClass('All'); setActiveRType('All')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSubcat])
-  const [viewMode, setViewMode]       = useState<'grid' | 'list'>('grid')
-  const [sortBy, setSortBy]           = useState<'random' | 'recent' | 'oldest'>('random')
+  // Grid only (owner's spec): the list view is gone from the catalog
+  const viewMode = 'grid' as const
+  const [sortBy, setSortBy]           = useState<'random' | 'newest' | 'downloads' | '4k' | 'price-desc' | 'price-asc'>('random')
   const [previewSize, setPreviewSize] = useState(100)
   const [quickView, setQuickView]     = useState<'all' | 'fav' | 'dl' | 'downloads' | 'saved'>('all')
   // deep link: /catalog?view=downloads|saved (старый /library редиректит сюда)
@@ -308,7 +310,7 @@ export default function CatalogPage() {
         const { data, error } = await supabase.from('assets').select('*')
           .neq('type', 'Config').neq('type', 'Generation').neq('type', 'Usage')
           .eq('is_public', true) // hidden assets never reach the public catalog
-          .order('created_at', { ascending: sortBy === 'oldest' })
+          .order('created_at', { ascending: false })
           .range(from, from + PAGE - 1)
         if (error || !data) break
         all.push(...(data as Record<string, unknown>[]))
@@ -332,7 +334,16 @@ export default function CatalogPage() {
           const k = Math.floor(Math.random() * (i + 1))
           ;[mapped[i], mapped[k]] = [mapped[k], mapped[i]]
         }
+      } else if (sortBy === 'downloads') {
+        mapped = [...mapped].sort((x, y) => (y.downloadCount ?? 0) - (x.downloadCount ?? 0))
+      } else if (sortBy === '4k') {
+        mapped = [...mapped].sort((x, y) => Number(y.resolution === '4K') - Number(x.resolution === '4K'))
+      } else if (sortBy === 'price-desc') {
+        mapped = [...mapped].sort((x, y) => (y.creditCost ?? 0) - (x.creditCost ?? 0))
+      } else if (sortBy === 'price-asc') {
+        mapped = [...mapped].sort((x, y) => (x.creditCost ?? 0) - (y.creditCost ?? 0))
       }
+      // 'newest' = the created_at desc order straight from the query
       setAssets(mapped)
       setLoading(false)
     }
@@ -734,7 +745,7 @@ export default function CatalogPage() {
             <div style={{ position: 'relative' }}>
               <select
                 value={sortBy}
-                onChange={e => setSortBy(e.target.value as 'random' | 'recent' | 'oldest')}
+                onChange={e => setSortBy(e.target.value as typeof sortBy)}
                 style={{
                   appearance: 'none', WebkitAppearance: 'none',
                   backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)',
@@ -743,27 +754,17 @@ export default function CatalogPage() {
                 }}
               >
                 <option value="random">Sort by: Random</option>
-                <option value="recent">Sort by: Recent</option>
-                <option value="oldest">Sort by: Oldest</option>
+                <option value="newest">Sort by: Newest</option>
+                <option value="downloads">Sort by: Most downloaded</option>
+                <option value="4k">Sort by: Resolution — 4K first</option>
+                <option value="price-desc">Sort by: Price high → low</option>
+                <option value="price-asc">Sort by: Price low → high</option>
               </select>
               <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--fg-subtle)' }}>
                 <ChevronDown />
               </span>
             </div>
-            <button
-              onClick={() => setViewMode('grid')}
-              title="Grid view"
-              style={{ padding: 8, borderRadius: 8, border: 'none', cursor: 'pointer', backgroundColor: viewMode === 'grid' ? 'rgba(151,101,224,0.2)' : 'var(--bg-subtle)', color: viewMode === 'grid' ? '#9765E0' : 'var(--fg-muted)' }}
-            >
-              <GridIcon />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              title="List view"
-              style={{ padding: 8, borderRadius: 8, border: 'none', cursor: 'pointer', backgroundColor: viewMode === 'list' ? 'rgba(151,101,224,0.2)' : 'var(--bg-subtle)', color: viewMode === 'list' ? '#9765E0' : 'var(--fg-muted)' }}
-            >
-              <ListIcon />
-            </button>
+            {/* Grid only — the list view was removed (owner's spec) */}
           </div>
         </div>
 
