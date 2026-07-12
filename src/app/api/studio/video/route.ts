@@ -1,138 +1,202 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { kieCreateTask, kieGetTask, KIE_MODELS } from '@/lib/kie'
-import { arkCreateVideoTask, arkGetVideoTask, arkEnabled } from '@/lib/ark'
 import { supabaseAdmin } from '@/lib/supabase'
-import { checkUsage, incrementUsage } from '@/lib/usage'
+import { kieCreateTask, kieGetTask } from '@/lib/kie'
+import { presignR2Get, r2Configured, r2Put } from '@/lib/r2'
+import { requireUser, isAdminEmail } from '@/lib/adminAuth'
 
-export const maxDuration = 30
+export const dynamic = 'force-dynamic'
+export const maxDuration = 60
 
 // ─────────────────────────────────────────────────────────────
-// VIDEO — the ONLY mandatory paid step of the whole flow.
-// Auth-gated + daily quota to protect the ModelArk budget.
-// Provider selection: BytePlus ModelArk (official Seedance home)
-// when ARK_API_KEY is set, kie.ai otherwise. Task ids returned to
-// the client are prefixed with the provider so GET routes back.
+// STUDIO VIDEO GENERATION (Seedance 2.0 via kie.ai — one provider).
+// • POST — start: price from pricing_defaults.gen_video, atomic
+//   spend (admins free), createTask with multimodal references
+//   (@-mentioned asset sheets go to reference_image_urls → character
+//   and location consistency), generations row = History.
+// • GET ?genId= — poll: on success the video is re-hosted to R2
+//   (kie URLs expire ~24h), the row flips to done. Fail → refund.
+// • GET ?list=1 — history with fresh presigned playback URLs.
+// • DELETE {ids} — remove own history rows.
+// • No KIE/FAL key → honest 503 {code:'soon'}, nobody is charged.
 // ─────────────────────────────────────────────────────────────
 
-// Resolve the signed-in user from the bearer token (studio sends it)
-async function getUser(req: NextRequest): Promise<{ id: string; email: string | null } | null> {
-  const auth = req.headers.get('authorization') || ''
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : ''
-  if (!token) return null
-  try {
-    const { data } = await supabaseAdmin().auth.getUser(token)
-    return data.user ? { id: data.user.id, email: data.user.email ?? null } : null
-  } catch {
-    return null
-  }
+const MODELS: Record<string, string> = {
+  'seedance-2': 'bytedance/seedance-2',
+  'seedance-2-fast': 'bytedance/seedance-2-fast',
+}
+
+async function priceOf(admin: ReturnType<typeof supabaseAdmin>): Promise<number> {
+  const { data } = await admin.from('pricing_defaults').select('credits').eq('tier', 'gen_video').single()
+  return Number(data?.credits ?? 25)
 }
 
 export async function POST(req: NextRequest) {
   try {
-    // 1) Must be signed in — rendering costs money
-    const user = await getUser(req)
-    if (!user) {
-      return NextResponse.json({ error: 'Sign in to generate videos', code: 'auth' }, { status: 401 })
+    const gate = await requireUser(req)
+    if (!gate.ok) return NextResponse.json({ error: gate.error, code: 'auth' }, { status: gate.status })
+    if (!process.env.KIE_API_KEY) {
+      return NextResponse.json({ error: 'Video generation is coming soon', code: 'soon' }, { status: 503 })
     }
-    // 2) Daily quota — protects the render budget
-    const usage = await checkUsage(user.id, user.email)
-    if (usage.remaining <= 0) {
-      return NextResponse.json(
-        { error: `Daily limit reached (${usage.limit} renders). Upgrade for more.`, code: 'quota', usage },
-        { status: 402 },
-      )
+    const body = await req.json()
+    const prompt = String(body.prompt || '').trim()
+    if (!prompt) return NextResponse.json({ error: 'Prompt is required' }, { status: 400 })
+    const settings = body.settings || {}
+    const model = MODELS[String(settings.model)] ? String(settings.model) : 'seedance-2'
+    const refs: { id?: string; title?: string; image?: string }[] = Array.isArray(body.refs) ? body.refs.slice(0, 6) : []
+    const uploads = body.uploads || {}
+
+    const admin = supabaseAdmin()
+    const cost = await priceOf(admin)
+    const adminFree = isAdminEmail(gate.email)
+    let remaining: number | null = null
+    if (!adminFree) {
+      const { data: rem, error: rpcErr } = await admin.rpc('spend_credits', { p_user: gate.userId, p_cost: cost })
+      if (rpcErr) return NextResponse.json({ error: 'Billing error, try again' }, { status: 500 })
+      if (typeof rem === 'number' && rem < 0) {
+        return NextResponse.json({ error: 'Not enough credits', code: 'credits', cost }, { status: 402 })
+      }
+      remaining = typeof rem === 'number' ? rem : null
     }
 
-    const { prompt, referenceImageUrls = [], quality = 'draft', duration } = await req.json()
-    if (!prompt) {
-      return NextResponse.json({ error: 'prompt is required' }, { status: 400 })
-    }
-
-    if (arkEnabled()) {
-      const id = await arkCreateVideoTask({ prompt, referenceImageUrls, quality, duration })
-      await incrementUsage(user.id)
-      return NextResponse.json({ taskId: `ark:${id}`, provider: 'modelark' })
-    }
-
-    const model = quality === 'final' ? KIE_MODELS.videoFinal : KIE_MODELS.videoDraft
+    // Multimodal references: @-mentioned asset sheets + optional uploads
+    const refImages = [
+      ...refs.map(r => String(r.image || '')).filter(Boolean),
+      ...(uploads.image ? [String(uploads.image)] : []),
+    ].slice(0, 4)
     const input: Record<string, unknown> = {
       prompt,
-      aspect_ratio: '16:9',
-      resolution: quality === 'final' ? '1080p' : '720p',
-      generate_audio: quality === 'final',
+      generate_audio: !!settings.audio,
+      resolution: ['720p', '1080p'].includes(String(settings.resolution)) ? String(settings.resolution) : '720p',
+      aspect_ratio: ['16:9', '9:16', '1:1', '4:3'].includes(String(settings.aspect)) ? String(settings.aspect) : '16:9',
+      duration: [5, 10, 15].includes(Number(settings.duration)) ? Number(settings.duration) : 5,
     }
-    if (Array.isArray(referenceImageUrls) && referenceImageUrls.length) {
-      input.reference_image_urls = referenceImageUrls.slice(0, 9)
-    }
-    if (duration) input.duration = Number(duration)
+    if (refImages.length) input.reference_image_urls = refImages
+    if (uploads.video) input.reference_video_urls = [String(uploads.video)]
+    if (uploads.audio) input.reference_audio_urls = [String(uploads.audio)]
 
-    const taskId = await kieCreateTask(model, input)
-    await incrementUsage(user.id)
-    return NextResponse.json({ taskId, provider: 'kie' })
+    let taskId: string
+    try {
+      taskId = await kieCreateTask(MODELS[model], input)
+    } catch (err) {
+      if (!adminFree) await admin.rpc('spend_credits', { p_user: gate.userId, p_cost: -cost }).then(() => {}, () => {})
+      const msg = err instanceof Error ? err.message : 'Generation failed to start'
+      return NextResponse.json({ error: msg }, { status: 502 })
+    }
+
+    const { data: row } = await admin.from('generations').insert({
+      user_id: gate.userId,
+      task_id: taskId,
+      model,
+      prompt,
+      structured: body.structured ?? null,
+      settings,
+      refs,
+      state: 'rendering',
+      cost: adminFree ? 0 : cost,
+    }).select('id').single()
+
+    return NextResponse.json({ genId: row?.id, taskId, credits: remaining, cost: adminFree ? 0 : cost })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Video task failed'
-    return NextResponse.json({ error: msg }, { status: 500 })
-  }
-}
-
-// ── Permanent storage: provider URLs expire in ~24h, so on
-// success we re-host the video into Supabase Storage once and
-// keep a Generation record. Users never lose their renders.
-async function rehostVideo(taskId: string, url: string, quality: string): Promise<string> {
-  try {
-    const admin = supabaseAdmin()
-    const safe = taskId.replace(/[^a-zA-Z0-9_-]/g, '').slice(-48) || `gen-${Date.now()}`
-    const { data: existing } = await admin
-      .from('assets')
-      .select('file_url')
-      .eq('type', 'Generation')
-      .eq('title', safe)
-      .limit(1)
-    if (existing?.length) return existing[0].file_url
-    const res = await fetch(url)
-    if (!res.ok) return url
-    const buf = Buffer.from(await res.arrayBuffer())
-    const path = `generations/${safe}.mp4`
-    const { error } = await admin.storage.from('assets').upload(path, buf, { contentType: 'video/mp4', upsert: true })
-    if (error) return url
-    const pub = admin.storage.from('assets').getPublicUrl(path).data.publicUrl
-    await admin.from('assets').insert({
-      title: safe,
-      type: 'Generation',
-      category: quality === 'final' ? 'Final Video' : 'Draft Video',
-      plan: 'free',
-      tags: ['generation', 'video', quality],
-      description: `Generated in Cineman Studio (${new Date().toISOString().slice(0, 10)})`,
-      file_url: pub,
-      thumbnail_url: pub,
-    })
-    return pub
-  } catch {
-    return url
+    console.error('Studio video POST error:', err)
+    return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
   }
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const taskId = req.nextUrl.searchParams.get('taskId')
-    if (!taskId) {
-      return NextResponse.json({ error: 'taskId is required' }, { status: 400 })
+    const gate = await requireUser(req)
+    if (!gate.ok) return NextResponse.json({ error: gate.error, code: 'auth' }, { status: gate.status })
+    const admin = supabaseAdmin()
+    const sp = req.nextUrl.searchParams
+
+    // ── history list with fresh playback links ────────────────
+    if (sp.get('list')) {
+      const { data: rows } = await admin.from('generations')
+        .select('id, model, prompt, structured, settings, refs, r2_key, state, favorite, cost, created_at')
+        .eq('user_id', gate.userId).order('created_at', { ascending: false }).limit(200)
+      return NextResponse.json({
+        items: (rows || []).map(r => ({
+          ...r,
+          url: r.r2_key && r2Configured() ? presignR2Get(String(r.r2_key), undefined, 3600) : null,
+        })),
+      })
     }
-    const quality = req.nextUrl.searchParams.get('quality') || 'draft'
-    if (taskId.startsWith('ark:')) {
-      const info = await arkGetVideoTask(taskId.slice(4))
-      if (info.state === 'success' && info.resultUrls?.length) {
-        info.resultUrls = [await rehostVideo(taskId, info.resultUrls[0], quality)]
+
+    // ── poll one rendering generation ─────────────────────────
+    const genId = sp.get('genId')
+    if (!genId) return NextResponse.json({ error: 'genId is required' }, { status: 400 })
+    const { data: gen } = await admin.from('generations')
+      .select('id, task_id, state, r2_key, cost, prompt')
+      .eq('id', genId).eq('user_id', gate.userId).single()
+    if (!gen) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (gen.state === 'done' && gen.r2_key) {
+      return NextResponse.json({ state: 'done', url: presignR2Get(String(gen.r2_key), undefined, 3600) })
+    }
+    if (gen.state === 'fail') return NextResponse.json({ state: 'fail', error: 'Generation failed' })
+
+    const info = await kieGetTask(String(gen.task_id))
+    if (info.state === 'fail') {
+      await admin.from('generations').update({ state: 'fail' }).eq('id', gen.id)
+      // pay only for success
+      if (Number(gen.cost) > 0) {
+        await admin.rpc('spend_credits', { p_user: gate.userId, p_cost: -Number(gen.cost) }).then(() => {}, () => {})
+        await admin.from('generations').update({ cost: 0 }).eq('id', gen.id)
       }
-      return NextResponse.json(info)
+      return NextResponse.json({ state: 'fail', error: info.failMsg || 'Generation failed — credits refunded', refunded: gen.cost })
     }
-    const info = await kieGetTask(taskId)
-    if (info.state === 'success' && info.resultUrls?.length) {
-      info.resultUrls = [await rehostVideo(taskId, info.resultUrls[0], quality)]
+    if (info.state !== 'success' || !info.resultUrls[0]) {
+      return NextResponse.json({ state: info.state, progress: info.progress })
     }
-    return NextResponse.json(info)
+
+    // success → re-host to R2 (kie links expire), mark done
+    const vid = await fetch(info.resultUrls[0])
+    if (!vid.ok) return NextResponse.json({ state: 'generating', progress: 99 }) // retry next poll
+    const buf = Buffer.from(await vid.arrayBuffer())
+    const key = `gen/${gen.id}.mp4`
+    if (r2Configured()) await r2Put(key, buf, 'video/mp4')
+    await admin.from('generations').update({ r2_key: key, state: 'done' }).eq('id', gen.id)
+
+    // OWNERSHIP: the generation belongs to its creator — it also lands in
+    // the Library as a private owned asset (free re-downloads forever)
+    try {
+      const { data: asset } = await admin.from('assets').insert({
+        title: String(gen.prompt || 'Generated video').slice(0, 70),
+        type: 'Video',
+        category: 'Generated',
+        plan: 'free',
+        tags: ['generated', 'cineman-studio', 'video'],
+        description: '',
+        file_url: 'https://cineman-assets.vercel.app/studio',
+        thumbnail_url: '',
+        is_public: false,
+        r2_key: key,
+        resolution: '2K',
+      }).select('id').single()
+      if (asset?.id) {
+        await admin.from('purchases').upsert(
+          { user_id: gate.userId, asset_id: asset.id, cost: Number(gen.cost) || 0 },
+          { onConflict: 'user_id,asset_id', ignoreDuplicates: true },
+        )
+      }
+    } catch { /* non-fatal */ }
+
+    return NextResponse.json({ state: 'done', url: presignR2Get(key, undefined, 3600) })
   } catch (err) {
-    const msg = err instanceof Error ? err.message : 'Status check failed'
-    return NextResponse.json({ error: msg }, { status: 500 })
+    console.error('Studio video GET error:', err)
+    return NextResponse.json({ error: 'Poll failed' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const gate = await requireUser(req)
+    if (!gate.ok) return NextResponse.json({ error: gate.error, code: 'auth' }, { status: gate.status })
+    const { ids } = await req.json()
+    if (!Array.isArray(ids) || ids.length === 0) return NextResponse.json({ error: 'ids required' }, { status: 400 })
+    const admin = supabaseAdmin()
+    await admin.from('generations').delete().eq('user_id', gate.userId).in('id', ids.slice(0, 100))
+    return NextResponse.json({ ok: true })
+  } catch {
+    return NextResponse.json({ error: 'Delete failed' }, { status: 500 })
   }
 }
