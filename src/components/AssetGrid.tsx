@@ -387,8 +387,8 @@ function AssetCard({
       {pickerOpen && (
         <div style={{
           position: 'absolute', top: '115%', right: 0, width: 195,
-          backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
-          padding: 6, boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+          backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 10,
+          padding: 6, boxShadow: '0 10px 30px rgba(0,0,0,0.65)',
         }}>
           <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--fg-subtle)', padding: '4px 6px' }}>Save to collection</p>
           {collections.map(c => (
@@ -715,8 +715,8 @@ function AssetCard({
                 onClick={e => e.stopPropagation()}
                 style={{
                   position: 'absolute', bottom: '110%', right: 0, minWidth: 190, zIndex: 7,
-                  backgroundColor: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10,
-                  padding: 6, boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
+                  backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 10,
+                  padding: 6, boxShadow: '0 10px 30px rgba(0,0,0,0.65)',
                 }}
               >
                 <button
