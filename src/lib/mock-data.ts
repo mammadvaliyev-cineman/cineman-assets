@@ -12,6 +12,7 @@ export type Asset = {
   exclusivePrice?: number // exclusive buyout price in credits (default = tier)
   priceTier?: string // 'standard' | 'premium' | 'exclusive' — pricing_defaults key
   resolution?: string // '2K' | '4K' — 4K doubles the download price
+  downloadCount?: number // popularity — for the «Most downloaded» sort
   exclusiveOwner?: string | null // uuid — set = exclusively sold (asset stays in catalog, locked)
   exclusiveSoldAt?: string | null
 }
