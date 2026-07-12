@@ -7,10 +7,13 @@ export type CatalogConfig = {
   /** contain = вся картинка целиком, cover = кроп по центру, cover-top = кроп сверху (головы в кадре) */
   fit: 'contain' | 'cover' | 'cover-top'
   /** форма превью-окна карточки; auto = натуральная высота картинки */
-  ratio: '1/1' | '4/5' | '3/4' | '16/9' | 'auto'
+  ratio: '1/1' | '4/5' | '3/4' | '4/3' | '16/10' | '16/9' | 'auto'
 }
 
-export const DEFAULT_CATALOG_CONFIG: CatalogConfig = { fit: 'contain', ratio: '1/1' }
+// Дефолт владельца: единый размер карточек, картинка заполняет окно (cover),
+// лишнее аккуратно режется по краям. 16:10 сидит лучше 4:3 — большинство
+// ассетов (шиты персонажей, локации) близки к 16:9, кроп по бокам минимален.
+export const DEFAULT_CATALOG_CONFIG: CatalogConfig = { fit: 'cover', ratio: '16/10' }
 
 export const FIT_OPTIONS: Array<{ value: CatalogConfig['fit']; label: string }> = [
   { value: 'contain', label: 'Fit — вся картинка целиком' },
@@ -22,6 +25,8 @@ export const RATIO_OPTIONS: Array<{ value: CatalogConfig['ratio']; label: string
   { value: '1/1', label: 'Квадрат 1:1' },
   { value: '4/5', label: 'Портрет 4:5' },
   { value: '3/4', label: 'Портрет 3:4' },
+  { value: '4/3', label: 'Альбом 4:3' },
+  { value: '16/10', label: 'Широкий 16:10' },
   { value: '16/9', label: 'Кино 16:9' },
   { value: 'auto', label: 'Авто — натуральная высота' },
 ]
