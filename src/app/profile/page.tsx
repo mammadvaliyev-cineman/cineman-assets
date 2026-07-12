@@ -24,6 +24,12 @@ export default function ProfilePage() {
   const [plan, setPlan] = useState('free')
   const [credits, setCredits] = useState<number | null>(null)
   const [uploading, setUploading] = useState(false)
+  // crop positioner (spec A2): drag + zoom inside the circle, save the cropped result
+  const [cropSrc, setCropSrc] = useState<string | null>(null)
+  const [cropPos, setCropPos] = useState({ x: 0, y: 0 })
+  const [cropZoom, setCropZoom] = useState(1)
+  const cropImg = useRef<HTMLImageElement | null>(null)
+  const dragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
 
@@ -42,24 +48,45 @@ export default function ProfilePage() {
       })
   }, [user])
 
-  async function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
+  function onPickAvatar(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file || !user) return
     if (!/^image\/(jpeg|png)$/.test(file.type)) { say('JPG or PNG only'); return }
     if (file.size > AVATAR_LIMIT) { say('Max size is 5 MB'); return }
+    const fr = new FileReader()
+    fr.onload = () => { setCropSrc(String(fr.result)); setCropPos({ x: 0, y: 0 }); setCropZoom(1) }
+    fr.readAsDataURL(file)
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  // draw the visible circle into a 512px square and upload THAT (spec A2)
+  async function saveCrop() {
+    const img = cropImg.current
+    if (!img || !user) return
     setUploading(true)
     try {
-      const ext = file.type === 'image/png' ? 'png' : 'jpg'
-      const path = `avatars/${user.id}-${Date.now()}.${ext}`
-      const { error } = await supabase.storage.from('assets').upload(path, file, { contentType: file.type })
+      const view = 280 // on-screen circle size
+      const base = Math.max(view / img.naturalWidth, view / img.naturalHeight) // cover
+      const scale = base * cropZoom
+      const canvas = document.createElement('canvas')
+      canvas.width = canvas.height = 512
+      const ctx = canvas.getContext('2d')!
+      const k = 512 / view
+      const drawW = img.naturalWidth * scale * k
+      const drawH = img.naturalHeight * scale * k
+      const cx = (view / 2 + cropPos.x - (img.naturalWidth * scale) / 2) * k
+      const cy = (view / 2 + cropPos.y - (img.naturalHeight * scale) / 2) * k
+      ctx.drawImage(img, cx, cy, drawW, drawH)
+      const blob: Blob | null = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92))
+      if (!blob) { say('Crop failed'); return }
+      const path = `avatars/${user.id}-${Date.now()}.jpg`
+      const { error } = await supabase.storage.from('assets').upload(path, blob, { contentType: 'image/jpeg' })
       if (error) { say('Upload failed — try again'); return }
       const url = supabase.storage.from('assets').getPublicUrl(path).data.publicUrl
-      setAvatarUrl(url) // shown immediately; persisted on Save
-      say('Photo uploaded — press Save')
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
+      setAvatarUrl(url)
+      setCropSrc(null)
+      say('Photo cropped — press Save')
+    } finally { setUploading(false) }
   }
 
   async function save() {
@@ -149,6 +176,51 @@ export default function ProfilePage() {
       <button onClick={save} disabled={saving} className="btn-primary w-full py-2.5 text-sm font-bold">
         {saving ? 'Saving…' : 'Save'}
       </button>
+
+      {/* Crop positioner: drag to frame, zoom to fit — saves the cropped circle */}
+      {cropSrc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(8,5,15,0.85)', backdropFilter: 'blur(6px)' }}>
+          <div className="rounded-2xl p-6" style={{ backgroundColor: '#120D1D', border: '1px solid var(--border)', width: 340 }}>
+            <p className="text-sm font-bold mb-1" style={{ color: 'var(--fg)' }}>Position your photo</p>
+            <p className="text-[11px] mb-4" style={{ color: 'var(--fg-muted)' }}>Drag to frame, zoom to fit the circle.</p>
+            <div
+              style={{ width: 280, height: 280, borderRadius: '50%', overflow: 'hidden', margin: '0 auto', position: 'relative', backgroundColor: 'black', border: '2px solid rgba(151,101,224,0.5)', cursor: 'grab', touchAction: 'none' }}
+              onPointerDown={e => {
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+                dragRef.current = { startX: e.clientX, startY: e.clientY, baseX: cropPos.x, baseY: cropPos.y }
+              }}
+              onPointerMove={e => {
+                if (!dragRef.current) return
+                setCropPos({ x: dragRef.current.baseX + (e.clientX - dragRef.current.startX), y: dragRef.current.baseY + (e.clientY - dragRef.current.startY) })
+              }}
+              onPointerUp={() => { dragRef.current = null }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                ref={cropImg}
+                src={cropSrc}
+                alt=""
+                draggable={false}
+                style={{
+                  position: 'absolute', left: '50%', top: '50%',
+                  transform: `translate(calc(-50% + ${cropPos.x}px), calc(-50% + ${cropPos.y}px)) scale(${cropZoom})`,
+                  minWidth: '100%', minHeight: '100%', objectFit: 'cover', userSelect: 'none', pointerEvents: 'none',
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-2 mt-4">
+              <span className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>Zoom</span>
+              <input type="range" min={1} max={3} step={0.01} value={cropZoom} onChange={e => setCropZoom(Number(e.target.value))} style={{ flex: 1, accentColor: '#9765E0' }} />
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={saveCrop} disabled={uploading} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: 'linear-gradient(135deg,#9765E0,#534FA5)', border: 'none', cursor: 'pointer' }}>
+                {uploading ? 'Saving…' : 'Save'}
+              </button>
+              <button onClick={() => setCropSrc(null)} className="px-4 py-2.5 rounded-xl text-sm font-bold" style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div style={{
