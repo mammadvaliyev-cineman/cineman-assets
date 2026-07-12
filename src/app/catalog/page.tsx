@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { Asset } from '@/lib/mock-data'
 import { CATEGORIES } from '@/config/categories'
 import AssetGrid from '@/components/AssetGrid'
+import { useAuth } from '@/components/AuthProvider'
 
 // ── Icons ────────────────────────────────────────────────────
 function SearchIcon({ size = 16 }: { size?: number }) {
@@ -63,6 +64,7 @@ function LineIcon({ d, size = 15 }: { d: string; size?: number }) {
   )
 }
 const CAT_ICONS: Record<string, string> = {
+  bookmark: 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z',
   grid: 'M3 3h7v7H3z|M14 3h7v7h-7z|M14 14h7v7h-7z|M3 14h7v7H3z',
   heart: 'M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z',
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4|M7 10l5 5 5-5|M12 15V3',
@@ -266,6 +268,17 @@ export default function CatalogPage() {
     window.addEventListener('cineman-store-changed', bump)
     return () => window.removeEventListener('cineman-store-changed', bump)
   }, [])
+
+  // My downloads counter — separate PAGE links in the sidebar (owner's layout)
+  const { user } = useAuth()
+  const [purchasedCount, setPurchasedCount] = useState(0)
+  useEffect(() => {
+    if (!user) { setPurchasedCount(0); return }
+    supabase.from('purchases').select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id).eq('hidden', false)
+      .then(({ count }) => setPurchasedCount(count ?? 0))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const favIds = useMemo(() => {
     void storeTick
@@ -511,20 +524,19 @@ export default function CatalogPage() {
           </div>
         </div>
 
-        {/* Quick nav */}
+        {/* My space — SEPARATE PAGES (Library tabs), not catalog filters:
+            they navigate away and can never stick across categories */}
         <div style={{ paddingTop: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
-          <SidebarItem iconD={CAT_ICONS.grid} label="All Assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search} color="#9765E0" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch('') }} />
-          {/* Sidebar = browsing only (All Assets + categories). Everything
-              «mine» (Purchased + Saved) lives ONLY in Library — a Saved filter
-              here duplicated it and stuck across categories (owner's fix). */}
+          <SidebarItem iconD={CAT_ICONS.download} label="My downloads" count={purchasedCount} active={false} color="#00C2BA" onClick={() => { window.location.href = '/library' }} />
+          <SidebarItem iconD={CAT_ICONS.bookmark} label="Saved" count={favIds.size} active={false} color="#CE95FB" onClick={() => { window.location.href = '/library?tab=saved' }} />
         </div>
 
-        {/* Categories */}
+        {/* Categories — All assets first, then the sections */}
         <div style={{ paddingTop: 6, flex: 1 }}>
           <p style={{ padding: '4px 16px 6px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-subtle)', textTransform: 'uppercase' }}>
             Categories
           </p>
-          <SidebarItem iconD={CAT_ICONS.grid} label="All Categories" active={activeCat === 'All'} color="#9765E0" onClick={() => setActiveCat('All')} />
+          <SidebarItem iconD={CAT_ICONS.grid} label="All assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search} color="#9765E0" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch('') }} />
           {CATEGORIES.filter(cat => assets.some(a => String(a.type) === cat.id) || activeCat === cat.id).map(cat => (
             <div key={cat.id}>
               <SidebarItem
