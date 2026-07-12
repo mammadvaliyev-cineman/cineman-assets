@@ -614,6 +614,59 @@ function AdminDashboard() {
       }
     } catch { /* noop */ }
   }
+  // ── A/B-batch: Credits & refunds (админ) ────────────────────
+  const [ccToast, setCcToast] = useState('')
+  const setToast = (m: string) => { setCcToast(m); setTimeout(() => setCcToast(''), 3000) }
+  const [ccEmail, setCcEmail] = useState('mammadvaliyev@gmail.com')
+  const [ccAmount, setCcAmount] = useState('100')
+  const [ccBusy, setCcBusy] = useState(false)
+  const [refEmail, setRefEmail] = useState('')
+  const [refRows, setRefRows] = useState<{ assetId: string; title: string; cost: number; exclusive: boolean }[] | null>(null)
+  const [refCredits, setRefCredits] = useState<number | null>(null)
+  const [refBusy, setRefBusy] = useState<string | null>(null)
+
+  const addCredits = async () => {
+    if (ccBusy) return
+    setCcBusy(true)
+    try {
+      const res = await fetch('/api/admin/add-credits', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ email: ccEmail.trim(), amount: Number(ccAmount) }),
+      })
+      const json = await res.json()
+      if (json.ok) setToast(`Баланс ${ccEmail.trim()}: ${json.credits} кредитов`)
+      else setToast(json.error || 'Не получилось')
+    } catch { setToast('Не получилось — попробуй ещё раз') }
+    finally { setCcBusy(false) }
+  }
+
+  const loadRefunds = async () => {
+    if (!refEmail.trim()) return
+    try {
+      const res = await fetch(`/api/admin/refund?email=${encodeURIComponent(refEmail.trim())}`, { headers: await adminHeaders() })
+      const json = await res.json()
+      if (json.purchases) { setRefRows(json.purchases); setRefCredits(json.credits ?? null) }
+      else { setRefRows([]); setToast(json.error || 'Не найдено') }
+    } catch { setToast('Не получилось загрузить покупки') }
+  }
+
+  const doRefund = async (assetId: string) => {
+    if (refBusy) return
+    setRefBusy(assetId)
+    try {
+      const res = await fetch('/api/admin/refund', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ email: refEmail.trim(), assetId }),
+      })
+      const json = await res.json()
+      if (json.ok) { setToast(`Возврат ${json.refunded} кредитов сделан`); loadRefunds() }
+      else setToast(json.error || 'Возврат не прошёл')
+    } catch { setToast('Возврат не прошёл') }
+    finally { setRefBusy(null) }
+  }
+
   const savePricing = async () => {
     setPriceBusy(true)
     try {
@@ -1678,6 +1731,40 @@ function AdminDashboard() {
                 </label>
               ))}
             </div>
+          </div>
+          <div className="card p-7">
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Кредиты и возвраты</h2>
+            <p className="text-xs mb-4" style={{ color: 'var(--fg-muted)' }}>
+              Пополнение любого аккаунта по email (себя и тестовых). Возврат = кредиты назад + ассет уходит из владения; эксклюзив возвращается в каталог. Юзеры сами возвращать не могут.
+            </p>
+            {ccToast && <p className="text-xs mb-3" style={{ color: '#7EE7C7' }}>{ccToast}</p>}
+            <div className="flex items-center gap-2 mb-6">
+              <input value={ccEmail} onChange={e => setCcEmail(e.target.value)} placeholder="email" className="input-field text-sm" style={{ flex: 1, padding: '8px 10px' }} />
+              <input value={ccAmount} onChange={e => setCcAmount(e.target.value)} type="number" className="input-field text-sm text-right" style={{ width: 90, padding: '8px 10px' }} />
+              <button onClick={addCredits} disabled={ccBusy} className="btn-primary text-xs px-4 py-2 font-bold">{ccBusy ? '…' : 'Add credits'}</button>
+            </div>
+            <div className="flex items-center gap-2 mb-3">
+              <input value={refEmail} onChange={e => setRefEmail(e.target.value)} placeholder="email юзера для возврата" className="input-field text-sm" style={{ flex: 1, padding: '8px 10px' }} onKeyDown={e => { if (e.key === 'Enter') loadRefunds() }} />
+              <button onClick={loadRefunds} className="btn-secondary text-xs px-4 py-2 font-bold">Показать покупки</button>
+            </div>
+            {refRows && (
+              refRows.length === 0 ? (
+                <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Покупок нет.</p>
+              ) : (
+                <div className="space-y-2">
+                  {refCredits !== null && <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>Баланс: {refCredits} кредитов</p>}
+                  {refRows.map(r => (
+                    <div key={r.assetId} className="flex items-center justify-between gap-3 text-xs rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-subtle)' }}>
+                      <span className="truncate" style={{ color: 'var(--fg)' }}>{r.title}{r.exclusive ? ' · EXCLUSIVE' : ''}</span>
+                      <span style={{ color: 'var(--fg-muted)', flexShrink: 0 }}>{r.cost}⚡</span>
+                      <button onClick={() => doRefund(r.assetId)} disabled={refBusy === r.assetId} className="text-xs font-bold" style={{ color: '#e06060', background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                        {refBusy === r.assetId ? '…' : 'Refund'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
+            )}
           </div>
           <button
             onClick={savePricing}
