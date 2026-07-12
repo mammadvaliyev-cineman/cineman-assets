@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { Asset } from '@/lib/mock-data'
 import { CATEGORIES } from '@/config/categories'
 import AssetGrid from '@/components/AssetGrid'
+import MySpace from '@/components/MySpace'
 import { useAuth } from '@/components/AuthProvider'
 
 // ── Icons ────────────────────────────────────────────────────
@@ -258,7 +259,14 @@ export default function CatalogPage() {
   const [viewMode, setViewMode]       = useState<'grid' | 'list'>('grid')
   const [sortBy, setSortBy]           = useState<'random' | 'recent' | 'oldest'>('random')
   const [previewSize, setPreviewSize] = useState(100)
-  const [quickView, setQuickView]     = useState<'all' | 'fav' | 'dl'>('all')
+  const [quickView, setQuickView]     = useState<'all' | 'fav' | 'dl' | 'downloads' | 'saved'>('all')
+  // deep link: /catalog?view=downloads|saved (старый /library редиректит сюда)
+  useEffect(() => {
+    try {
+      const v = new URLSearchParams(window.location.search).get('view')
+      if (v === 'downloads' || v === 'saved') setQuickView(v)
+    } catch { /* noop */ }
+  }, [])
   const [storeTick, setStoreTick]     = useState(0)
 
   // Favorites / download history live in localStorage (written by
@@ -527,8 +535,8 @@ export default function CatalogPage() {
         {/* My space — SEPARATE PAGES (Library tabs), not catalog filters:
             they navigate away and can never stick across categories */}
         <div style={{ paddingTop: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
-          <SidebarItem iconD={CAT_ICONS.download} label="My downloads" count={purchasedCount} active={false} color="#00C2BA" onClick={() => { window.location.href = '/library' }} />
-          <SidebarItem iconD={CAT_ICONS.bookmark} label="Saved" count={favIds.size} active={false} color="#CE95FB" onClick={() => { window.location.href = '/library?tab=saved' }} />
+          <SidebarItem iconD={CAT_ICONS.download} label="My downloads" count={purchasedCount} active={quickView === 'downloads'} color="#00C2BA" onClick={() => { setQuickView('downloads'); setActiveCat('All'); setSearch('') }} />
+          <SidebarItem iconD={CAT_ICONS.bookmark} label="Saved" count={favIds.size} active={quickView === 'saved'} color="#CE95FB" onClick={() => { setQuickView('saved'); setActiveCat('All'); setSearch('') }} />
         </div>
 
         {/* Categories — All assets first, then the sections */}
@@ -544,7 +552,7 @@ export default function CatalogPage() {
                 label={cat.label}
                 active={activeCat === cat.id && activeSubcat === 'All'}
                 color={cat.color}
-                onClick={() => { setActiveCat(cat.id); setActiveSubcat('All') }}
+                onClick={() => { setQuickView('all'); setActiveCat(cat.id); setActiveSubcat('All') }}
               />
               {activeCat === cat.id && (subcatsForType[cat.id] || []).length > 0 && (
                 <div style={{ marginLeft: 20, borderLeft: '1px solid var(--border)', paddingLeft: 6, marginBottom: 4 }}>
@@ -602,6 +610,20 @@ export default function CatalogPage() {
       {/* ── MAIN CONTENT ─────────────────────────────────────── */}
       <main style={{ flex: 1, overflowY: 'auto', padding: '28px 36px' }}>
 
+        {/* MY SPACE (spec A1): «My downloads» / «Saved» swap the main area
+            only — the sidebar stays, exactly like switching a category */}
+        {(quickView === 'downloads' || quickView === 'saved') ? (
+          <>
+            <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 20, color: 'var(--fg)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ display: 'flex', color: quickView === 'downloads' ? '#00C2BA' : '#CE95FB' }}>
+                <LineIcon d={quickView === 'downloads' ? CAT_ICONS.download : CAT_ICONS.bookmark} size={22} />
+              </span>
+              {quickView === 'downloads' ? 'My downloads' : 'Saved'}
+            </h1>
+            <MySpace view={quickView} onSavedChanged={() => setStoreTick(t => t + 1)} />
+          </>
+        ) : (
+        <>
         {/* Title */}
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 20, color: 'var(--fg)', display: 'flex', alignItems: 'center', gap: 10 }}>
           {activeCatObj ? (
@@ -777,6 +799,8 @@ export default function CatalogPage() {
               style={{ padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: page === totalPages ? 'default' : 'pointer', border: '1px solid var(--border)', background: 'var(--bg-subtle)', color: page === totalPages ? 'var(--fg-subtle)' : 'var(--fg)', opacity: page === totalPages ? 0.5 : 1 }}
             >Next ›</button>
           </div>
+        )}
+        </>
         )}
       </main>
     </div>
