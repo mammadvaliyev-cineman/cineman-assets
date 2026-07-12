@@ -60,6 +60,8 @@ export default function Navbar() {
 
   // ⚡ credit balance — own profile via RLS; refreshed after downloads
   const [credits, setCredits] = useState<number | null>(null)
+  // profile avatar (profiles.avatar_url) replaces the letter badge
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [pulse, setPulse] = useState(false)
   const creditsRef = useRef<number | null>(null)
   creditsRef.current = credits
@@ -84,16 +86,24 @@ export default function Navbar() {
   useEffect(() => {
     if (!user) { setCredits(null); return }
     const load = async () => {
-      const { data } = await supabase.from('profiles').select('credits').eq('id', user.id).single()
-      if (data) setCredits(data.credits)
+      const { data } = await supabase.from('profiles').select('credits, avatar_url').eq('id', user.id).single()
+      if (data) { setCredits(data.credits); setAvatarUrl(data.avatar_url ?? null) }
     }
     load()
     const onChange = (e: Event) => {
       const d = (e as CustomEvent).detail
       if (typeof d === 'number') tweenTo(d); else load()
     }
+    const onProfile = (e: Event) => {
+      const d = (e as CustomEvent).detail
+      if (d && 'avatarUrl' in d) setAvatarUrl(d.avatarUrl ?? null)
+    }
+    window.addEventListener('cineman-profile-changed', onProfile)
     window.addEventListener('cineman-credits-changed', onChange)
-    return () => window.removeEventListener('cineman-credits-changed', onChange)
+    return () => {
+      window.removeEventListener('cineman-credits-changed', onChange)
+      window.removeEventListener('cineman-profile-changed', onProfile)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
@@ -150,20 +160,7 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-3">
-          {/* ONE Library entry (spec C1): purchased + saved live inside */}
-          {user && (
-            <Link
-              href="/library"
-              title="Library — everything you own and saved"
-              className="flex items-center gap-1.5 text-sm font-medium"
-              style={{ color: 'var(--fg-muted)' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-              </svg>
-              Library
-            </Link>
-          )}
+          {/* Library moved to the catalog sidebar (owner's layout) */}
           {user && credits !== null && (
             <Link
               href="/pricing"
@@ -179,14 +176,14 @@ export default function Navbar() {
             </Link>
           )}
           {user ? (
-            <Link href="/account" title="My account" className="flex items-center">
-              {(user.user_metadata?.avatar_url || user.user_metadata?.picture) ? (
+            <Link href="/profile" title="Profile" className="flex items-center">
+              {(avatarUrl || user.user_metadata?.avatar_url || user.user_metadata?.picture) ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
-                  src={user.user_metadata.avatar_url || user.user_metadata.picture}
+                  src={avatarUrl || user.user_metadata.avatar_url || user.user_metadata.picture}
                   alt=""
                   className="rounded-full transition-transform hover:scale-105"
-                  style={{ width: 34, height: 34, border: '2px solid rgba(151,101,224,0.6)' }}
+                  style={{ width: 34, height: 34, border: '2px solid rgba(151,101,224,0.6)', objectFit: 'cover' }}
                 />
               ) : (
                 <span
