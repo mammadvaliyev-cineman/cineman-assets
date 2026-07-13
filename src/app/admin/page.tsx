@@ -784,7 +784,7 @@ function AdminDashboard() {
         } catch { /* sizes optional */ }
       })()
     }
-    if (activeTab === 'pricing') loadPricing()
+    if (activeTab === 'pricing') { loadPricing(); loadTopupPacks() }
     if (activeTab === 'categories') loadCombos()
     if (activeTab === 'settings') {
       fetch('/api/admin/catalog-config', { cache: 'no-store' })
@@ -977,6 +977,32 @@ function AdminDashboard() {
   }
   const [priceRows, setPriceRows] = useState<Record<string, number>>({})
   const [priceBusy, setPriceBusy] = useState(false)
+  // ── Top-up packs editor (DEV_topup_credits §2) ──
+  type TopupPack = { credits: number; usd: number; popular?: boolean; ls_url?: string }
+  const [topupPacks, setTopupPacks] = useState<TopupPack[]>([])
+  const [topupBusy, setTopupBusy] = useState(false)
+  const [topupMsg, setTopupMsg] = useState('')
+  const loadTopupPacks = async () => {
+    try {
+      const r = await fetch('/api/topup/packs')
+      const j = await r.json()
+      if (Array.isArray(j.packs)) setTopupPacks(j.packs)
+    } catch { /* noop */ }
+  }
+  const saveTopupPacks = async () => {
+    setTopupBusy(true); setTopupMsg('')
+    try {
+      const r = await fetch('/api/admin/topup-packs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ packs: topupPacks }),
+      })
+      const j = await r.json()
+      setTopupMsg(r.ok ? `Сохранено: ${j.saved} пачек` : (j.error || 'Ошибка'))
+    } catch { setTopupMsg('Ошибка сети') }
+    setTopupBusy(false)
+  }
+
   const loadPricing = async () => {
     try {
       const r = await fetch('/api/admin/pricing', { headers: await adminHeaders() })
@@ -2140,6 +2166,63 @@ function AdminDashboard() {
                   </span>
                 </label>
               ))}
+            </div>
+          </div>
+          <div className="card p-7">
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Пачки докупа (Top-up)</h2>
+            <p className="text-xs mb-2" style={{ color: 'var(--fg-muted)' }}>
+              Разовый докуп без подписки; купленные кредиты не сгорают. База $0.10/кредит — дешевле = бонус на витрине.
+            </p>
+            <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
+              «LS buy link» — ссылка Buy этого продукта из LemonSqueezy. Пока ссылки нет, пачка на витрине неактивна.
+            </p>
+            {topupMsg && <p className="text-xs mb-3" style={{ color: topupMsg.startsWith('Сохранено') ? '#7EE7C7' : '#e06060' }}>{topupMsg}</p>}
+            <div className="space-y-2 mb-4">
+              {topupPacks.map((tp, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input
+                    type="number" min={1} value={tp.credits}
+                    onChange={e => setTopupPacks(prev => prev.map((x, k) => k === i ? { ...x, credits: Number(e.target.value) } : x))}
+                    className="input-field text-sm text-right" style={{ width: 84, padding: '7px 10px' }} title="Кредитов в пачке"
+                  />
+                  <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>кр. за $</span>
+                  <input
+                    type="number" min={0.5} step={0.5} value={tp.usd}
+                    onChange={e => setTopupPacks(prev => prev.map((x, k) => k === i ? { ...x, usd: Number(e.target.value) } : x))}
+                    className="input-field text-sm text-right" style={{ width: 74, padding: '7px 10px' }} title="Цена в долларах"
+                  />
+                  <input
+                    value={tp.ls_url ?? ''} placeholder="LS buy link"
+                    onChange={e => setTopupPacks(prev => prev.map((x, k) => k === i ? { ...x, ls_url: e.target.value } : x))}
+                    className="input-field text-sm" style={{ flex: 1, padding: '7px 10px' }}
+                  />
+                  <label className="flex items-center gap-1 text-[11px]" style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox" checked={Boolean(tp.popular)}
+                      onChange={e => setTopupPacks(prev => prev.map((x, k) => k === i ? { ...x, popular: e.target.checked } : x))}
+                    />
+                    Popular
+                  </label>
+                  <button
+                    onClick={() => setTopupPacks(prev => prev.filter((_, k) => k !== i))}
+                    className="text-xs font-bold" style={{ color: '#e06060', background: 'none', border: 'none', cursor: 'pointer' }}
+                    title="Удалить пачку"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setTopupPacks(prev => prev.length >= 8 ? prev : [...prev, { credits: 100, usd: 10, ls_url: '' }])}
+                className="btn-secondary text-xs px-4 py-2 font-bold"
+              >
+                + Пачка
+              </button>
+              <button onClick={saveTopupPacks} disabled={topupBusy} className="btn-primary text-xs px-4 py-2 font-bold">
+                {topupBusy ? '…' : 'Сохранить пачки'}
+              </button>
             </div>
           </div>
           <div className="card p-7">
