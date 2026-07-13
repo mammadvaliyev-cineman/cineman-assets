@@ -547,19 +547,23 @@ function AssetCard({
 
   // Grid card
   return (
-    <div className="card group cursor-pointer flex flex-col fade-in-up" style={{ position: 'relative' }}>
+    <div className="card group cursor-pointer flex flex-col fade-in-up cine-lift" style={{ position: 'relative' }}>
       {/* Thumbnail — display mode is admin-controlled (Admin → Settings) */}
-      <div className="relative overflow-hidden" style={{ aspectRatio: gridRatio, backgroundColor: 'var(--bg-subtle)' }}>
+      {/* Media on the graphite MAT (DEV_shelf_style §1): the sheet reads
+          as a product in a showcase, not a dropped image. Shimmer while
+          the lazy image loads; the sheet itself is NEVER cropped. */}
+      <div className={`relative overflow-hidden ${imgLoaded || !asset.thumbnail ? '' : 'cine-shimmer'}`} style={{ aspectRatio: gridRatio, backgroundColor: '#17151E' }}>
         {asset.thumbnail ? (
           <img
             src={asset.thumbnail}
             alt={asset.title}
-            className={`w-full block group-hover:scale-105 transition-transform duration-500 ${gridRatio ? 'h-full' : 'h-auto'}`}
+            className={`w-full block group-hover:scale-[1.03] transition-transform duration-300 ${gridRatio ? 'h-full' : 'h-auto'}`}
             style={{
               ...(gridRatio
-                ? { objectFit: gridFit, objectPosition: gridPosition }
+                ? { objectFit: gridFit, objectPosition: gridPosition, padding: gridFit === 'contain' ? 8 : 0 }
                 : (imgLoaded ? {} : { aspectRatio: '4/5', objectFit: 'cover' as const })),
               ...(locked ? { filter: 'brightness(0.72)' } : {}),
+              opacity: imgLoaded ? 1 : 0, transition: 'opacity .3s ease, transform .3s ease',
             }}
             onLoad={() => setImgLoaded(true)}
             loading="lazy"
@@ -570,13 +574,36 @@ function AssetCard({
           </div>
         )}
 
-        {/* Watermark */}
+        {/* Watermark — vertically centered so it never collides with the
+            scrim text at the bottom */}
         {asset.thumbnail && (
-          <div className="absolute inset-0 pointer-events-none flex items-end justify-center pb-2" style={{ zIndex: 2 }}>
-            <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.45)', userSelect: 'none', textTransform: 'uppercase' }}>
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center" style={{ zIndex: 2 }}>
+            <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.35)', userSelect: 'none', textTransform: 'uppercase' }}>
               cineman.ai
             </span>
           </div>
+        )}
+
+        {/* Bottom scrim + title/category ON the media (DEV_shelf_style §2):
+            reads on any sheet background, same look on every card */}
+        {asset.thumbnail && (
+          <>
+            <div
+              style={{
+                position: 'absolute', left: 0, right: 0, bottom: 0, height: '45%', pointerEvents: 'none', zIndex: 2,
+                background: 'linear-gradient(to top, rgba(10,10,15,0.85) 0%, transparent 100%)',
+              }}
+            />
+            <div style={{ position: 'absolute', left: 12, right: 12, bottom: 9, zIndex: 2, pointerEvents: 'none' }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
+                {sentenceCase(asset.title)}
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                <span className="badge text-[10px] font-semibold" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.category}</span>
+              </div>
+            </div>
+          </>
         )}
 
         {/* Admin buttons (top-left): delete + move to another section */}
@@ -678,15 +705,9 @@ function AssetCard({
 
       </div>
 
-      {/* Info + actions — buttons live UNDER the photo, never on it (spec 1.1).
-          No tag pills in the grid (spec 1.6). */}
+      {/* Actions — buttons live UNDER the photo, never on it (spec 1.1).
+          Title/category moved ONTO the media scrim (DEV_shelf_style §2). */}
       <div className="p-3.5 flex flex-col flex-1">
-        <h3 className="font-semibold mb-1 truncate text-sm" style={{ color: 'var(--fg)' }}>{sentenceCase(asset.title)}</h3>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="badge text-[11px] font-semibold" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
-          <p className="text-xs truncate" style={{ color: 'var(--fg-muted)' }}>{asset.category}</p>
-        </div>
-
         {asset.fileUrl && (
           <div className="mt-auto" style={{ position: 'relative' }}>
             {downloadState === 'done' && !owned && !mine && (

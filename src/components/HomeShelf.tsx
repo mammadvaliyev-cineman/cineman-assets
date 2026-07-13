@@ -1,12 +1,15 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 
 // ─────────────────────────────────────────────────────────────
-// HOME SHELF — a horizontal «store shelf» row (Homepage v2 §5).
-// Native horizontal scroll + arrow buttons on desktop, cards in
-// the same visual language as the catalog. 8-12 items + See all.
+// HOME SHELF — a horizontal «store shelf» row (Homepage v2 §5,
+// styled per DEV_shelf_style): every card sits on the same warm
+// graphite mat (#17151E), the sheet is shown WHOLE (contain, air
+// around it), and the title/chip/price rest on a bottom scrim so
+// they read on any background. Shimmer skeleton while loading,
+// hover = zoom 1.03 + violet ring. No gloss on shelf cards.
 // ─────────────────────────────────────────────────────────────
 
 export type ShelfItem = {
@@ -36,6 +39,73 @@ const arrowStyle: React.CSSProperties = {
   alignItems: 'center', justifyContent: 'center', fontSize: 16, lineHeight: 1,
 }
 
+function ShelfCard({ it }: { it: ShelfItem }) {
+  const [loaded, setLoaded] = useState(false)
+  return (
+    <Link
+      href={it.href}
+      className="group cine-lift"
+      style={{
+        width: 320, flexShrink: 0, scrollSnapAlign: 'start',
+        borderRadius: 12, overflow: 'hidden',
+        border: '0.5px solid rgba(255,255,255,0.07)',
+        backgroundColor: '#17151E',
+        textDecoration: 'none', display: 'block',
+      }}
+    >
+      {/* Full sheet on the graphite mat — contain + air, never cropped */}
+      <div className={loaded ? '' : 'cine-shimmer'} style={{ aspectRatio: '3/2', overflow: 'hidden', position: 'relative' }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={it.img}
+          alt={it.title}
+          loading="lazy"
+          onLoad={() => setLoaded(true)}
+          className="group-hover:scale-[1.03] transition-transform duration-200"
+          style={{
+            width: '100%', height: '100%', objectFit: 'contain', display: 'block',
+            padding: 10, opacity: loaded ? 1 : 0, transition: 'opacity .3s ease',
+          }}
+        />
+        {it.isFree && (
+          <span
+            className="absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md"
+            style={{ color: '#0A1F1C', backgroundColor: '#2DD4C4', boxShadow: '0 2px 10px rgba(45,212,196,0.4)', zIndex: 2 }}
+          >
+            Free
+          </span>
+        )}
+        <span
+          className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded"
+          style={{ backgroundColor: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.85)', zIndex: 2 }}
+        >
+          {it.resolution}
+        </span>
+        {/* Bottom scrim — the text reads on ANY sheet background */}
+        <div
+          style={{
+            position: 'absolute', left: 0, right: 0, bottom: 0, height: '45%', pointerEvents: 'none',
+            background: 'linear-gradient(to top, rgba(10,10,15,0.85) 0%, transparent 100%)',
+          }}
+        />
+        <div style={{ position: 'absolute', left: 12, right: 12, bottom: 10, zIndex: 2 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
+            {it.title}
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, backgroundColor: it.typeColor + '3d', color: '#fff' }}>
+              {it.type}
+            </span>
+            <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: it.isFree ? '#2DD4C4' : '#fff' }}>
+              {it.isFree ? 'Free' : (<><Gem /> {it.price}</>)}
+            </span>
+          </div>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
 export default function HomeShelf({
   title, accent = '#9765E0', seeAllHref, items, badge,
 }: {
@@ -46,10 +116,22 @@ export default function HomeShelf({
   badge?: string
 }) {
   const row = useRef<HTMLDivElement>(null)
+  const section = useRef<HTMLElement>(null)
   const scroll = (dir: number) => row.current?.scrollBy({ left: dir * 660, behavior: 'smooth' })
+  // soft self-reveal on scroll (once)
+  useEffect(() => {
+    const el = section.current
+    if (!el) return
+    const io = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { el.classList.add('cine-in'); io.disconnect() } },
+      { rootMargin: '0px 0px -40px 0px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
   if (!items.length) return null
   return (
-    <section className="max-w-7xl mx-auto px-6" style={{ marginBottom: 56 }}>
+    <section ref={section} className="max-w-7xl mx-auto px-6 cine-reveal" style={{ marginBottom: 56 }}>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold flex items-center gap-2.5" style={{ color: 'var(--fg)' }}>
           {title}
@@ -69,59 +151,7 @@ export default function HomeShelf({
         ref={row}
         style={{ display: 'flex', gap: 14, overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: 8, scrollbarWidth: 'none' }}
       >
-        {items.map(it => (
-          <Link
-            key={it.id}
-            href={it.href}
-            className="group hover:-translate-y-1 transition-transform duration-200"
-            style={{
-              width: 320, flexShrink: 0, scrollSnapAlign: 'start',
-              borderRadius: 12, overflow: 'hidden',
-              border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)',
-              textDecoration: 'none',
-            }}
-          >
-            {/* Horizontal card, full turnaround sheet, NEVER cropped
-                (owner's rule): contain + neutral dark letterbox */}
-            <div style={{ aspectRatio: '3/2', overflow: 'hidden', position: 'relative', backgroundColor: '#0C0916' }}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={it.img}
-                alt={it.title}
-                loading="lazy"
-                className="group-hover:scale-[1.03] transition-transform duration-200"
-                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
-              />
-              {it.isFree && (
-                <span
-                  className="absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md"
-                  style={{ color: '#0A1F1C', backgroundColor: '#2DD4C4', boxShadow: '0 2px 10px rgba(45,212,196,0.4)' }}
-                >
-                  Free
-                </span>
-              )}
-              <span
-                className="absolute bottom-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded"
-                style={{ backgroundColor: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.85)' }}
-              >
-                {it.resolution}
-              </span>
-            </div>
-            <div style={{ padding: '10px 12px' }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
-                {it.title}
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 7 }}>
-                <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, backgroundColor: it.typeColor + '2e', color: it.typeColor }}>
-                  {it.type}
-                </span>
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: it.isFree ? '#2DD4C4' : 'var(--fg)' }}>
-                  {it.isFree ? 'Free' : (<><Gem /> {it.price}</>)}
-                </span>
-              </div>
-            </div>
-          </Link>
-        ))}
+        {items.map(it => <ShelfCard key={it.id} it={it} />)}
       </div>
     </section>
   )
