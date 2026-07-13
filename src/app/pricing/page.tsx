@@ -167,19 +167,25 @@ export default function PricingPage() {
             className="relative card p-8 flex flex-col"
             style={{
               overflow: 'visible', // .card clips overflow — would cut the badge
-              borderColor: plan.popular ? plan.accent : 'var(--border)',
-              borderWidth: plan.popular ? 2 : 1,
+              // GOLD = premium (DEV_batch_60 §7): the recommended plan wears
+              // a thin warm-gold ring + gold badge with a crown
+              borderColor: plan.popular ? 'rgba(229,169,75,0.65)' : 'var(--border)',
+              borderWidth: plan.popular ? 1.5 : 1,
+              boxShadow: plan.popular ? '0 0 34px rgba(229,169,75,0.12)' : undefined,
             }}
           >
             {plan.badge && (
               <span
-                className="absolute -top-3 left-1/2 -translate-x-1/2 text-xs font-bold px-4 py-1 rounded-full"
+                className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 text-xs font-bold px-4 py-1 rounded-full"
                 style={{
-                  background: `linear-gradient(135deg, ${plan.accent}, #534FA5)`,
-                  color: 'white',
+                  background: 'linear-gradient(135deg, #E5A94B, #C98B2E)',
+                  color: '#1E1403',
                   whiteSpace: 'nowrap',
                 }}
               >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 18l-1.5-9L8 13l4-8 4 8 5.5-4L20 18z" /><path d="M4 21h16" />
+                </svg>
                 {plan.badge}
               </span>
             )}
