@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 // Pricing page — copy is verbatim from the owner's latest spec:
 // sentence case, NO emoji (inline SVG bolt), accent on Pro only,
@@ -113,6 +113,15 @@ const FAQ = [
 
 export default function PricingPage() {
   const [period, setPeriod] = useState<'monthly' | 'yearly'>('monthly')
+  // TOP-UP packs (DEV_topup_credits) — one-time purchase block next to
+  // the subscription plans; cards open the global Buy-credits modal
+  type Pack = { credits: number; usd: number; popular?: boolean; ls_url?: string }
+  const [packs, setPacks] = useState<Pack[]>([])
+  useEffect(() => {
+    fetch('/api/topup/packs').then(r => r.json())
+      .then(j => setPacks(Array.isArray(j.packs) ? j.packs : []))
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="max-w-6xl mx-auto px-6 py-16">
@@ -258,6 +267,52 @@ export default function PricingPage() {
         </p>
         <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
           {withBolt('Download or generate 5⚡ (native 4K included) · Upscale 2K→4K 10⚡ · Top up anytime: 100 credits = $10')}
+        </p>
+      </div>
+
+      {/* ── TOP UP — one-time credit packs (no subscription) ── */}
+      <div className="mb-16">
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Top up</h2>
+          <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
+            Разовый докуп кредитов — без подписки. Купленные кредиты <strong style={{ color: 'var(--fg)' }}>не сгорают</strong>.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+          {packs.map((tp, i) => (
+            <button
+              key={i}
+              onClick={() => window.dispatchEvent(new Event('cineman-open-topup'))}
+              className="relative card p-5 text-center transition-all"
+              style={{
+                cursor: 'pointer',
+                borderColor: tp.popular ? 'color-mix(in srgb, var(--accent) 65%, transparent)' : undefined,
+                borderWidth: tp.popular ? 1.5 : undefined,
+                overflow: 'visible',
+              }}
+            >
+              {tp.popular && (
+                <span
+                  className="absolute -top-2.5 left-1/2 -translate-x-1/2 text-[10px] font-bold px-2.5 py-0.5 rounded-full"
+                  style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))', color: 'var(--on-accent)', whiteSpace: 'nowrap' }}
+                >
+                  Popular
+                </span>
+              )}
+              <span className="flex items-center justify-center gap-1.5 text-xl font-bold" style={{ color: 'var(--fg)' }}>
+                {tp.credits} <Bolt size={16} />
+              </span>
+              <span className="block text-base font-semibold mt-1" style={{ color: 'var(--accent-soft)' }}>${tp.usd}</span>
+              {tp.usd < tp.credits * 0.1 && (
+                <span className="block text-[11px] mt-0.5" style={{ color: '#2DD4C4' }}>
+                  +{Math.round((1 - tp.usd / (tp.credits * 0.1)) * 100)}% бонус
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+        <p className="text-center text-xs mt-4" style={{ color: 'var(--fg-subtle)' }}>
+          Оплата картой через LemonSqueezy. Кредиты начисляются автоматически сразу после оплаты.
         </p>
       </div>
 
