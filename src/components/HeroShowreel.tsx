@@ -68,7 +68,7 @@ export default function HeroShowreel({ frames }: { frames: ShowreelFrame[] }) {
         {frames.length > 1 && (
           <div style={{ position: 'absolute', bottom: 12, right: 14, display: 'flex', gap: 5, zIndex: 2 }}>
             {frames.map((_, i) => (
-              <span key={i} style={{ width: 6, height: 6, borderRadius: 999, backgroundColor: i === idx ? '#CE95FB' : 'rgba(255,255,255,0.35)', transition: 'background-color .4s ease' }} />
+              <span key={i} style={{ width: 6, height: 6, borderRadius: 999, backgroundColor: i === idx ? 'var(--accent-soft)' : 'rgba(255,255,255,0.35)', transition: 'background-color .4s ease' }} />
             ))}
           </div>
         )}

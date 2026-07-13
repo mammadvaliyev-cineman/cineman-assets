@@ -10,25 +10,25 @@ import { CatalogConfig, DEFAULT_CATALOG_CONFIG } from '@/lib/catalogConfig'
 
 // ── Type badge config ─────────────────────────────────────────
 const TYPE_STYLE: Record<string, { bg: string; color: string; icon: string }> = {
-  Location:          { bg: 'rgba(151,101,224,0.75)', color: '#EEE8FF', icon: '📍' },
-  Character:         { bg: 'rgba(206,149,251,0.75)', color: '#1a0a2e', icon: '🎭' },
-  People:            { bg: 'rgba(206,149,251,0.75)', color: '#1a0a2e', icon: '👤' },
+  Location:          { bg: 'color-mix(in srgb, var(--accent) 75%, transparent)', color: '#EEE8FF', icon: '📍' },
+  Character:         { bg: 'color-mix(in srgb, var(--accent-soft) 75%, transparent)', color: '#1a0a2e', icon: '🎭' },
+  People:            { bg: 'color-mix(in srgb, var(--accent-soft) 75%, transparent)', color: '#1a0a2e', icon: '👤' },
   Animal:            { bg: 'rgba(0,194,100,0.7)',    color: '#EEE8FF', icon: '🐾' },
   Robot:             { bg: 'rgba(0,194,186,0.7)',    color: '#EEE8FF', icon: '🤖' },
-  Vehicle:           { bg: 'rgba(83,79,165,0.75)',   color: '#EEE8FF', icon: '🚗' },
-  Architecture:      { bg: 'rgba(54,0,156,0.75)',    color: '#CE95FB', icon: '🏛'  },
+  Vehicle:           { bg: 'color-mix(in srgb, var(--accent-strong) 75%, transparent)',   color: '#EEE8FF', icon: '🚗' },
+  Architecture:      { bg: 'rgba(54,0,156,0.75)',    color: 'var(--accent-soft)', icon: '🏛'  },
   Nature:            { bg: 'rgba(0,194,100,0.7)',    color: '#EEE8FF', icon: '🌿' },
   Creature:          { bg: 'rgba(220,80,80,0.7)',    color: '#EEE8FF', icon: '🐉' },
   Zombie:            { bg: 'rgba(140,180,60,0.7)',   color: '#EEE8FF', icon: '🧟' },
-  Fantasy:           { bg: 'rgba(206,149,251,0.75)', color: '#1a0a2e', icon: '✨' },
+  Fantasy:           { bg: 'color-mix(in srgb, var(--accent-soft) 75%, transparent)', color: '#1a0a2e', icon: '✨' },
   'Sci-Fi':          { bg: 'rgba(0,194,186,0.7)',    color: '#EEE8FF', icon: '🚀' },
-  Prop:              { bg: 'rgba(151,101,224,0.6)',   color: '#EEE8FF', icon: '📦' },
-  photo:             { bg: 'rgba(83,79,165,0.7)',    color: '#EEE8FF', icon: '📷' },
-  video:             { bg: 'rgba(54,0,156,0.75)',    color: '#CE95FB', icon: '▶'  },
-  'Video Clip':      { bg: 'rgba(54,0,156,0.75)',    color: '#CE95FB', icon: '▶'  },
+  Prop:              { bg: 'color-mix(in srgb, var(--accent) 60%, transparent)',   color: '#EEE8FF', icon: '📦' },
+  photo:             { bg: 'color-mix(in srgb, var(--accent-strong) 70%, transparent)',    color: '#EEE8FF', icon: '📷' },
+  video:             { bg: 'rgba(54,0,156,0.75)',    color: 'var(--accent-soft)', icon: '▶'  },
+  'Video Clip':      { bg: 'rgba(54,0,156,0.75)',    color: 'var(--accent-soft)', icon: '▶'  },
   LUT:               { bg: 'rgba(0,194,186,0.7)',    color: '#EEE8FF', icon: '🎨' },
-  'Sound Design':    { bg: 'rgba(151,101,224,0.7)',  color: '#EEE8FF', icon: '🔊' },
-  'Motion Graphics': { bg: 'rgba(83,79,165,0.7)',    color: '#EEE8FF', icon: '✨' },
+  'Sound Design':    { bg: 'color-mix(in srgb, var(--accent) 70%, transparent)',  color: '#EEE8FF', icon: '🔊' },
+  'Motion Graphics': { bg: 'color-mix(in srgb, var(--accent-strong) 70%, transparent)',    color: '#EEE8FF', icon: '✨' },
 }
 
 // ── Download tracking (localStorage, resets daily) ────────────
@@ -162,9 +162,9 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
       <div
         className="relative max-w-md w-full rounded-2xl p-8 text-center"
         style={{
-          background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(151,101,224,0.08) 100%)',
-          border: '1px solid rgba(151,101,224,0.35)',
-          boxShadow: '0 0 60px rgba(151,101,224,0.25)',
+          background: 'linear-gradient(135deg, var(--bg-card) 0%, color-mix(in srgb, var(--accent) 8%, transparent) 100%)',
+          border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+          boxShadow: '0 0 60px color-mix(in srgb, var(--accent) 25%, transparent)',
         }}
         onClick={e => e.stopPropagation()}
       >
@@ -175,14 +175,14 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
         <div className="mb-4 flex justify-center"><CreditGem size={48} /></div>
         <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Not enough credits</h2>
         <p className="text-sm mb-6" style={{ color: 'var(--fg-muted)' }}>
-          You&apos;ve run out of <strong style={{ color: '#CE95FB' }}>credits</strong>.
+          You&apos;ve run out of <strong style={{ color: 'var(--accent-soft)' }}>credits</strong>.
           Upgrade your plan or top up to keep downloading.
         </p>
 
         <div className="grid grid-cols-3 gap-3 mb-6">
           {[
-            { name: 'Free',     price: '$0',  color: '#CE95FB', downloads: '15 cr / mo'  },
-            { name: 'Personal', price: '$12', color: '#9765E0', downloads: '150 cr / mo' },
+            { name: 'Free',     price: '$0',  color: 'var(--accent-soft)', downloads: '15 cr / mo'  },
+            { name: 'Personal', price: '$12', color: 'var(--accent)', downloads: '150 cr / mo' },
             { name: 'Pro',      price: '$25', color: '#00C2BA', downloads: '500 cr / mo' },
           ].map(p => (
             <div
@@ -200,7 +200,7 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
         <a
           href="/pricing"
           className="block w-full py-3 rounded-xl font-bold text-sm text-white text-center"
-          style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)', boxShadow: '0 0 20px rgba(151,101,224,0.4)' }}
+          style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))', boxShadow: '0 0 20px color-mix(in srgb, var(--accent) 40%, transparent)' }}
         >
           View Plans →
         </a>
@@ -240,7 +240,7 @@ function SignupModal({ onClose }: { onClose: () => void }) {
         <a
           href="/account"
           className="block w-full py-3 rounded-xl font-bold text-sm text-white text-center"
-          style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)', boxShadow: '0 0 20px rgba(151,101,224,0.4)' }}
+          style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))', boxShadow: '0 0 20px color-mix(in srgb, var(--accent) 40%, transparent)' }}
         >
           Sign up free →
         </a>
@@ -308,8 +308,8 @@ function confettiBurst(x: number, y: number, count = 42, life = 650) {
   canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999'
   document.body.appendChild(canvas)
   const ctx = canvas.getContext('2d')!
-  // GOLD celebration (DEV_batch_60 §7): victory sparks are warm gold
-  const colors = ['#E5A94B', '#F5C878', '#ffffff', '#9765E0']
+  // brand celebration: violet / lavender / white / teal sparks
+  const colors = ['var(--accent)', 'var(--accent-soft)', '#ffffff', '#2DD4C4']
   const parts = Array.from({ length: count }, () => {
     const a = Math.random() * Math.PI * 2
     const v = 2.5 + Math.random() * 4.5
@@ -411,7 +411,7 @@ function AssetCard({
         className="flex items-center gap-1"
         style={{
           padding: '5px 8px', border: 'none', cursor: 'pointer', borderRadius: '7px 0 0 7px',
-          backgroundColor: isFav ? '#9765E0' : 'rgba(0,0,0,0.55)', color: 'white',
+          backgroundColor: isFav ? 'var(--accent)' : 'rgba(0,0,0,0.55)', color: isFav ? 'var(--on-accent)' : 'white',
           backdropFilter: 'blur(6px)', fontSize: 11, fontWeight: 700,
         }}
       >
@@ -442,7 +442,7 @@ function AssetCard({
               onClick={() => { onSaveToCollection?.(c.id); setPickerOpen(false) }}
               className="w-full text-left"
               style={{ padding: '6px 8px', borderRadius: 6, fontSize: 12, color: 'var(--fg)', background: 'none', border: 'none', cursor: 'pointer', display: 'block', width: '100%', textAlign: 'left' }}
-              onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(151,101,224,0.15)')}
+              onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, var(--accent) 15%, transparent)')}
               onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
             >
               {c.name}
@@ -459,7 +459,7 @@ function AssetCard({
             />
             <button
               onClick={() => { if (newCol.trim()) { onSaveToCollection?.(null, newCol.trim()); setNewCol(''); setPickerOpen(false) } }}
-              style={{ fontSize: 12, fontWeight: 800, padding: '5px 9px', borderRadius: 6, background: 'linear-gradient(135deg,#9765E0,#534FA5)', color: 'white', border: 'none', cursor: 'pointer' }}
+              style={{ fontSize: 12, fontWeight: 800, padding: '5px 9px', borderRadius: 6, background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' }}
             >
               +
             </button>
@@ -518,7 +518,7 @@ function AssetCard({
             <button
               onClick={onMove}
               title="Move to another section (admin)"
-              style={{ padding: 6, borderRadius: 6, backgroundColor: 'rgba(151,101,224,0.12)', border: '1px solid rgba(151,101,224,0.35)', color: '#9765E0', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              style={{ padding: 6, borderRadius: 6, backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)', color: 'var(--accent)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
               <MoveIcon />
             </button>
@@ -535,7 +535,7 @@ function AssetCard({
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
-                background: isDownloading ? 'rgba(151,101,224,0.4)' : 'linear-gradient(135deg,#9765E0,#534FA5)',
+                background: isDownloading ? 'color-mix(in srgb, var(--accent) 40%, transparent)' : 'linear-gradient(135deg,var(--accent),var(--accent-strong))',
                 color: 'white', cursor: isDownloading ? 'default' : 'pointer',
               }}
             >
@@ -614,7 +614,7 @@ function AssetCard({
                 title="Move to another section (admin)"
                 style={{
                   padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer',
-                  backgroundColor: 'rgba(151,101,224,0.55)', color: 'rgba(255,255,255,0.9)',
+                  backgroundColor: 'color-mix(in srgb, var(--accent) 55%, transparent)', color: 'rgba(255,255,255,0.9)',
                   backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
               >
@@ -673,9 +673,9 @@ function AssetCard({
             className="absolute top-2 right-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md"
             style={{
               zIndex: 4,
-              color: mine ? '#E5A94B' : '#5EEAD4',
+              color: '#5EEAD4',
               backgroundColor: 'rgba(8,5,15,0.78)',
-              border: `1px solid ${mine ? 'rgba(229,169,75,0.5)' : 'rgba(94,234,212,0.4)'}`,
+              border: '1px solid rgba(94,234,212,0.4)',
               backdropFilter: 'blur(6px)',
             }}
           >
@@ -723,7 +723,7 @@ function AssetCard({
                 href="/pricing"
                 onClick={e => e.stopPropagation()}
                 className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
-                style={{ background: 'linear-gradient(135deg,#9765E0,#534FA5)', color: 'white', textAlign: 'center' }}
+                style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', textAlign: 'center' }}
               >
                 Get credits
               </a>
@@ -735,7 +735,7 @@ function AssetCard({
                 style={{
                   background: downloadState === 'done'
                     ? 'linear-gradient(135deg,#0EA97A,#0B8763)'
-                    : (isDownloading ? 'rgba(151,101,224,0.5)' : 'linear-gradient(135deg,#9765E0,#534FA5)'),
+                    : (isDownloading ? 'color-mix(in srgb, var(--accent) 50%, transparent)' : 'linear-gradient(135deg,var(--accent),var(--accent-strong))'),
                   color: 'white',
                   padding: 0,
                 }}
@@ -759,8 +759,7 @@ function AssetCard({
                       {mine ? (
                         <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
                       ) : owned ? (
-                        // GOLD = ownership (DEV_batch_60 §7)
-                        <span style={{ fontWeight: 800, color: '#E5A94B', fontSize: 12, letterSpacing: '0.03em' }}>✓ Owned</span>
+                        <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>✓ Owned</span>
                       ) : asset.isFree ? (
                         <span style={{ fontWeight: 800, color: '#2DD4C4', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
                       ) : (
@@ -773,8 +772,8 @@ function AssetCard({
                       <span
                         className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                         style={{
-                          border: `1px solid ${(asset.resolution ?? '2K') === '4K' ? 'rgba(229,169,75,0.75)' : 'rgba(255,255,255,0.3)'}`,
-                          color: (asset.resolution ?? '2K') === '4K' ? '#E5A94B' : 'rgba(255,255,255,0.85)',
+                          border: '1px solid rgba(255,255,255,0.3)',
+                          color: 'rgba(255,255,255,0.85)',
                           lineHeight: '12px',
                         }}
                       >
@@ -801,7 +800,7 @@ function AssetCard({
                   onClick={() => { setFmtOpen(false); onDownload() }}
                   className="w-full"
                   style={{ padding: '7px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: 'var(--fg)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}
-                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(151,101,224,0.15)')}
+                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, var(--accent) 15%, transparent)')}
                   onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
                 >
                   Download 2K · {mine || owned ? 'Owned' : (<>{displayPrice(asset)} <CreditGem size={12} /></>)}
@@ -827,8 +826,7 @@ function AssetCard({
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     display: 'inline-flex', alignItems: 'center', gap: 5,
-                    // GOLD = premium action (DEV_batch_60 §7)
-                    fontSize: 11.5, fontWeight: 600, color: '#E5A94B',
+                    fontSize: 11.5, fontWeight: 600, color: 'var(--fg-muted)',
                   }}
                 >
                   {isBuying ? <SpinnerIcon /> : <CrownIcon size={12} />}
@@ -1237,13 +1235,13 @@ export default function AssetGrid({
       {!user && freeUsed > 0 && freeUsed < FREE_LIMIT && (
         <div
           className="flex items-center justify-between px-4 py-2.5 rounded-xl mb-4 text-sm"
-          style={{ backgroundColor: 'rgba(151,101,224,0.08)', border: '1px solid rgba(151,101,224,0.2)' }}
+          style={{ backgroundColor: 'color-mix(in srgb, var(--accent) 8%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}
         >
           <span style={{ color: 'var(--fg-muted)' }}>
             Free downloads today:{' '}
-            <strong style={{ color: '#9765E0' }}>{freeUsed} / {FREE_LIMIT}</strong>
+            <strong style={{ color: 'var(--accent)' }}>{freeUsed} / {FREE_LIMIT}</strong>
           </span>
-          <a href="/pricing" className="text-xs font-semibold" style={{ color: '#CE95FB' }}>Upgrade →</a>
+          <a href="/pricing" className="text-xs font-semibold" style={{ color: 'var(--accent-soft)' }}>Upgrade →</a>
         </div>
       )}
 
@@ -1277,12 +1275,11 @@ export default function AssetGrid({
             <div
               key={asset.id}
               style={{
-                // fixed equal width for every card — smooth resize, no
-                // uneven stretching on incomplete rows
+                // fixed equal width for every card; resize applies INSTANTLY
+                // (owner's rework of §2 — no rubber-band easing)
                 width: Math.round(300 * previewSize / 100),
                 flexGrow: 0,
                 flexShrink: 0,
-                transition: 'width .45s cubic-bezier(.16,1,.3,1)',
               }}
             >
               <AssetCard
@@ -1414,9 +1411,9 @@ export default function AssetGrid({
           <div
             className="relative max-w-sm w-full rounded-2xl p-7"
             style={{
-              background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(151,101,224,0.08) 100%)',
-              border: '1px solid rgba(151,101,224,0.35)',
-              boxShadow: '0 0 60px rgba(151,101,224,0.25)',
+              background: 'linear-gradient(135deg, var(--bg-card) 0%, color-mix(in srgb, var(--accent) 8%, transparent) 100%)',
+              border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+              boxShadow: '0 0 60px color-mix(in srgb, var(--accent) 25%, transparent)',
             }}
             onClick={e => e.stopPropagation()}
           >
@@ -1465,7 +1462,7 @@ export default function AssetGrid({
               <button
                 onClick={savePriceOverride}
                 className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white"
-                style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)' }}
+                style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))' }}
               >
                 Save
               </button>
@@ -1506,9 +1503,9 @@ export default function AssetGrid({
           <div
             className="relative max-w-md w-full rounded-2xl p-7"
             style={{
-              background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(151,101,224,0.08) 100%)',
-              border: '1px solid rgba(151,101,224,0.35)',
-              boxShadow: '0 0 60px rgba(151,101,224,0.25)',
+              background: 'linear-gradient(135deg, var(--bg-card) 0%, color-mix(in srgb, var(--accent) 8%, transparent) 100%)',
+              border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
+              boxShadow: '0 0 60px color-mix(in srgb, var(--accent) 25%, transparent)',
             }}
             onClick={e => e.stopPropagation()}
           >
@@ -1537,7 +1534,7 @@ export default function AssetGrid({
                 onClick={handleMove}
                 disabled={!moveTo || moveBusy}
                 className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white"
-                style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)', opacity: !moveTo || moveBusy ? 0.5 : 1 }}
+                style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))', opacity: !moveTo || moveBusy ? 0.5 : 1 }}
               >
                 {moveBusy ? 'Переношу…' : 'Перенести'}
               </button>

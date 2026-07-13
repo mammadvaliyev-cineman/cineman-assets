@@ -20,8 +20,8 @@ function CinemanLogoIcon({ size = 36 }: { size?: number }) {
     >
       <defs>
         <linearGradient id="cl-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#CE95FB" />
-          <stop offset="100%" stopColor="#36009C" />
+          <stop offset="0%" style={{ stopColor: 'var(--accent-soft)' }} />
+          <stop offset="100%" style={{ stopColor: 'var(--accent-deep)' }} />
         </linearGradient>
       </defs>
       <rect width="40" height="40" rx="9" ry="9" fill="url(#cl-grad)" />
@@ -117,6 +117,27 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // BRAND THEME toggle (owner's §7 rework): Purple <-> Yellow through the
+  // --accent token set; instant, no reload. Admin-only while he compares.
+  const [accentTheme, setAccentTheme] = useState<'purple' | 'yellow'>('purple')
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('cineman_theme') === 'yellow') {
+        setAccentTheme('yellow')
+        document.documentElement.setAttribute('data-theme', 'yellow')
+      }
+    } catch { /* noop */ }
+  }, [])
+  const toggleAccentTheme = () => {
+    setAccentTheme(t => {
+      const next = t === 'purple' ? 'yellow' : 'purple'
+      try { localStorage.setItem('cineman_theme', next) } catch { /* noop */ }
+      if (next === 'yellow') document.documentElement.setAttribute('data-theme', 'yellow')
+      else document.documentElement.removeAttribute('data-theme')
+      return next
+    })
+  }
+
   return (
     <nav
       className="sticky top-0 z-50 backdrop-blur-xl border-b"
@@ -135,7 +156,7 @@ export default function Navbar() {
             CINEMAN{' '}
             <span
               style={{
-                background: 'linear-gradient(135deg, #9765E0, #00C2BA)',
+                background: 'linear-gradient(135deg, var(--accent), #00C2BA)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
               }}
@@ -161,7 +182,7 @@ export default function Navbar() {
               href={href}
               className="text-sm font-medium transition-colors duration-150"
               style={{ color: 'var(--fg-muted)' }}
-              onMouseEnter={e => ((e.target as HTMLElement).style.color = '#9765E0')}
+              onMouseEnter={e => ((e.target as HTMLElement).style.color = 'var(--accent)')}
               onMouseLeave={e => ((e.target as HTMLElement).style.color = 'var(--fg-muted)')}
             >
               {label}
@@ -171,6 +192,18 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-3">
+          {/* Theme A/B switch (§7 rework): compare Purple vs Yellow accent */}
+          {isRealAdminEmail(user?.email) && (
+            <button
+              onClick={toggleAccentTheme}
+              title="Сменить акцент бренда (Purple ↔ Yellow)"
+              className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
+              style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--fg-muted)', cursor: 'pointer' }}
+            >
+              <span style={{ width: 10, height: 10, borderRadius: 999, backgroundColor: accentTheme === 'purple' ? '#9765E0' : '#EEB63C', display: 'inline-block' }} />
+              {accentTheme === 'purple' ? 'Purple' : 'Yellow'}
+            </button>
+          )}
           {/* The «View as client» toggle lives in Admin → Dashboard (owner's
               spec §8). The navbar only shows the RETURN button while the
               client view is on — /admin itself is locked in that mode. */}
@@ -195,7 +228,7 @@ export default function Navbar() {
               title="Ваши кредиты — клик, чтобы пополнить"
               className="flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-full"
               style={{
-                backgroundColor: 'rgba(151,101,224,0.14)', color: '#CE95FB', border: '1px solid rgba(151,101,224,0.35)',
+                backgroundColor: 'color-mix(in srgb, var(--accent) 14%, transparent)', color: 'var(--accent-soft)', border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
                 animation: pulse ? 'cine-chip-pulse .45s ease-out' : undefined,
               }}
             >
@@ -211,12 +244,12 @@ export default function Navbar() {
                   src={avatarUrl || user.user_metadata.avatar_url || user.user_metadata.picture}
                   alt=""
                   className="rounded-full transition-transform hover:scale-105"
-                  style={{ width: 34, height: 34, border: '2px solid rgba(151,101,224,0.6)', objectFit: 'cover' }}
+                  style={{ width: 34, height: 34, border: '2px solid color-mix(in srgb, var(--accent) 60%, transparent)', objectFit: 'cover' }}
                 />
               ) : (
                 <span
-                  className="rounded-full flex items-center justify-center text-sm font-bold text-white"
-                  style={{ width: 34, height: 34, background: 'linear-gradient(135deg,#9765E0,#534FA5)' }}
+                  className="rounded-full flex items-center justify-center text-sm font-bold"
+                  style={{ width: 34, height: 34, background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)' }}
                 >
                   {String(user.email || '?').charAt(0).toUpperCase()}
                 </span>

@@ -108,7 +108,7 @@ function ShelfCard({ it, index }: { it: ShelfItem; index: number }) {
 }
 
 export default function HomeShelf({
-  title, accent = '#9765E0', seeAllHref, items, badge,
+  title, accent = 'var(--accent)', seeAllHref, items, badge,
 }: {
   title: string
   accent?: string
