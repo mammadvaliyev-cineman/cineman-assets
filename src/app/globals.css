@@ -287,3 +287,17 @@ html { scroll-behavior: smooth; }
 /* staggered reveal: cards cascade in once their section enters the view */
 .cine-stagger { opacity: 0; transform: translateY(10px); transition: opacity .35s ease, transform .35s ease; transition-delay: var(--stg, 0ms); }
 .cine-in .cine-stagger { opacity: 1; transform: none; }
+
+/* ── Warm gold #E5A94B — the THIRD accent, premium meaning only
+   (ownership / quality / victory). Never decoration. ── */
+.cine-gold-divider {
+  height: 1px; max-width: 1200px; margin: 0 auto 56px;
+  background: linear-gradient(90deg, transparent, rgba(229, 169, 75, 0.35), transparent);
+}
+.cine-sheen-gold { position: relative; overflow: hidden; }
+.cine-sheen-gold::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: linear-gradient(115deg, transparent 42%, rgba(229, 169, 75, 0.18) 50%, transparent 58%);
+  transform: translateX(-130%);
+}
+.cine-sheen-gold:hover::after { transform: translateX(130%); transition: transform .7s ease; }

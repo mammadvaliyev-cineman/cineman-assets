@@ -170,7 +170,7 @@ export default async function HomePage() {
       <section className="relative overflow-hidden px-6" style={{ paddingTop: 64, paddingBottom: 56 }}>
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse 60% 55% at 30% 0%, rgba(151,101,224,0.16) 0%, transparent 70%)" }}
+          style={{ background: "radial-gradient(ellipse 60% 55% at 30% 0%, rgba(151,101,224,0.16) 0%, transparent 70%), radial-gradient(ellipse 50% 45% at 78% 20%, rgba(229,169,75,0.05) 0%, transparent 70%)" }}
         />
         <div className="max-w-7xl mx-auto relative grid md:grid-cols-2 gap-12 items-center">
           {/* Left: copy + CTAs + mini-stats */}
@@ -185,12 +185,19 @@ export default async function HomePage() {
               <Letters text="Direct films with" />{" "}
               <span className="cine-letter gradient-animate" style={{ animationDelay: "520ms" }}>Cineman</span>
             </h1>
-            <p className="text-lg mb-8 max-w-md" style={{ color: "var(--fg-muted)" }}>
+            <p className="text-lg mb-4 max-w-md" style={{ color: "var(--fg-muted)" }}>
               A huge library of cinematic assets for AI video — cast, locations,
-              vehicles and more. Commercial license included.
+              vehicles and more.
+            </p>
+            {/* trust: gold shield = commercial license (§7 — gold means quality) */}
+            <p className="inline-flex items-center gap-2 text-sm mb-8" style={{ color: "#E5A94B" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
+              </svg>
+              Commercial license included
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link href="/studio" className="btn-primary text-base btn-shimmer">Try Studio →</Link>
+              <Link href="/studio" className="btn-primary text-base cine-sheen-gold">Try Studio →</Link>
               <Link href="/catalog" className="btn-secondary text-base">Browse catalog</Link>
             </div>
             <div className="mt-10 flex gap-10">
@@ -235,9 +242,17 @@ export default async function HomePage() {
                   style={{ borderRadius: 12, overflow: "hidden", border: "0.5px solid rgba(255,255,255,0.07)", backgroundColor: "#17151E" }}
                 >
                   {/* full sheet on the graphite mat — no text on the photo */}
-                  <div style={{ aspectRatio: "16/9", overflow: "hidden" }}>
+                  <div style={{ aspectRatio: "16/9", overflow: "hidden", position: "relative" }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={t.cover} alt={t.title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 12 }} />
+                    {/* gold star = editor's pick (§7) */}
+                    <span
+                      className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md"
+                      style={{ color: "#E5A94B", backgroundColor: "rgba(10,10,15,0.7)", border: "1px solid rgba(229,169,75,0.45)", zIndex: 2 }}
+                    >
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="#E5A94B"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.5l7.1-.6L12 2z" /></svg>
+                      Featured
+                    </span>
                   </div>
                   {/* caption UNDER the image — no counters on the public page */}
                   <div style={{ padding: "11px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
@@ -289,6 +304,10 @@ export default async function HomePage() {
       <HomeShelf title="New this week" seeAllHref="/catalog" items={toShelf(newest)} />
       <HomeShelf title="Most downloaded" seeAllHref="/catalog" items={toShelf(popular)} />
       <HomeShelf title="Free picks" badge="Free" accent="#2DD4C4" seeAllHref="/catalog?free=1" items={toShelf(freePicks)} />
+
+      {/* signature stroke (§7): ONE thin warm-gold line stitching the
+          showcase to the explainer — the only decorative gold on the page */}
+      <div className="cine-gold-divider" />
 
       {/* ── HOW IT WORKS — after the showcase (owner's order) ── */}
       <Reveal><section className="px-6 max-w-5xl mx-auto" style={{ marginBottom: 64 }}>
