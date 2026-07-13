@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useTilt } from '@/components/Tilt'
 import { Asset } from '@/lib/mock-data'
 import { supabase } from '@/lib/supabase'
@@ -403,6 +404,8 @@ function AssetCard({
   const [pickerOpen, setPickerOpen] = useState(false)
   const [newCol, setNewCol] = useState('')
   const [fmtOpen, setFmtOpen] = useState(false)
+  // DETAIL modal (DEV_catalog_card_lighter §3): full commerce lives here
+  const [detailOpen, setDetailOpen] = useState(false)
 
   // ONE Save button, two levels (spec D): tap = instant save to «Saved»,
   // ⌄ = pick a collection (or create one) without leaving the catalog.
@@ -555,14 +558,17 @@ function AssetCard({
     )
   }
 
-  // Grid card — leans toward the cursor (DEV_flair_motion §2), the ring
-  // and the shadow come from CSS (.cine-ring), the transform from JS
+  // Grid card (DEV_catalog_card_lighter): the IMAGE leads. Resting =
+  // photo + a quiet price corner + title/category. Commerce appears on
+  // hover (Download on a bottom scrim) and in full on the detail modal.
   return (
-    <div className="card group cursor-pointer flex flex-col fade-in-up cine-ring cine-shadow" {...tilt} style={{ position: 'relative', willChange: 'transform' }}>
-      {/* Thumbnail — display mode is admin-controlled (Admin → Settings) */}
-      {/* Media on the graphite MAT (DEV_shelf_style §1): the sheet reads
-          as a product in a showcase, not a dropped image. Shimmer while
-          the lazy image loads; the sheet itself is NEVER cropped. */}
+    <>
+    <div
+      className="card group cursor-pointer flex flex-col fade-in-up cine-ring cine-shadow"
+      {...tilt}
+      style={{ position: 'relative', willChange: 'transform' }}
+      onClick={() => setDetailOpen(true)}
+    >
       <div className={`relative overflow-hidden ${imgLoaded || !asset.thumbnail ? '' : 'cine-shimmer'}`} style={{ aspectRatio: gridRatio, backgroundColor: '#17151E' }}>
         {asset.thumbnail ? (
           <img
@@ -588,8 +594,7 @@ function AssetCard({
           </div>
         )}
 
-        {/* Watermark — small, semi-transparent, bottom-right corner
-            (owner's rollback: never over the middle of the frame) */}
+        {/* Watermark — small, semi-transparent, bottom-right corner */}
         {asset.thumbnail && (
           <div className="absolute pointer-events-none" style={{ right: 10, bottom: 8, zIndex: 2 }}>
             <span style={{ fontSize: '8.5px', fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)', userSelect: 'none', textTransform: 'uppercase' }}>
@@ -598,19 +603,14 @@ function AssetCard({
           </div>
         )}
 
-        {/* Admin buttons (top-left): delete + move to another section */}
+        {/* Admin controls — HOVER-ONLY cluster, top-left (§4) */}
         {isAdmin && (
-          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex gap-1.5" style={{ zIndex: 3 }}>
+          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex gap-1.5" style={{ zIndex: 6 }}>
             {onDelete && (
               <button
                 onClick={e => { e.stopPropagation(); onDelete() }}
                 title="Delete asset (admin)"
-                style={{
-                  padding: 6, borderRadius: 7, border: 'none',
-                  cursor: isDeleting ? 'default' : 'pointer',
-                  backgroundColor: 'rgba(220,60,60,0.55)', color: 'rgba(255,255,255,0.9)',
-                  backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
+                style={{ padding: 6, borderRadius: 7, border: 'none', cursor: isDeleting ? 'default' : 'pointer', backgroundColor: 'rgba(220,60,60,0.55)', color: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 {isDeleting ? <SpinnerIcon /> : <TrashIcon />}
               </button>
@@ -619,11 +619,7 @@ function AssetCard({
               <button
                 onClick={e => { e.stopPropagation(); onMove() }}
                 title="Move to another section (admin)"
-                style={{
-                  padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer',
-                  backgroundColor: 'color-mix(in srgb, var(--accent) 55%, transparent)', color: 'rgba(255,255,255,0.9)',
-                  backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
+                style={{ padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer', backgroundColor: 'color-mix(in srgb, var(--accent) 55%, transparent)', color: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <MoveIcon />
               </button>
@@ -632,11 +628,7 @@ function AssetCard({
               <button
                 onClick={e => { e.stopPropagation(); onHide() }}
                 title="Hide from catalog — reversible in Admin (admin)"
-                style={{
-                  padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer',
-                  backgroundColor: 'rgba(255,170,60,0.55)', color: 'rgba(255,255,255,0.9)',
-                  backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
+                style={{ padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer', backgroundColor: 'rgba(255,170,60,0.55)', color: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <EyeOffIcon />
               </button>
@@ -645,11 +637,7 @@ function AssetCard({
               <button
                 onClick={e => { e.stopPropagation(); onPrice() }}
                 title="Edit price (admin)"
-                style={{
-                  padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer',
-                  backgroundColor: 'rgba(0,194,186,0.55)', color: 'rgba(255,255,255,0.9)',
-                  backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
+                style={{ padding: 6, borderRadius: 7, border: 'none', cursor: 'pointer', backgroundColor: 'rgba(0,194,186,0.55)', color: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
                 <PencilIcon />
               </button>
@@ -657,196 +645,280 @@ function AssetCard({
           </div>
         )}
 
-        {/* FREE badge (lead funnel): teal chip, hides under the admin
-            button cluster on hover so the two never overlap */}
-        {asset.isFree && !soldTo && (
-          <span
-            className={`absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md ${isAdmin ? 'group-hover:opacity-0 transition-opacity' : ''}`}
-            style={{
-              zIndex: 3,
-              color: '#0A1F1C',
-              backgroundColor: '#2DD4C4',
-              boxShadow: '0 2px 10px rgba(45,212,196,0.4)',
-            }}
-          >
-            Free
-          </span>
-        )}
+        {/* PRICE CORNER (resting, §1): tiny quiet chip + resolution.
+            Sold assets show the lock chip instead. */}
+        <div className="absolute top-2 right-2 flex items-center gap-1 pointer-events-none" style={{ zIndex: 4 }}>
+          {soldTo ? (
+            <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md" style={{ color: '#5EEAD4', backgroundColor: 'rgba(8,5,15,0.78)', border: '1px solid rgba(94,234,212,0.4)', backdropFilter: 'blur(6px)' }}>
+              <LockIcon size={10} /> {mine ? 'Owned by you' : 'Exclusively sold'}
+            </span>
+          ) : (
+            <>
+              <span className="flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-md" style={{ backgroundColor: 'rgba(8,5,15,0.62)', backdropFilter: 'blur(6px)', color: owned || mine ? '#7EE7C7' : (asset.isFree ? '#2DD4C4' : 'rgba(255,255,255,0.92)') }}>
+                {owned || mine ? '✓ Owned' : asset.isFree ? 'Free' : (<><CreditGem size={11} /> {displayPrice(asset)}</>)}
+              </span>
+              <span className="text-[9px] font-bold px-1 py-0.5 rounded-md" style={{ backgroundColor: 'rgba(8,5,15,0.62)', backdropFilter: 'blur(6px)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.18)' }}>
+                {asset.resolution ?? '2K'}
+              </span>
+            </>
+          )}
+        </div>
 
-        {/* SOLD corner badge (spec 1.5): no watermark over the photo —
-            a quiet chip + slight dim is enough */}
-        {soldTo && (
-          <span
-            className="absolute top-2 right-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md"
-            style={{
-              zIndex: 4,
-              color: '#5EEAD4',
-              backgroundColor: 'rgba(8,5,15,0.78)',
-              border: '1px solid rgba(94,234,212,0.4)',
-              backdropFilter: 'blur(6px)',
-            }}
-          >
-            <LockIcon size={10} /> {mine ? 'Owned by you' : 'Exclusively sold'}
-          </span>
-        )}
-
-        {/* SAVE (spec D) — top-right; drops below the SOLD chip when present */}
-        <div className={`absolute ${soldTo ? 'top-10' : 'top-2'} right-2`} style={{ zIndex: 5 }}>
+        {/* SAVE — hover-only, sits below the price corner */}
+        <div className="absolute top-10 right-2" style={{ zIndex: 6 }}>
           {saveControl}
         </div>
 
-      </div>
-
-      {/* Info + actions UNDER the photo (owner's rollback: no text on
-          the image). Buttons never sit on the media either (spec 1.1). */}
-      <div className="p-3.5 flex flex-col flex-1">
-        <h3 className="font-semibold mb-1 truncate text-sm" style={{ color: 'var(--fg)' }}>{sentenceCase(asset.title)}</h3>
-        <div className="flex items-center gap-2 mb-3">
-          <span className="badge text-[11px] font-semibold" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
-          <p className="text-xs truncate" style={{ color: 'var(--fg-muted)' }}>{asset.category}</p>
-        </div>
-
+        {/* HOVER COMMERCE (§2): Download rises on a bottom gradient scrim */}
         {asset.fileUrl && (
-          <div className="mt-auto" style={{ position: 'relative' }}>
-            {downloadState === 'done' && !owned && !mine && (
-              <span style={{
-                position: 'absolute', top: -10, left: '50%', pointerEvents: 'none',
-                fontSize: 13, fontWeight: 800, color: '#5EEAD4',
-                animation: 'cine-fly-up .7s ease-out forwards',
-                display: 'inline-flex', alignItems: 'center', gap: 2,
-              }}>−{displayPrice(asset)} <CreditGem size={11} /></span>
-            )}
+          <div
+            className="absolute inset-x-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            style={{ zIndex: 5, padding: '34px 10px 10px', background: 'linear-gradient(to top, rgba(8,5,15,0.92) 0%, rgba(8,5,15,0.55) 60%, transparent 100%)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ position: 'relative' }}>
+              {downloadState === 'done' && !owned && !mine && (
+                <span style={{
+                  position: 'absolute', top: -10, left: '50%', pointerEvents: 'none',
+                  fontSize: 13, fontWeight: 800, color: '#5EEAD4',
+                  animation: 'cine-fly-up .7s ease-out forwards',
+                  display: 'inline-flex', alignItems: 'center', gap: 2,
+                }}>−{displayPrice(asset)} <CreditGem size={11} /></span>
+              )}
 
-            {locked ? (
-              <button
-                disabled
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold"
-                style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', color: 'var(--fg-subtle)', cursor: 'not-allowed' }}
-              >
-                <LockIcon size={13} /> Exclusively sold
-              </button>
-            ) : downloadState === 'nocredits' ? (
-              <button
-                onClick={e => { e.stopPropagation(); window.dispatchEvent(new Event('cineman-open-topup')) }}
-                className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
-                style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', textAlign: 'center', border: 'none', cursor: 'pointer' }}
-              >
-                Buy credits
-              </button>
-            ) : (
-              <button
-                onClick={e => { e.stopPropagation(); onDownload() }}
-                disabled={isDownloading || downloadState === 'done'}
-                className="w-full flex items-stretch rounded-lg text-sm font-semibold transition-all overflow-hidden"
-                style={{
-                  background: downloadState === 'done'
-                    ? 'linear-gradient(135deg,#0EA97A,#0B8763)'
-                    : (isDownloading ? 'color-mix(in srgb, var(--accent) 50%, transparent)' : 'linear-gradient(135deg,var(--accent),var(--accent-strong))'),
-                  color: 'white',
-                  padding: 0,
-                }}
-              >
-                {downloadState === 'done' ? (
-                  <span className="flex-1 flex items-center justify-center gap-2 py-2">✓ Downloaded</span>
-                ) : isDownloading ? (
-                  <span className="flex-1 flex items-center justify-center gap-2 py-2"><SpinnerIcon /> Generating link…</span>
-                ) : (
-                  <>
-                    {/* variant D: main action left, price on a darker inset right */}
-                    <span className="flex-1 flex items-center justify-center gap-1.5 py-2">
-                      <DownloadIcon /> Download
-                    </span>
-                    <span
-                      className="flex items-center gap-1.5 px-2.5"
-                      onClick={(asset.resolution ?? '2K') !== '4K' && onUpscale ? (e => { e.stopPropagation(); setFmtOpen(v => !v) }) : undefined}
-                      title={(asset.resolution ?? '2K') !== '4K' && onUpscale ? 'Choose resolution' : undefined}
-                      style={{ backgroundColor: 'rgba(0,0,0,0.22)', cursor: (asset.resolution ?? '2K') !== '4K' && onUpscale ? 'pointer' : undefined }}
-                    >
-                      {mine ? (
-                        <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
-                      ) : owned ? (
-                        <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>✓ Owned</span>
-                      ) : asset.isFree ? (
-                        <span style={{ fontWeight: 800, color: '#2DD4C4', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
-                      ) : (
-                        <>
-                          <CreditGem size={14} />
-                          <span style={{ fontWeight: 800, color: 'white', fontSize: 13 }}>{displayPrice(asset)}</span>
-                        </>
-                      )}
-                      {/* 4K = quality award → warm-gold outline (§7) */}
-                      <span
-                        className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                        style={{
-                          border: '1px solid rgba(255,255,255,0.3)',
-                          color: 'rgba(255,255,255,0.85)',
-                          lineHeight: '12px',
-                        }}
-                      >
-                        {asset.resolution ?? '2K'}
-                      </span>
-                    </span>
-                  </>
-                )}
-              </button>
-            )}
-
-            {/* Format menu (spec B3): one place inside the Download button —
-                2K as bought, or «Get in 4K» (Topaz render, cached in R2) */}
-            {fmtOpen && (
-              <div
-                onClick={e => e.stopPropagation()}
-                style={{
-                  position: 'absolute', bottom: '110%', right: 0, minWidth: 190, zIndex: 7,
-                  backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 10,
-                  padding: 6, boxShadow: '0 10px 30px rgba(0,0,0,0.65)',
-                }}
-              >
+              {locked ? (
                 <button
-                  onClick={() => { setFmtOpen(false); onDownload() }}
-                  className="w-full"
-                  style={{ padding: '7px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: 'var(--fg)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}
-                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, var(--accent) 15%, transparent)')}
-                  onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
+                  disabled
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12.5px] font-semibold"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.06)', border: '1px solid var(--border)', color: 'var(--fg-subtle)', cursor: 'not-allowed' }}
                 >
-                  Download 2K · {mine || owned ? 'Owned' : (<>{displayPrice(asset)} <CreditGem size={12} /></>)}
+                  <LockIcon size={13} /> Exclusively sold
                 </button>
+              ) : downloadState === 'nocredits' ? (
                 <button
-                  onClick={() => { setFmtOpen(false); onUpscale?.() }}
-                  disabled={isUpscaling}
-                  className="w-full"
-                  style={{ padding: '7px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: '#5EEAD4', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}
-                  onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(94,234,212,0.1)')}
-                  onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
+                  onClick={e => { e.stopPropagation(); window.dispatchEvent(new Event('cineman-open-topup')) }}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12.5px] font-semibold"
+                  style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' }}
                 >
-                  {isUpscaling ? <SpinnerIcon /> : null} Get in 4K · 10 <CreditGem size={12} />
+                  Buy credits
                 </button>
-              </div>
-            )}
-
-            {onBuyout && !soldTo && (
-              <div style={{ borderTop: '1px solid var(--border)', marginTop: 8, paddingTop: 6, textAlign: 'center' }}>
+              ) : (
                 <button
-                  onClick={e => { e.stopPropagation(); onBuyout() }}
-                  disabled={isBuying}
+                  onClick={e => { e.stopPropagation(); onDownload() }}
+                  disabled={isDownloading || downloadState === 'done'}
+                  className="w-full flex items-stretch rounded-lg text-[12.5px] font-semibold transition-all overflow-hidden"
                   style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    display: 'inline-flex', alignItems: 'center', gap: 5,
-                    fontSize: 11.5, fontWeight: 600, color: 'var(--fg-muted)',
+                    background: downloadState === 'done'
+                      ? 'linear-gradient(135deg,#0EA97A,#0B8763)'
+                      : (isDownloading ? 'color-mix(in srgb, var(--accent) 50%, transparent)' : 'linear-gradient(135deg,var(--accent),var(--accent-strong))'),
+                    color: 'white',
+                    padding: 0,
                   }}
                 >
-                  {isBuying ? <SpinnerIcon /> : <CrownIcon size={12} />}
-                  Buy exclusive rights · {asset.exclusivePrice ?? 50} <CreditGem size={12} />
+                  {downloadState === 'done' ? (
+                    <span className="flex-1 flex items-center justify-center gap-2 py-2">✓ Downloaded</span>
+                  ) : isDownloading ? (
+                    <span className="flex-1 flex items-center justify-center gap-2 py-2"><SpinnerIcon /> Generating link…</span>
+                  ) : (
+                    <>
+                      <span className="flex-1 flex items-center justify-center gap-1.5 py-2">
+                        <DownloadIcon /> Download
+                      </span>
+                      <span
+                        className="flex items-center gap-1.5 px-2.5"
+                        onClick={(asset.resolution ?? '2K') !== '4K' && onUpscale ? (e => { e.stopPropagation(); setFmtOpen(v => !v) }) : undefined}
+                        title={(asset.resolution ?? '2K') !== '4K' && onUpscale ? 'Choose resolution' : undefined}
+                        style={{ backgroundColor: 'rgba(0,0,0,0.22)', cursor: (asset.resolution ?? '2K') !== '4K' && onUpscale ? 'pointer' : undefined }}
+                      >
+                        {mine || owned ? (
+                          <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>{mine ? 'Free' : '✓ Owned'}</span>
+                        ) : asset.isFree ? (
+                          <span style={{ fontWeight: 800, color: '#2DD4C4', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
+                        ) : (
+                          <>
+                            <CreditGem size={13} />
+                            <span style={{ fontWeight: 800, color: 'white', fontSize: 12.5 }}>{displayPrice(asset)}</span>
+                          </>
+                        )}
+                      </span>
+                    </>
+                  )}
                 </button>
-                <p style={{ fontSize: 9.5, lineHeight: 1.35, color: 'var(--fg-subtle)', marginTop: 1 }}>
+              )}
+
+              {fmtOpen && (
+                <div
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    position: 'absolute', bottom: '110%', right: 0, minWidth: 190, zIndex: 8,
+                    backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 10,
+                    padding: 6, boxShadow: '0 10px 30px rgba(0,0,0,0.65)',
+                  }}
+                >
+                  <button
+                    onClick={() => { setFmtOpen(false); onDownload() }}
+                    className="w-full"
+                    style={{ padding: '7px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: 'var(--fg)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'color-mix(in srgb, var(--accent) 15%, transparent)')}
+                    onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
+                  >
+                    Download 2K · {mine || owned ? 'Owned' : (<>{displayPrice(asset)} <CreditGem size={12} /></>)}
+                  </button>
+                  <button
+                    onClick={() => { setFmtOpen(false); onUpscale?.() }}
+                    disabled={isUpscaling}
+                    className="w-full"
+                    style={{ padding: '7px 9px', borderRadius: 6, fontSize: 12, fontWeight: 600, color: '#5EEAD4', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, width: '100%' }}
+                    onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(94,234,212,0.1)')}
+                    onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
+                  >
+                    {isUpscaling ? <SpinnerIcon /> : null} Get in 4K · 10 <CreditGem size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* CAPTION (§1): title + category only; «Exclusive →» is a quiet
+          link that opens the detail (never a button on the tile) */}
+      <div className="px-3 py-2.5 flex items-start justify-between gap-2">
+        <div style={{ minWidth: 0 }}>
+          <h3 className="font-semibold truncate text-[13px]" style={{ color: 'var(--fg)', margin: 0 }}>{sentenceCase(asset.title)}</h3>
+          <p className="text-[11px] truncate" style={{ color: 'var(--fg-muted)', margin: '2px 0 0' }}>
+            <span style={{ color: typeStyle.color, fontWeight: 600 }}>{asset.type}</span> · {asset.category}
+          </p>
+        </div>
+        {onBuyout && !soldTo && (
+          <button
+            onClick={e => { e.stopPropagation(); setDetailOpen(true) }}
+            className="text-[10.5px] font-semibold flex-shrink-0"
+            style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 2, padding: 0 }}
+          >
+            Exclusive →
+          </button>
+        )}
+      </div>
+    </div>
+
+    {/* DETAIL MODAL (§3): the full commerce — Download + 4K, exclusive
+        rights with the ownership explainer, license */}
+    {detailOpen && createPortal(
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        style={{ backgroundColor: 'rgba(8,5,15,0.82)', backdropFilter: 'blur(8px)' }}
+        onClick={() => setDetailOpen(false)}
+      >
+        <div
+          className="relative w-full overflow-hidden rounded-2xl flex flex-col md:flex-row"
+          style={{ maxWidth: 960, maxHeight: '88vh', backgroundColor: '#120D1D', border: '1px solid var(--border)', boxShadow: '0 30px 80px rgba(0,0,0,0.6)' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <button
+            onClick={() => setDetailOpen(false)}
+            className="absolute top-3 right-3"
+            style={{ zIndex: 2, color: 'var(--fg-subtle)', backgroundColor: 'rgba(8,5,15,0.6)', border: 'none', cursor: 'pointer', borderRadius: 8, padding: 6, display: 'flex' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
+
+          <div style={{ flex: '1.55 1 0%', backgroundColor: '#17151E', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240 }}>
+            {asset.thumbnail ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={asset.thumbnail} alt={asset.title} style={{ width: '100%', height: '100%', maxHeight: '88vh', objectFit: 'contain', padding: 14 }} />
+            ) : (
+              <span className="text-4xl">{typeStyle.icon}</span>
+            )}
+          </div>
+
+          <div className="p-6 flex flex-col gap-3" style={{ flex: '1 1 0%', minWidth: 280, overflowY: 'auto' }}>
+            <div>
+              <h2 className="text-lg font-bold" style={{ color: 'var(--fg)', margin: 0 }}>{sentenceCase(asset.title)}</h2>
+              <p className="text-xs" style={{ color: 'var(--fg-muted)', margin: '4px 0 0' }}>
+                <span style={{ color: typeStyle.color, fontWeight: 600 }}>{asset.type}</span> · {asset.category}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5 text-sm font-bold" style={{ color: owned || mine ? '#7EE7C7' : asset.isFree ? '#2DD4C4' : 'var(--fg)' }}>
+                {mine ? 'Owned by you' : owned ? '✓ Owned' : asset.isFree ? 'Free' : (<><CreditGem size={14} /> {displayPrice(asset)} credits</>)}
+              </span>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ border: '1px solid rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.85)' }}>
+                {asset.resolution ?? '2K'}
+              </span>
+            </div>
+
+            {asset.fileUrl && (locked ? (
+              <div className="rounded-xl p-4 text-sm flex items-center gap-2" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--fg-subtle)' }}>
+                <LockIcon size={14} /> Exclusively sold — this asset belongs to another client.
+              </div>
+            ) : (
+              <>
+                {downloadState === 'nocredits' ? (
+                  <button
+                    onClick={() => window.dispatchEvent(new Event('cineman-open-topup'))}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold"
+                    style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' }}
+                  >
+                    Buy credits
+                  </button>
+                ) : (
+                  <button
+                    onClick={onDownload}
+                    disabled={isDownloading || downloadState === 'done'}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold"
+                    style={{
+                      background: downloadState === 'done'
+                        ? 'linear-gradient(135deg,#0EA97A,#0B8763)'
+                        : (isDownloading ? 'color-mix(in srgb, var(--accent) 50%, transparent)' : 'linear-gradient(135deg,var(--accent),var(--accent-strong))'),
+                      color: downloadState === 'done' ? 'white' : 'var(--on-accent)', border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    {downloadState === 'done' ? '✓ Downloaded' : isDownloading ? (<><SpinnerIcon /> Generating link…</>) : (
+                      <><DownloadIcon /> Download · {mine ? 'Free' : owned ? 'Owned' : asset.isFree ? 'Free' : (<>{displayPrice(asset)} <CreditGem size={13} /></>)}</>
+                    )}
+                  </button>
+                )}
+                {(asset.resolution ?? '2K') !== '4K' && onUpscale && (
+                  <button
+                    onClick={onUpscale}
+                    disabled={isUpscaling}
+                    className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold"
+                    style={{ background: 'none', border: '1px solid rgba(94,234,212,0.45)', color: '#5EEAD4', cursor: 'pointer' }}
+                  >
+                    {isUpscaling ? <SpinnerIcon /> : null} Get in 4K · 10 <CreditGem size={13} />
+                  </button>
+                )}
+              </>
+            ))}
+
+            {onBuyout && !soldTo && (
+              <div className="rounded-xl p-4" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+                <button
+                  onClick={onBuyout}
+                  disabled={isBuying}
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-bold"
+                  style={{ background: 'none', border: '1px solid color-mix(in srgb, var(--accent) 55%, transparent)', color: 'var(--accent-soft)', cursor: 'pointer' }}
+                >
+                  {isBuying ? <SpinnerIcon /> : <CrownIcon size={13} />} Buy exclusive rights · {asset.exclusivePrice ?? 50} <CreditGem size={13} />
+                </button>
+                <p className="text-[11px]" style={{ color: 'var(--fg-subtle)', textAlign: 'center', margin: '8px 0 0' }}>
                   You own it — nobody else can buy or download it after.
                 </p>
               </div>
             )}
+
+            <p className="text-[11px] flex items-center gap-1.5 mt-auto" style={{ color: 'var(--fg-subtle)' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-4z" /></svg>
+              Commercial license included
+            </p>
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   )
 }
 
