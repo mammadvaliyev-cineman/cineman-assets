@@ -35,7 +35,7 @@ const PLANS = [
     monthly: 0,
     yearly: 0,
     subtitle: 'Try the full catalog',
-    accent: '#CE95FB',
+    accent: 'var(--accent-soft)',
     badge: null,
     popular: false,
     license: 'Personal use only',
@@ -54,7 +54,7 @@ const PLANS = [
     monthly: 12,
     yearly: 120, // $/yr — ~2 months free
     subtitle: 'For solo creators',
-    accent: '#9765E0',
+    accent: 'var(--accent)',
     badge: null,
     popular: false,
     license: 'Commercial license',
@@ -121,9 +121,9 @@ export default function PricingPage() {
         <span
           className="inline-block text-xs font-semibold uppercase tracking-widest px-4 py-1.5 rounded-full mb-5"
           style={{
-            backgroundColor: 'rgba(151,101,224,0.12)',
-            color: '#9765E0',
-            border: '1px solid rgba(151,101,224,0.25)',
+            backgroundColor: 'color-mix(in srgb, var(--accent) 12%, transparent)',
+            color: 'var(--accent)',
+            border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
           }}
         >
           Simple pricing
@@ -149,7 +149,7 @@ export default function PricingPage() {
               className="px-5 py-1.5 rounded-full text-sm font-semibold transition-all"
               style={
                 period === p
-                  ? { background: 'linear-gradient(135deg, #9765E0, #534FA5)', color: 'white' }
+                  ? { background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))', color: 'white' }
                   : { color: 'var(--fg-muted)' }
               }
             >
@@ -167,25 +167,20 @@ export default function PricingPage() {
             className="relative card p-8 flex flex-col"
             style={{
               overflow: 'visible', // .card clips overflow — would cut the badge
-              // GOLD = premium (DEV_batch_60 §7): the recommended plan wears
-              // a thin warm-gold ring + gold badge with a crown
-              borderColor: plan.popular ? 'rgba(229,169,75,0.65)' : 'var(--border)',
+              borderColor: plan.popular ? 'color-mix(in srgb, var(--accent) 60%, transparent)' : 'var(--border)',
               borderWidth: plan.popular ? 1.5 : 1,
-              boxShadow: plan.popular ? '0 0 34px rgba(229,169,75,0.12)' : undefined,
+              boxShadow: plan.popular ? '0 0 34px color-mix(in srgb, var(--accent) 14%, transparent)' : undefined,
             }}
           >
             {plan.badge && (
               <span
                 className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 text-xs font-bold px-4 py-1 rounded-full"
                 style={{
-                  background: 'linear-gradient(135deg, #E5A94B, #C98B2E)',
-                  color: '#1E1403',
+                  background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))',
+                  color: 'var(--on-accent)',
                   whiteSpace: 'nowrap',
                 }}
               >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 18l-1.5-9L8 13l4-8 4 8 5.5-4L20 18z" /><path d="M4 21h16" />
-                </svg>
                 {plan.badge}
               </span>
             )}
