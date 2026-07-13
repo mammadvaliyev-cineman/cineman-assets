@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidatePath } from 'next/cache'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 import { requireAdmin } from '@/lib/adminAuth'
 
@@ -36,14 +37,17 @@ export async function POST(req: NextRequest) {
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
   try {
     const { config } = await req.json()
+    // A tile only NEEDS a cover (the owner picks covers by click and may
+    // skip the title) — the title falls back to the category name. The
+    // old title-required filter silently dropped his tiles → empty featured.
     const featured: FeaturedTile[] = (Array.isArray(config?.featured) ? config.featured : [])
       .slice(0, 4)
       .map((t: Record<string, unknown>) => ({
-        title: String(t.title || '').slice(0, 60),
+        title: String(t.title || '').slice(0, 60).trim() || String(t.cat || '').slice(0, 40),
         cat: String(t.cat || '').slice(0, 40),
         cover: String(t.cover || '').slice(0, 500),
       }))
-      .filter((t: FeaturedTile) => t.title && t.cat)
+      .filter((t: FeaturedTile) => t.cover && t.cat)
     const body = JSON.stringify({ featured })
     const admin = supabaseAdmin()
     const { data } = await admin.from('assets').select('id').eq('type', ROW.type).eq('title', ROW.title).limit(1)
@@ -62,6 +66,8 @@ export async function POST(req: NextRequest) {
       })
       if (error) throw error
     }
+    // bust the ISR cache so the homepage shows the new showcase immediately
+    revalidatePath('/')
     return NextResponse.json({ ok: true, config: { featured } })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Save failed'
