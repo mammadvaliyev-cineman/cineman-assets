@@ -209,6 +209,46 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+// ── Sign-up prompt (lead funnel): anonymous visitors browse freely,
+// downloading needs a free account — that email IS the product here.
+function SignupModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: 'rgba(8,5,15,0.80)', backdropFilter: 'blur(8px)' }}
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-sm w-full rounded-2xl p-8 text-center"
+        style={{
+          background: 'linear-gradient(135deg, var(--bg-card) 0%, rgba(45,212,196,0.06) 100%)',
+          border: '1px solid rgba(45,212,196,0.35)',
+          boxShadow: '0 0 60px rgba(45,212,196,0.15)',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4" style={{ color: 'var(--fg-subtle)' }}>
+          <CloseIcon />
+        </button>
+        <div className="mb-4 text-4xl">🎬</div>
+        <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Sign up free to download</h2>
+        <p className="text-sm mb-6" style={{ color: 'var(--fg-muted)' }}>
+          Create a free account in 30 seconds — free assets stay free,
+          plus you get <strong style={{ color: '#5EEAD4' }}>15 credits</strong> every month.
+        </p>
+        <a
+          href="/account"
+          className="block w-full py-3 rounded-xl font-bold text-sm text-white text-center"
+          style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)', boxShadow: '0 0 20px rgba(151,101,224,0.4)' }}
+        >
+          Sign up free →
+        </a>
+        <p className="text-xs mt-3" style={{ color: 'var(--fg-subtle)' }}>No card required. Cancel anytime.</p>
+      </div>
+    </div>
+  )
+}
+
 // ── Empty state ───────────────────────────────────────────────
 function EmptyState() {
   return (
@@ -598,6 +638,22 @@ function AssetCard({
           </div>
         )}
 
+        {/* FREE badge (lead funnel): teal chip, hides under the admin
+            button cluster on hover so the two never overlap */}
+        {asset.isFree && !soldTo && (
+          <span
+            className={`absolute top-2 left-2 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md ${isAdmin ? 'group-hover:opacity-0 transition-opacity' : ''}`}
+            style={{
+              zIndex: 3,
+              color: '#0A1F1C',
+              backgroundColor: '#2DD4C4',
+              boxShadow: '0 2px 10px rgba(45,212,196,0.4)',
+            }}
+          >
+            Free
+          </span>
+        )}
+
         {/* SOLD corner badge (spec 1.5): no watermark over the photo —
             a quiet chip + slight dim is enough */}
         {soldTo && (
@@ -692,6 +748,8 @@ function AssetCard({
                         <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
                       ) : owned ? (
                         <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Owned</span>
+                      ) : asset.isFree ? (
+                        <span style={{ fontWeight: 800, color: '#2DD4C4', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
                       ) : (
                         <>
                           <CreditGem size={14} />
@@ -781,6 +839,7 @@ export default function AssetGrid({
 }) {
   const [downloading, setDownloading] = useState<string | null>(null)
   const [showUpgrade, setShowUpgrade] = useState(false)
+  const [showSignup, setShowSignup]   = useState(false) // anon → free account funnel
   const [freeUsed, setFreeUsed]       = useState<number>(() => getFreeDownloadsUsed())
   const [favs, setFavs]               = useState<Set<string>>(() => getFavs())
   const [deletedIds, setDeletedIds]   = useState<Set<string>>(new Set())
@@ -793,6 +852,7 @@ export default function AssetGrid({
   const [priceTarget, setPriceTarget] = useState<Asset | null>(null)
   const [pOverride, setPOverride]     = useState('')
   const [pExclusive, setPExclusive]   = useState('')
+  const [pFree, setPFree]             = useState(false) // Free toggle (opt-in, admin only)
   // per-card download feedback: 'done' shows ✓ Downloaded ~1.4s,
   // 'nocredits' flips the button to Get credits (→ /pricing)
   const [doneIds, setDoneIds]         = useState<Set<string>>(new Set())
@@ -802,7 +862,7 @@ export default function AssetGrid({
   const [upscaling, setUpscaling] = useState<string | null>(null)
   const [noCreditIds, setNoCreditIds] = useState<Set<string>>(new Set())
   // local overrides so the card badge updates right after an admin price edit
-  const [priceEdits, setPriceEdits]   = useState<Record<string, { creditCost: number; exclusivePrice: number }>>({})
+  const [priceEdits, setPriceEdits]   = useState<Record<string, { creditCost: number; exclusivePrice: number; isFree: boolean }>>({})
 
   // ── Admin: move asset to another section ──────────────────
   const [moveTarget, setMoveTarget]   = useState<Asset | null>(null)
@@ -902,12 +962,9 @@ export default function AssetGrid({
 
   async function handleDownload(asset: Asset) {
     if (!asset.fileUrl) return
-    // the anonymous free limit must NEVER block signed-in users — they
-    // pay with credits (or own the asset already)
-    if (!user) {
-      const used = getFreeDownloadsUsed()
-      if (used >= FREE_LIMIT) { setShowUpgrade(true); return }
-    }
+    // FUNNEL (owner's spec): anonymous visitors browse everything, but any
+    // download needs a free account — the email is the whole point
+    if (!user) { setShowSignup(true); return }
 
     setDownloading(asset.id)
     try {
@@ -921,6 +978,10 @@ export default function AssetGrid({
       const json = await res.json()
       if (res.status === 403 && json.code === 'sold') {
         toastMsg('Exclusively sold — only its owner can download it')
+        return
+      }
+      if (res.status === 401 && json.code === 'auth') {
+        setShowSignup(true)
         return
       }
       if (res.status === 402 && json.code === 'credits') {
@@ -1012,25 +1073,30 @@ export default function AssetGrid({
     setPriceTarget(asset)
     setPOverride('')
     setPExclusive('')
+    setPFree(Boolean(asset.isFree))
   }
 
   async function savePriceOverride() {
     const asset = priceTarget
     if (!asset) return
-    const creditCost = pOverride.trim() === '' ? null : Math.max(0, Math.round(Number(pOverride)))
+    let creditCost = pOverride.trim() === '' ? null : Math.max(0, Math.round(Number(pOverride)))
     const exclusivePrice = pExclusive.trim() === '' ? null : Math.max(0, Math.round(Number(pExclusive)))
     if ((creditCost !== null && !Number.isFinite(creditCost)) || (exclusivePrice !== null && !Number.isFinite(exclusivePrice))) { toastMsg('Enter a number or leave empty'); return }
+    // Free is opt-in (owner's spec): ON → price 0; OFF after being free →
+    // back to the paid default (5) unless the admin typed a price
+    if (pFree) creditCost = 0
+    else if (asset.isFree && creditCost === null) creditCost = 5
     try {
       const res = await fetch('/api/admin/assets', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
-        body: JSON.stringify({ id: asset.id, credit_cost: creditCost, exclusive_price: exclusivePrice }),
+        body: JSON.stringify({ id: asset.id, credit_cost: creditCost, exclusive_price: exclusivePrice, is_free: pFree }),
       })
       const json = await res.json()
       if (json.ok) {
-        setPriceEdits(prev => ({ ...prev, [asset.id]: { creditCost: creditCost ?? asset.creditCost ?? 5, exclusivePrice: exclusivePrice ?? asset.exclusivePrice ?? 50 } }))
+        setPriceEdits(prev => ({ ...prev, [asset.id]: { creditCost: creditCost ?? asset.creditCost ?? 5, exclusivePrice: exclusivePrice ?? asset.exclusivePrice ?? 50, isFree: pFree } }))
         setPriceTarget(null)
-        toastMsg('Price saved')
+        toastMsg(pFree ? 'Asset is now Free' : 'Price saved')
       } else toastMsg(json.error || 'Save failed')
     } catch { toastMsg('Save failed — try again') }
   }
@@ -1140,7 +1206,7 @@ export default function AssetGrid({
 
   const visibleAssets = (deletedIds.size === 0 ? assets : assets.filter(a => !deletedIds.has(a.id)))
     .map(a => moved[a.id] ? { ...a, type: moved[a.id].type as Asset['type'], category: moved[a.id].category } : a)
-    .map(a => priceEdits[a.id] ? { ...a, creditCost: priceEdits[a.id].creditCost, exclusivePrice: priceEdits[a.id].exclusivePrice } : a)
+    .map(a => priceEdits[a.id] ? { ...a, creditCost: priceEdits[a.id].creditCost, exclusivePrice: priceEdits[a.id].exclusivePrice, isFree: priceEdits[a.id].isFree } : a)
     .map(a => ownedIds.has(a.id) ? { ...a, exclusiveOwner: user?.id ?? a.exclusiveOwner } : a)
 
   if (visibleAssets.length === 0) return <EmptyState />
@@ -1230,6 +1296,7 @@ export default function AssetGrid({
       )}
 
       {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
+      {showSignup && <SignupModal onClose={() => setShowSignup(false)} />}
 
       {/* Exclusive buyout confirm — styled, no browser dialogs (spec 4a) */}
       {buyTarget && (
@@ -1337,8 +1404,24 @@ export default function AssetGrid({
             <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Asset price</h2>
             <p className="text-xs mb-5 truncate" style={{ color: 'var(--fg-muted)' }}>{sentenceCase(priceTarget.title)}</p>
 
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>
-              Override download price <span style={{ color: 'var(--fg-subtle)' }}>(leave empty = tier default)</span>
+            {/* FREE — first option (owner's funnel): toggle on = price 0,
+                toggle off = back to paid (default 5) */}
+            <button
+              onClick={() => setPFree(v => !v)}
+              className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl mb-4 text-sm font-bold"
+              style={{
+                backgroundColor: pFree ? 'rgba(45,212,196,0.15)' : 'var(--bg-subtle)',
+                border: `1px solid ${pFree ? '#2DD4C4' : 'var(--border)'}`,
+                color: pFree ? '#2DD4C4' : 'var(--fg-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <span>Free asset</span>
+              <span className="text-[11px] font-semibold">{pFree ? '✓ ON — downloads cost 0' : 'OFF — paid'}</span>
+            </button>
+
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: pFree ? 'var(--fg-subtle)' : 'var(--fg-muted)' }}>
+              Override download price <span style={{ color: 'var(--fg-subtle)' }}>{pFree ? '(ignored while Free)' : '(leave empty = tier default)'}</span>
             </label>
             <input
               type="number" min={0}
