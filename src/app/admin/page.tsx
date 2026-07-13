@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
-import AdminGate, { adminHeaders } from '@/components/AdminGate'
+import AdminGate, { adminHeaders, toggleViewAsClient } from '@/components/AdminGate'
 import { CatalogConfig, DEFAULT_CATALOG_CONFIG, FIT_OPTIONS, RATIO_OPTIONS } from '@/lib/catalogConfig'
 import { CATEGORIES, STYLES, MOODS, LIGHTING, Category, makeSubcategory } from '@/config/categories'
 
@@ -1336,12 +1336,29 @@ function AdminDashboard() {
           </h1>
           <p className="text-sm mt-1" style={{ color: 'var(--fg-muted)' }}>Cineman Assets Management</p>
         </div>
-        <span
-          className="badge text-xs font-semibold px-3 py-1 rounded-full"
-          style={{ backgroundColor: 'rgba(0,194,186,0.15)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}
-        >
-          ● Live
-        </span>
+        <div className="flex items-center gap-3">
+          {/* «View as client» lives IN THE ADMIN (owner's spec §8): flips the
+              whole site into the customer view; the golden «Back to admin»
+              button in the navbar brings you back (admin itself is locked
+              while the client view is on) */}
+          <button
+            onClick={toggleViewAsClient}
+            className="text-xs font-bold px-3.5 py-1.5 rounded-full"
+            style={{
+              backgroundColor: 'rgba(229,169,75,0.1)',
+              border: '1px solid rgba(229,169,75,0.45)',
+              color: '#E5A94B', cursor: 'pointer',
+            }}
+          >
+            View as client
+          </button>
+          <span
+            className="badge text-xs font-semibold px-3 py-1 rounded-full"
+            style={{ backgroundColor: 'rgba(0,194,186,0.15)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}
+          >
+            ● Live
+          </span>
+        </div>
       </div>
 
       {/* Tabs */}
