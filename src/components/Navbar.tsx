@@ -107,12 +107,23 @@ export default function Navbar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
+  // GLASS navbar (DEV_flair_motion §1): translucent + blur, and the
+  // background gets a touch denser once the page is scrolled
+  const [scrolled, setScrolled] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
   return (
     <nav
       className="sticky top-0 z-50 backdrop-blur-xl border-b"
       style={{
-        backgroundColor: 'var(--nav-bg)',
-        borderColor: 'var(--border)',
+        backgroundColor: scrolled ? 'rgba(10, 10, 15, 0.86)' : 'rgba(10, 10, 15, 0.55)',
+        borderColor: scrolled ? 'rgba(255,255,255,0.09)' : 'var(--border)',
+        transition: 'background-color .25s ease, border-color .25s ease',
       }}
     >
       <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">

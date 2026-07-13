@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useTilt } from '@/components/Tilt'
 import { Asset } from '@/lib/mock-data'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
@@ -389,6 +390,7 @@ function AssetCard({
   // In auto mode the image defines its own height. Until it loads we
   // reserve a 4:5 placeholder so cards never collapse or jump.
   const [imgLoaded, setImgLoaded] = useState(false)
+  const tilt = useTilt(6) // 3D-tilt hover (no-op on touch / reduced motion)
   // SAVE picker (spec D) + формат-меню Download (spec B3)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [newCol, setNewCol] = useState('')
@@ -545,9 +547,10 @@ function AssetCard({
     )
   }
 
-  // Grid card
+  // Grid card — leans toward the cursor (DEV_flair_motion §2), the ring
+  // and the shadow come from CSS (.cine-ring), the transform from JS
   return (
-    <div className="card group cursor-pointer flex flex-col fade-in-up cine-lift" style={{ position: 'relative' }}>
+    <div className="card group cursor-pointer flex flex-col fade-in-up cine-ring cine-shadow" {...tilt} style={{ position: 'relative', willChange: 'transform' }}>
       {/* Thumbnail — display mode is admin-controlled (Admin → Settings) */}
       {/* Media on the graphite MAT (DEV_shelf_style §1): the sheet reads
           as a product in a showcase, not a dropped image. Shimmer while
@@ -577,36 +580,14 @@ function AssetCard({
           </div>
         )}
 
-        {/* Watermark — vertically centered so it never collides with the
-            scrim text at the bottom */}
+        {/* Watermark — small, semi-transparent, bottom-right corner
+            (owner's rollback: never over the middle of the frame) */}
         {asset.thumbnail && (
-          <div className="absolute inset-0 pointer-events-none flex items-center justify-center" style={{ zIndex: 2 }}>
-            <span style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.14em', color: 'rgba(255,255,255,0.35)', userSelect: 'none', textTransform: 'uppercase' }}>
+          <div className="absolute pointer-events-none" style={{ right: 10, bottom: 8, zIndex: 2 }}>
+            <span style={{ fontSize: '8.5px', fontWeight: 700, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.3)', userSelect: 'none', textTransform: 'uppercase' }}>
               cineman.ai
             </span>
           </div>
-        )}
-
-        {/* Bottom scrim + title/category ON the media (DEV_shelf_style §2):
-            reads on any sheet background, same look on every card */}
-        {asset.thumbnail && (
-          <>
-            <div
-              style={{
-                position: 'absolute', left: 0, right: 0, bottom: 0, height: '45%', pointerEvents: 'none', zIndex: 2,
-                background: 'linear-gradient(to top, rgba(10,10,15,0.85) 0%, transparent 100%)',
-              }}
-            />
-            <div style={{ position: 'absolute', left: 12, right: 12, bottom: 9, zIndex: 2, pointerEvents: 'none' }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
-                {sentenceCase(asset.title)}
-              </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                <span className="badge text-[10px] font-semibold" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{asset.category}</span>
-              </div>
-            </div>
-          </>
         )}
 
         {/* Admin buttons (top-left): delete + move to another section */}
@@ -708,9 +689,15 @@ function AssetCard({
 
       </div>
 
-      {/* Actions — buttons live UNDER the photo, never on it (spec 1.1).
-          Title/category moved ONTO the media scrim (DEV_shelf_style §2). */}
+      {/* Info + actions UNDER the photo (owner's rollback: no text on
+          the image). Buttons never sit on the media either (spec 1.1). */}
       <div className="p-3.5 flex flex-col flex-1">
+        <h3 className="font-semibold mb-1 truncate text-sm" style={{ color: 'var(--fg)' }}>{sentenceCase(asset.title)}</h3>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="badge text-[11px] font-semibold" style={{ backgroundColor: typeStyle.bg, color: typeStyle.color }}>{asset.type}</span>
+          <p className="text-xs truncate" style={{ color: 'var(--fg-muted)' }}>{asset.category}</p>
+        </div>
+
         {asset.fileUrl && (
           <div className="mt-auto" style={{ position: 'relative' }}>
             {downloadState === 'done' && !owned && !mine && (

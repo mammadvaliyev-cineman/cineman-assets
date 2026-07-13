@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useTilt } from '@/components/Tilt'
 
 // ─────────────────────────────────────────────────────────────
 // HOME SHELF — a horizontal «store shelf» row (Homepage v2 §5,
@@ -39,21 +40,25 @@ const arrowStyle: React.CSSProperties = {
   alignItems: 'center', justifyContent: 'center', fontSize: 16, lineHeight: 1,
 }
 
-function ShelfCard({ it }: { it: ShelfItem }) {
+function ShelfCard({ it, index }: { it: ShelfItem; index: number }) {
   const [loaded, setLoaded] = useState(false)
+  const tilt = useTilt(6)
   return (
     <Link
       href={it.href}
-      className="group cine-lift"
+      className="group cine-ring cine-shadow cine-stagger"
+      {...tilt}
       style={{
         width: 320, flexShrink: 0, scrollSnapAlign: 'start',
         borderRadius: 12, overflow: 'hidden',
         border: '0.5px solid rgba(255,255,255,0.07)',
         backgroundColor: '#17151E',
-        textDecoration: 'none', display: 'block',
+        textDecoration: 'none', display: 'block', willChange: 'transform',
+        ['--stg' as never]: `${index * 45}ms`,
       }}
     >
-      {/* Full sheet on the graphite mat — contain + air, never cropped */}
+      {/* Full sheet on the graphite mat — contain + air, never cropped.
+          NO text on the photo (owner's rollback) — caption lives below. */}
       <div className={loaded ? '' : 'cine-shimmer'} style={{ aspectRatio: '3/2', overflow: 'hidden', position: 'relative' }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -63,7 +68,6 @@ function ShelfCard({ it }: { it: ShelfItem }) {
           onLoad={() => setLoaded(true)}
           // cached images complete before hydration — don't miss the event
           ref={el => { if (el && el.complete && el.naturalWidth > 0) setLoaded(true) }}
-          className="group-hover:scale-[1.03] transition-transform duration-200"
           style={{
             width: '100%', height: '100%', objectFit: 'contain', display: 'block',
             padding: 10, opacity: loaded ? 1 : 0, transition: 'opacity .3s ease',
@@ -77,31 +81,26 @@ function ShelfCard({ it }: { it: ShelfItem }) {
             Free
           </span>
         )}
+        {/* watermark-style corner: small, unobtrusive */}
         <span
-          className="absolute top-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded"
-          style={{ backgroundColor: 'rgba(0,0,0,0.55)', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.85)', zIndex: 2 }}
+          className="absolute bottom-2 right-2 text-[9px] font-bold px-1.5 py-0.5 rounded"
+          style={{ backgroundColor: 'rgba(0,0,0,0.45)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.75)', zIndex: 2 }}
         >
           {it.resolution}
         </span>
-        {/* Bottom scrim — the text reads on ANY sheet background */}
-        <div
-          style={{
-            position: 'absolute', left: 0, right: 0, bottom: 0, height: '45%', pointerEvents: 'none',
-            background: 'linear-gradient(to top, rgba(10,10,15,0.85) 0%, transparent 100%)',
-          }}
-        />
-        <div style={{ position: 'absolute', left: 12, right: 12, bottom: 10, zIndex: 2 }}>
-          <p style={{ fontSize: 13, fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
-            {it.title}
-          </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, backgroundColor: it.typeColor + '3d', color: '#fff' }}>
-              {it.type}
-            </span>
-            <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: it.isFree ? '#2DD4C4' : '#fff' }}>
-              {it.isFree ? 'Free' : (<><Gem /> {it.price}</>)}
-            </span>
-          </div>
+      </div>
+      {/* Caption UNDER the image (owner's rollback) */}
+      <div style={{ padding: '10px 12px' }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0 }}>
+          {it.title}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, backgroundColor: it.typeColor + '2e', color: it.typeColor }}>
+            {it.type}
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: it.isFree ? '#2DD4C4' : 'var(--fg)' }}>
+            {it.isFree ? 'Free' : (<><Gem /> {it.price}</>)}
+          </span>
         </div>
       </div>
     </Link>
@@ -153,7 +152,7 @@ export default function HomeShelf({
         ref={row}
         style={{ display: 'flex', gap: 14, overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: 8, scrollbarWidth: 'none' }}
       >
-        {items.map(it => <ShelfCard key={it.id} it={it} />)}
+        {items.map((it, i) => <ShelfCard key={it.id} it={it} index={i} />)}
       </div>
     </section>
   )
