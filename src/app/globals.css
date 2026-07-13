@@ -236,9 +236,10 @@ input[type="range"].cine-range::-webkit-slider-thumb {
   animation: cineShimmer 1.4s linear infinite;
 }
 
-/* Card hover: lift + brand-violet ring. 150-200ms, smooth, no glow. */
-.cine-lift { transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
-.cine-lift:hover { transform: translateY(-3px); border-color: #7F77DD !important; }
+/* Card hover: lift + a soft diffuse violet glow — NO hard 1px outline
+   (owner's rule: never a crisp border around the card) */
+.cine-lift { transition: transform .18s ease, box-shadow .25s ease; }
+.cine-lift:hover { transform: translateY(-3px); box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5), 0 0 46px rgba(151, 101, 224, 0.16); }
 
 /* One-pass diagonal sheen — Featured / hero tiles ONLY (never the grids) */
 .cine-sheen { position: relative; overflow: hidden; }
@@ -261,9 +262,10 @@ html { scroll-behavior: smooth; }
 /* soft diffuse shadows under cards and big tiles */
 .cine-shadow { box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35); }
 
-/* hover ring for TILTED cards (JS owns the transform, CSS owns the ring) */
-.cine-ring { transition: border-color .2s ease, box-shadow .25s ease; }
-.cine-ring:hover { border-color: #7F77DD !important; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5); }
+/* hover for TILTED cards: JS owns the transform, CSS owns a soft
+   diffuse violet glow (low opacity, big blur) — no hard outline */
+.cine-ring { transition: box-shadow .25s ease; }
+.cine-ring:hover { box-shadow: 0 18px 48px rgba(0, 0, 0, 0.5), 0 0 46px rgba(151, 101, 224, 0.16); }
 
 /* hero ken-burns: slow zoom + drift, crossfaded between frames */
 @keyframes cineKenburns {
