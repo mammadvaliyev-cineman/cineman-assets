@@ -225,6 +225,27 @@ function toAsset(a: Record<string, unknown>): Asset {
   }
 }
 
+// DEV_shelf_style §3: never 4+ grey studio sheets in a row (random sort
+// only — explicit sorts keep their exact order). Colored frames (Location/
+// Creature/Robot) break every run of three greys so the grid breathes.
+const GREY_TYPES = new Set(['People', 'Animal', 'Zombie', 'Vehicle', 'Character'])
+function breakGreyWalls<T extends { type: string }>(rows: T[]): T[] {
+  const out = [...rows]
+  let run = 0
+  for (let i = 0; i < out.length; i++) {
+    if (!GREY_TYPES.has(String(out[i].type))) { run = 0; continue }
+    run++
+    if (run >= 3) {
+      const j = out.findIndex((r, k) => k > i && !GREY_TYPES.has(String(r.type)))
+      if (j === -1) break
+      const [colored] = out.splice(j, 1)
+      out.splice(i, 0, colored)
+      run = 0
+    }
+  }
+  return out
+}
+
 // ── Loading skeleton ─────────────────────────────────────────
 function Skeleton() {
   return (
@@ -377,6 +398,8 @@ export default function CatalogPage() {
           const k = Math.floor(Math.random() * (i + 1))
           ;[mapped[i], mapped[k]] = [mapped[k], mapped[i]]
         }
+        // break the «grey wall» of studio sheets (DEV_shelf_style §3)
+        mapped = breakGreyWalls(mapped)
       } else if (sortBy === 'downloads') {
         mapped = [...mapped].sort((x, y) => (y.downloadCount ?? 0) - (x.downloadCount ?? 0))
       } else if (sortBy === '4k') {
