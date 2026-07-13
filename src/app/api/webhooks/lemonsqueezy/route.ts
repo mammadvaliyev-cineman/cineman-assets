@@ -68,6 +68,43 @@ export async function POST(req: NextRequest) {
     if (['subscription_cancelled', 'subscription_expired'].includes(eventName) && email) {
       await admin.from('profiles').update({ plan: 'free' }).eq('email', email)
     }
+
+    // TOP-UP (DEV_topup_credits): one-time credit packs. The buy link
+    // carries checkout[custom][user_id] + [credits]; grant goes to
+    // topup_credits (never expires — monthly reset only clears the
+    // subscription pool). Idempotent per LS order id.
+    if (eventName === 'order_created') {
+      const custom = (event.meta?.custom_data ?? {}) as Record<string, unknown>
+      const customUserId = String(custom.user_id ?? '')
+      const credits = Math.max(0, Math.round(Number(custom.credits ?? 0)))
+      const orderId = String(event.data?.id ?? '')
+      if (credits > 0 && orderId && (customUserId || email)) {
+        const seenKey = `ls-order:${orderId}`
+        const { data: seen } = await admin
+          .from('assets').select('id').eq('type', 'Usage').eq('title', seenKey).limit(1)
+        if (!seen?.length) {
+          let uid = customUserId
+          if (!uid && email) {
+            const { data: prof } = await admin.from('profiles').select('id').eq('email', email).limit(1)
+            uid = prof?.[0]?.id ?? ''
+          }
+          if (uid) {
+            const { data: prof } = await admin.from('profiles').select('topup_credits').eq('id', uid).single()
+            if (prof) {
+              await admin.from('profiles')
+                .update({ topup_credits: Number(prof.topup_credits ?? 0) + credits })
+                .eq('id', uid)
+              // marker row = idempotency + a simple audit trail
+              await admin.from('assets').insert({
+                title: seenKey, type: 'Usage', category: 'System', plan: 'free',
+                tags: ['ls-order'], description: `+${credits} topup credits -> ${uid}`,
+                file_url: 'usage://ls-order', thumbnail_url: 'usage://ls-order',
+              })
+            }
+          }
+        }
+      }
+    }
   } catch (err) {
     console.error('LS webhook error:', err)
     // 200 anyway — LS retries otherwise; state is recoverable via next event
