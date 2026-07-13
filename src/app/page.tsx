@@ -30,7 +30,7 @@ function Letters({ text, base = 0 }: { text: string; base?: number }) {
 export const revalidate = 60;
 
 // ── Thin line icons — same style as catalog (LineIcon) ────────
-function LineIcon({ d, size = 30, color = "#9765E0" }: { d: string; size?: number; color?: string }) {
+function LineIcon({ d, size = 30, color = "var(--accent)" }: { d: string; size?: number; color?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       {d.split("|").map((p, i) => <path key={i} d={p} />)}
@@ -92,7 +92,7 @@ function toShelf(rows: Row[]): ShelfItem[] {
     title: r.title,
     img: coverSrc(r),
     type: r.type,
-    typeColor: TYPE_COLOR[r.type] ?? "#9765E0",
+    typeColor: TYPE_COLOR[r.type] ?? "var(--accent)",
     price: r.credit_cost ?? 5,
     isFree: Boolean(r.is_free),
     resolution: r.resolution ?? "2K",
@@ -184,16 +184,16 @@ export default async function HomePage() {
       <section className="relative overflow-hidden px-6" style={{ paddingTop: 64, paddingBottom: 56 }}>
         <div
           className="absolute inset-0 pointer-events-none"
-          style={{ background: "radial-gradient(ellipse 60% 55% at 30% 0%, rgba(151,101,224,0.16) 0%, transparent 70%), radial-gradient(ellipse 50% 45% at 78% 20%, rgba(229,169,75,0.05) 0%, transparent 70%)" }}
+          style={{ background: "radial-gradient(ellipse 60% 55% at 30% 0%, color-mix(in srgb, var(--accent) 16%, transparent) 0%, transparent 70%)" }}
         />
         <div className="max-w-7xl mx-auto relative grid md:grid-cols-2 gap-12 items-center">
           {/* Left: copy + CTAs + mini-stats */}
           <div className="fade-in-up">
             <span
               className="inline-flex items-center gap-2 text-xs font-semibold px-4 py-1.5 rounded-full mb-6"
-              style={{ backgroundColor: "rgba(151,101,224,0.12)", color: "#CE95FB", border: "1px solid rgba(151,101,224,0.25)" }}
+              style={{ backgroundColor: "color-mix(in srgb, var(--accent) 12%, transparent)", color: "var(--accent-soft)", border: "1px solid color-mix(in srgb, var(--accent) 25%, transparent)" }}
             >
-              <LineIcon d={D.clapper} size={13} color="#CE95FB" /> Your personal AI film studio
+              <LineIcon d={D.clapper} size={13} color="var(--accent-soft)" /> Your personal AI film studio
             </span>
             <h1 className="text-5xl md:text-6xl font-bold mb-5 leading-[1.06] tracking-tight" style={{ color: "var(--fg)" }}>
               <Letters text="Direct films with" />{" "}
@@ -203,15 +203,15 @@ export default async function HomePage() {
               A huge library of cinematic assets for AI video — cast, locations,
               vehicles and more.
             </p>
-            {/* trust: gold shield = commercial license (§7 — gold means quality) */}
-            <p className="inline-flex items-center gap-2 text-sm mb-8" style={{ color: "#E5A94B" }}>
+            {/* trust: commercial license */}
+            <p className="inline-flex items-center gap-2 text-sm mb-8" style={{ color: "var(--accent-soft)" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" />
               </svg>
               Commercial license included
             </p>
             <div className="flex flex-wrap gap-4">
-              <Link href="/studio" className="btn-primary text-base cine-sheen-gold">Try Studio →</Link>
+              <Link href="/studio" className="btn-primary text-base cine-sheen">Try Studio →</Link>
               <Link href="/catalog" className="btn-secondary text-base">Browse catalog</Link>
             </div>
             <div className="mt-10 flex gap-10">
@@ -221,7 +221,7 @@ export default async function HomePage() {
                 ["1", "AI director"],
               ].map(([val, label]) => (
                 <div key={label}>
-                  <div className="text-2xl font-bold" style={{ color: "#9765E0" }}>{val}</div>
+                  <div className="text-2xl font-bold" style={{ color: "var(--accent)" }}>{val}</div>
                   <div className="text-xs mt-0.5" style={{ color: "var(--fg-muted)" }}>{label}</div>
                 </div>
               ))}
@@ -244,7 +244,7 @@ export default async function HomePage() {
         <Reveal><section className="max-w-7xl mx-auto px-6" style={{ marginBottom: 56 }}>
           <div className="flex items-end justify-between mb-4">
             <h2 className="text-2xl font-bold" style={{ color: "var(--fg)" }}>Featured collections</h2>
-            <Link href="/catalog" className="text-sm font-semibold" style={{ color: "#9765E0" }}>Browse all →</Link>
+            <Link href="/catalog" className="text-sm font-semibold" style={{ color: "var(--accent)" }}>Browse all →</Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {featured.slice(0, 4).map((t, i) => (
@@ -266,16 +266,6 @@ export default async function HomePage() {
                   <div style={{ aspectRatio: "16/9", overflow: "hidden", position: "relative" }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={t.cover} alt={t.title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: t.promo ? "cover" : "contain", display: "block", padding: t.promo ? 0 : 12 }} />
-                    {!t.promo && (
-                      /* gold star = editor's pick (§7) */
-                      <span
-                        className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md"
-                        style={{ color: "#E5A94B", backgroundColor: "rgba(10,10,15,0.7)", border: "1px solid rgba(229,169,75,0.45)", zIndex: 2 }}
-                      >
-                        <svg width="9" height="9" viewBox="0 0 24 24" fill="#E5A94B"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.5l7.1-.6L12 2z" /></svg>
-                        Featured
-                      </span>
-                    )}
                   </div>
                   {/* caption UNDER the image — hidden for promo posters that
                       carry their own artwork text (§6) */}
@@ -331,10 +321,6 @@ export default async function HomePage() {
       <HomeShelf title="Most downloaded" seeAllHref="/catalog" items={toShelf(popular)} />
       <HomeShelf title="Free picks" badge="Free" accent="#2DD4C4" seeAllHref="/catalog?free=1" items={toShelf(freePicks)} />
 
-      {/* signature stroke (§7): ONE thin warm-gold line stitching the
-          showcase to the explainer — the only decorative gold on the page */}
-      <div className="cine-gold-divider" />
-
       {/* ── HOW IT WORKS — after the showcase (owner's order) ── */}
       <Reveal><section className="px-6 max-w-5xl mx-auto" style={{ marginBottom: 64 }}>
         <div className="text-center mb-10 fade-in-up">
@@ -351,7 +337,7 @@ export default async function HomePage() {
               <div className="flex items-center gap-3 mb-3">
                 <div
                   className="flex items-center justify-center rounded-xl font-bold text-white shrink-0"
-                  style={{ width: 34, height: 34, background: "linear-gradient(135deg, #9765E0, #534FA5)", boxShadow: "0 6px 18px rgba(151,101,224,0.45)" }}
+                  style={{ width: 34, height: 34, background: "linear-gradient(135deg, var(--accent), var(--accent-strong))", boxShadow: "0 6px 18px color-mix(in srgb, var(--accent) 45%, transparent)" }}
                 >
                   {n}
                 </div>
@@ -373,8 +359,8 @@ export default async function HomePage() {
         </div>
         <div className="grid md:grid-cols-3 gap-6">
           {[
-            { icon: D.clapper, title: "AI Director Studio", desc: "Chat with Cineman: pick the type, cast heroes, set the scene — he writes the prompt and shoots the video for you.", accent: "#9765E0" },
-            { icon: D.character, title: "Ready Cast & Locations", desc: "A curated base of consistent characters and cinematic locations. Search it, reuse it — or upload your own.", accent: "#CE95FB" },
+            { icon: D.clapper, title: "AI Director Studio", desc: "Chat with Cineman: pick the type, cast heroes, set the scene — he writes the prompt and shoots the video for you.", accent: "var(--accent)" },
+            { icon: D.character, title: "Ready Cast & Locations", desc: "A curated base of consistent characters and cinematic locations. Search it, reuse it — or upload your own.", accent: "var(--accent-soft)" },
             { icon: D.bolt, title: "Cinematic Video in Minutes", desc: "Seedance-powered generation with face-consistent heroes. Draft fast, finalize in 1080p with audio. Commercial license.", accent: "#00C2BA" },
           ].map(({ icon, title, desc, accent }, i) => (
             <div
@@ -400,8 +386,8 @@ export default async function HomePage() {
       <section
         className="mx-6 mb-24 rounded-2xl p-12 text-center max-w-5xl md:mx-auto fade-in-up"
         style={{
-          background: "linear-gradient(135deg, rgba(151,101,224,0.15) 0%, rgba(0,194,186,0.08) 100%)",
-          border: "1px solid rgba(151,101,224,0.25)",
+          background: "linear-gradient(135deg, color-mix(in srgb, var(--accent) 15%, transparent) 0%, rgba(0,194,186,0.08) 100%)",
+          border: "1px solid color-mix(in srgb, var(--accent) 25%, transparent)",
         }}
       >
         <div className="flex justify-center mb-4"><LineIcon d={D.sparkles} size={34} /></div>
