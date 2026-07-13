@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { isAdminEmail } from '@/components/AdminGate'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
@@ -61,6 +62,9 @@ function TrashIcon({ size = 12 }: { size?: number }) {
 
 export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 'saved'; onSavedChanged?: () => void }) {
   const { user } = useAuth()
+  // Counters are admin-only EVERYWHERE (owner's rule) — even the
+  // personal library numbers stay hidden for client accounts
+  const isAdmin = isAdminEmail(user?.email)
   const [purchased, setPurchased] = useState<Row[]>([])
   const [saved, setSaved] = useState<Row[]>([])
   const [collections, setCollections] = useState<Collection[]>([])
@@ -239,7 +243,7 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
         <p className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>
           {a.type} · {a.category}
           {a.bought_at ? ` · ${new Date(a.bought_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
-          {a.dl_count ? ` · downloaded ×${a.dl_count}` : ''}
+          {isAdmin && a.dl_count ? ` · downloaded ×${a.dl_count}` : ''}
         </p>
         {actions}
       </div>
@@ -317,7 +321,7 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
                   </div>
                   <div className="p-3">
                     <p className="text-xs font-bold truncate" style={{ color: 'var(--fg)' }}>{c.name}</p>
-                    <p className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>{c.count ?? 0} assets</p>
+                    {isAdmin && <p className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>{c.count ?? 0} assets</p>}
                   </div>
                   {/* delete the BOARD only — assets stay saved */}
                   <button
@@ -354,7 +358,7 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
           <div className="rounded-2xl p-6 max-w-xs w-full" style={{ backgroundColor: '#120D1D', border: '1px solid var(--border)' }} onClick={e => e.stopPropagation()}>
             <p className="text-sm font-bold mb-1" style={{ color: 'var(--fg)' }}>Delete collection?</p>
             <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
-              «{delCol.name}» — {delCol.count} asset{(delCol.count ?? 0) === 1 ? '' : 's'}. Assets stay in your saved.
+              «{delCol.name}»{isAdmin ? <> — {delCol.count} asset{(delCol.count ?? 0) === 1 ? '' : 's'}</> : null}. Assets stay in your saved.
             </p>
             <div className="flex gap-2">
               <button onClick={() => doDeleteCollection(delCol)} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white" style={{ backgroundColor: '#DC3C3C', border: 'none', cursor: 'pointer' }}>Delete</button>
