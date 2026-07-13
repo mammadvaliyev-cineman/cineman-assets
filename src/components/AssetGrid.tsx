@@ -566,6 +566,9 @@ function AssetCard({
               opacity: imgLoaded ? 1 : 0, transition: 'opacity .3s ease, transform .3s ease',
             }}
             onLoad={() => setImgLoaded(true)}
+            // cached images finish BEFORE hydration attaches onLoad — check
+            // .complete on mount or the card stays invisible forever
+            ref={el => { if (el && el.complete && el.naturalWidth > 0) setImgLoaded(true) }}
             loading="lazy"
           />
         ) : (

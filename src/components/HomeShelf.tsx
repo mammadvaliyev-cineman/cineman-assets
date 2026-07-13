@@ -61,6 +61,8 @@ function ShelfCard({ it }: { it: ShelfItem }) {
           alt={it.title}
           loading="lazy"
           onLoad={() => setLoaded(true)}
+          // cached images complete before hydration — don't miss the event
+          ref={el => { if (el && el.complete && el.naturalWidth > 0) setLoaded(true) }}
           className="group-hover:scale-[1.03] transition-transform duration-200"
           style={{
             width: '100%', height: '100%', objectFit: 'contain', display: 'block',
