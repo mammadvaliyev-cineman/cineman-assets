@@ -118,7 +118,11 @@ export default async function HomePage() {
   let popular: Row[] = [];
   let freePicks: Row[] = [];
   let collageRows: Row[] = [];
-  let featured: { title: string; cat: string; cover: string }[] = [];
+  let featured: { title: string; cat: string; cover: string; promo?: boolean; href?: string; hideTitle?: boolean }[] = [];
+  // owner-curated section imagery (DEV_batch_60 §5) — empty = automatic
+  let catCoversCfg: Record<string, string> = {};
+  let heroFramesCfg: string[] = [];
+  let newWeekIdsCfg: string[] = [];
 
   try {
     const catIds = CATEGORIES.filter(c => c.id !== "Prop").map(c => c.id);
@@ -143,7 +147,17 @@ export default async function HomePage() {
     try {
       const saved = cfgQ.data?.[0]?.description ? JSON.parse(cfgQ.data[0].description) : {};
       if (Array.isArray(saved.featured)) featured = saved.featured;
+      if (saved.catCovers && typeof saved.catCovers === "object") catCoversCfg = saved.catCovers;
+      if (Array.isArray(saved.heroFrames)) heroFramesCfg = saved.heroFrames.filter(Boolean);
+      if (Array.isArray(saved.newWeekIds)) newWeekIdsCfg = saved.newWeekIds.filter(Boolean);
     } catch { /* fall back below */ }
+    // hand-picked «New this week» (§5): fetch by ids, keep the saved order
+    if (newWeekIdsCfg.length) {
+      const { data } = await base().in("id", newWeekIdsCfg);
+      const byId = new Map(((data ?? []) as Row[]).map(r => [r.id, r]));
+      const picked = newWeekIdsCfg.map(id => byId.get(id)).filter(Boolean) as Row[];
+      if (picked.length >= 4) newest = picked;
+    }
   } catch { /* the page still renders with fallbacks */ }
 
   // Featured fallback: top categories, covers from the freshest asset
@@ -216,7 +230,11 @@ export default async function HomePage() {
           {/* Right: living showreel — ken-burns crossfade over cinematic
               location frames (single images, safe to cover-crop) */}
           <div className="fade-in-up hidden md:block" style={{ animationDelay: "0.12s" }}>
-            <HeroShowreel frames={collage.slice(0, 6).map(a => ({ src: coverSrc(a, true), alt: a.title }))} />
+            <HeroShowreel
+              frames={heroFramesCfg.length >= 2
+                ? heroFramesCfg.map(u => ({ src: u, alt: "Cineman location" }))
+                : collage.slice(0, 6).map(a => ({ src: coverSrc(a, true), alt: a.title }))}
+            />
           </div>
         </div>
       </section>
@@ -231,8 +249,10 @@ export default async function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {featured.slice(0, 4).map((t, i) => (
               <Link
-                key={t.title}
-                href={t.cat === "Free" ? "/catalog?free=1" : `/catalog?category=${encodeURIComponent(t.cat)}`}
+                key={`${t.title}-${i}`}
+                href={t.promo && t.href
+                  ? t.href
+                  : t.cat === "Free" ? "/catalog?free=1" : `/catalog?category=${encodeURIComponent(t.cat)}`}
                 className="group block cine-stagger"
                 style={{ ["--stg" as never]: `${i * 60}ms` }}
               >
@@ -241,26 +261,32 @@ export default async function HomePage() {
                   className="cine-ring cine-shadow cine-sheen"
                   style={{ borderRadius: 12, overflow: "hidden", border: "0.5px solid rgba(255,255,255,0.07)", backgroundColor: "#17151E" }}
                 >
-                  {/* full sheet on the graphite mat — no text on the photo */}
+                  {/* full sheet on the graphite mat — no text on the photo.
+                      PROMO posters (§6) fill the 16:9 frame edge to edge. */}
                   <div style={{ aspectRatio: "16/9", overflow: "hidden", position: "relative" }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={t.cover} alt={t.title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 12 }} />
-                    {/* gold star = editor's pick (§7) */}
-                    <span
-                      className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md"
-                      style={{ color: "#E5A94B", backgroundColor: "rgba(10,10,15,0.7)", border: "1px solid rgba(229,169,75,0.45)", zIndex: 2 }}
-                    >
-                      <svg width="9" height="9" viewBox="0 0 24 24" fill="#E5A94B"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.5l7.1-.6L12 2z" /></svg>
-                      Featured
-                    </span>
+                    <img src={t.cover} alt={t.title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: t.promo ? "cover" : "contain", display: "block", padding: t.promo ? 0 : 12 }} />
+                    {!t.promo && (
+                      /* gold star = editor's pick (§7) */
+                      <span
+                        className="absolute top-2.5 left-2.5 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md"
+                        style={{ color: "#E5A94B", backgroundColor: "rgba(10,10,15,0.7)", border: "1px solid rgba(229,169,75,0.45)", zIndex: 2 }}
+                      >
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="#E5A94B"><path d="M12 2l2.9 6.9 7.1.6-5.4 4.7 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.5l7.1-.6L12 2z" /></svg>
+                        Featured
+                      </span>
+                    )}
                   </div>
-                  {/* caption UNDER the image — no counters on the public page */}
-                  <div style={{ padding: "11px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                    <p className="text-base font-bold" style={{ color: "var(--fg)", margin: 0 }}>{t.title}</p>
-                    <p className="text-xs mt-0.5" style={{ color: "var(--fg-muted)", margin: 0 }}>
-                      {t.cat === "Free" ? "Free picks" : "Curated collection"}
-                    </p>
-                  </div>
+                  {/* caption UNDER the image — hidden for promo posters that
+                      carry their own artwork text (§6) */}
+                  {!(t.promo && t.hideTitle) && (
+                    <div style={{ padding: "11px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                      <p className="text-base font-bold" style={{ color: "var(--fg)", margin: 0 }}>{t.title}</p>
+                      <p className="text-xs mt-0.5" style={{ color: "var(--fg-muted)", margin: 0 }}>
+                        {t.promo ? "Promo" : t.cat === "Free" ? "Free picks" : "Curated collection"}
+                      </p>
+                    </div>
+                  )}
                 </Tilt>
               </Link>
             ))}
@@ -285,9 +311,9 @@ export default async function HomePage() {
                 style={{ borderRadius: 12, overflow: "hidden", border: "0.5px solid rgba(255,255,255,0.07)", backgroundColor: "#17151E" }}
               >
                 <div style={{ aspectRatio: "16/9", overflow: "hidden" }}>
-                  {covers[c.id] && (
+                  {(catCoversCfg[c.id] || covers[c.id]) && (
                     /* eslint-disable-next-line @next/next/no-img-element */
-                    <img src={coverSrc(covers[c.id]!)} alt={c.label} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 8 }} />
+                    <img src={catCoversCfg[c.id] || coverSrc(covers[c.id]!)} alt={c.label} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 8 }} />
                   )}
                 </div>
                 {/* label UNDER the image — no counters on the public page */}
