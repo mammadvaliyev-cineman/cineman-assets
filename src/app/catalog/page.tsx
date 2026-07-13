@@ -7,6 +7,7 @@ import { CATEGORIES } from '@/config/categories'
 import AssetGrid from '@/components/AssetGrid'
 import MySpace from '@/components/MySpace'
 import { useAuth } from '@/components/AuthProvider'
+import { isAdminEmail } from '@/components/AdminGate'
 
 // ── Icons ────────────────────────────────────────────────────
 function SearchIcon({ size = 16 }: { size?: number }) {
@@ -422,6 +423,9 @@ export default function CatalogPage() {
 
   // My downloads counter — separate PAGE links in the sidebar (owner's layout)
   const { user } = useAuth()
+  // Catalog-size counters are ADMIN-ONLY (DEV_batch_60 §4) — and
+  // isAdminEmail is false in «View as client», so they hide there too
+  const isAdmin = isAdminEmail(user?.email)
   const [purchasedCount, setPurchasedCount] = useState(0)
   useEffect(() => {
     if (!user) { setPurchasedCount(0); return }
@@ -481,10 +485,18 @@ export default function CatalogPage() {
         mapped = [...mapped].sort((x, y) => (y.downloadCount ?? 0) - (x.downloadCount ?? 0))
       } else if (sortBy === '4k') {
         mapped = [...mapped].sort((x, y) => Number(y.resolution === '4K') - Number(x.resolution === '4K'))
-      } else if (sortBy === 'price-desc') {
-        mapped = [...mapped].sort((x, y) => (y.creditCost ?? 0) - (x.creditCost ?? 0))
-      } else if (sortBy === 'price-asc') {
-        mapped = [...mapped].sort((x, y) => (x.creditCost ?? 0) - (y.creditCost ?? 0))
+      } else if (sortBy === 'price-desc' || sortBy === 'price-asc') {
+        // EFFECTIVE price: Free assets count as 0 (their credit_cost may
+        // still hold a number), so they sink to the bottom on high → low
+        // and float to the top on low → high. Ties (the bulk of the
+        // catalog shares one tier price) break by exclusive price, then
+        // downloads — the order visibly changes and stays deterministic.
+        const eff = (a: { isFree?: boolean; creditCost?: number }) => (a.isFree ? 0 : (a.creditCost ?? 0))
+        const dir = sortBy === 'price-asc' ? 1 : -1
+        mapped = [...mapped].sort((x, y) =>
+          dir * (eff(x) - eff(y)) ||
+          dir * ((x.exclusivePrice ?? 50) - (y.exclusivePrice ?? 50)) ||
+          (y.downloadCount ?? 0) - (x.downloadCount ?? 0))
       }
       // 'newest' = the created_at desc order straight from the query
       setAssets(mapped)
@@ -690,8 +702,8 @@ export default function CatalogPage() {
         {/* My space — SEPARATE PAGES (Library tabs), not catalog filters:
             they navigate away and can never stick across categories */}
         <div style={{ paddingTop: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
-          <SidebarItem iconD={CAT_ICONS.download} label="My downloads" count={purchasedCount} active={quickView === 'downloads'} color="#00C2BA" onClick={() => { setQuickView('downloads'); setActiveCat('All'); setSearch('') }} />
-          <SidebarItem iconD={CAT_ICONS.bookmark} label="Saved" count={favIds.size} active={quickView === 'saved'} color="var(--accent-soft)" onClick={() => { setQuickView('saved'); setActiveCat('All'); setSearch('') }} />
+          <SidebarItem iconD={CAT_ICONS.download} label="My downloads" count={isAdmin ? purchasedCount : undefined} active={quickView === 'downloads'} color="#00C2BA" onClick={() => { setQuickView('downloads'); setActiveCat('All'); setSearch('') }} />
+          <SidebarItem iconD={CAT_ICONS.bookmark} label="Saved" count={isAdmin ? favIds.size : undefined} active={quickView === 'saved'} color="var(--accent-soft)" onClick={() => { setQuickView('saved'); setActiveCat('All'); setSearch('') }} />
         </div>
 
         {/* Categories — All assets first, then the sections */}
@@ -699,7 +711,7 @@ export default function CatalogPage() {
           <p style={{ padding: '4px 16px 6px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-subtle)', textTransform: 'uppercase' }}>
             Categories
           </p>
-          <SidebarItem iconD={CAT_ICONS.grid} label="All assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search && !activeFree} color="var(--accent)" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch(''); setActiveFree(false) }} />
+          <SidebarItem iconD={CAT_ICONS.grid} label="All assets" count={isAdmin ? assets.length : undefined} active={quickView === 'all' && activeCat === 'All' && !search && !activeFree} color="var(--accent)" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch(''); setActiveFree(false) }} />
           {CATEGORIES.filter(cat => assets.some(a => String(a.type) === cat.id) || activeCat === cat.id).map(cat => (
             <div key={cat.id}>
               <SidebarItem
@@ -926,7 +938,7 @@ export default function CatalogPage() {
         </div>
 
         {/* Count */}
-        {!loading && (
+        {!loading && isAdmin && (
           <p style={{ fontSize: 13, color: 'var(--fg-subtle)', marginBottom: 20 }}>
             {filtered.length.toLocaleString()} assets found
           </p>
