@@ -305,14 +305,22 @@ function HomepageFeaturedEditor() {
   async function save() {
     setBusy(true); setMsg('')
     try {
-      const featured = tiles.filter(t => t.title.trim() && t.cover.trim())
+      // A tile needs only a COVER — the title falls back to the category
+      // label (the old title-required rule silently dropped tiles → «bug»)
+      const labelFor = (cat: string) => CATEGORIES.find(c => c.id === cat)?.label ?? cat
+      const featured = tiles
+        .filter(t => t.cover.trim())
+        .map(t => ({ ...t, title: t.title.trim() || labelFor(t.cat) }))
+      const skipped = tiles.filter(t => !t.cover.trim() && t.title.trim()).length
       const r = await fetch('/api/admin/homepage-config', {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
         body: JSON.stringify({ config: { featured } }),
       })
       const j = await r.json()
-      setMsg(j.ok ? `Сохранено (${featured.length} плиток)` : (j.error || 'Ошибка'))
+      setMsg(j.ok
+        ? `Опубликовано плиток: ${featured.length}${skipped ? ` (пропущено без обложки: ${skipped})` : ''}. Главная обновлена.`
+        : (j.error || 'Ошибка'))
     } catch { setMsg('Ошибка — попробуй ещё раз') }
     setBusy(false)
   }
@@ -324,7 +332,8 @@ function HomepageFeaturedEditor() {
       </h3>
       <p className="text-xs mb-4" style={{ color: 'var(--fg-subtle)' }}>
         До 4 плиток-витрин. Обложку выбираешь кликом из случайных фото («Ещё варианты» — новая пачка).
-        Пустые строки не публикуются; всё пусто = автоматически топ-категории.
+        Публикуется всё, где есть обложка; название можно не писать — подставится категория.
+        Совсем пусто = автоматически топ-категории.
       </p>
       <div className="grid gap-3 mb-4">
         {tiles.map((t, i) => (
