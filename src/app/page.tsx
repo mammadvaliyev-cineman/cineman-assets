@@ -37,15 +37,21 @@ function img480(url: string): string {
   return url.replace("/storage/v1/object/public/", "/storage/v1/render/image/public/") + "?width=480&quality=68&resize=contain";
 }
 
-type Row = { id: string; title: string; type: string; file_url: string; credit_cost: number | null; is_free: boolean; resolution: string | null; download_count?: number };
+type Row = { id: string; title: string; type: string; file_url: string; cover_url?: string | null; credit_cost: number | null; is_free: boolean; resolution: string | null; download_count?: number };
 
 const TYPE_COLOR: Record<string, string> = Object.fromEntries(CATEGORIES.map(c => [c.id, c.color]));
+
+// Owner's rule: turnaround sheets are shown WHOLE — object-fit: contain,
+// horizontal cards (~3/2), neutral dark background, no cropping ever.
+function coverSrc(r: Row, big = false): string {
+  return big ? img1024(r.file_url) : img480(r.file_url);
+}
 
 function toShelf(rows: Row[]): ShelfItem[] {
   return rows.map(r => ({
     id: r.id,
     title: r.title,
-    img: img480(r.file_url),
+    img: coverSrc(r),
     type: r.type,
     typeColor: TYPE_COLOR[r.type] ?? "#9765E0",
     price: r.credit_cost ?? 5,
@@ -60,7 +66,7 @@ const PUBLIC = (q: ReturnType<typeof supabase.from>) => q; // readability marker
 export default async function HomePage() {
   // ── Live data (all public-catalog rules apply) ──────────────
   const base = () => supabase.from("assets")
-    .select("id,title,type,file_url,credit_cost,is_free,resolution,download_count")
+    .select("id,title,type,file_url,cover_url,credit_cost,is_free,resolution,download_count")
     .neq("type", "Config").neq("type", "Usage").neq("type", "Generation")
     .eq("is_public", true);
   void PUBLIC;
@@ -71,17 +77,21 @@ export default async function HomePage() {
   let newest: Row[] = [];
   let popular: Row[] = [];
   let freePicks: Row[] = [];
+  let collageRows: Row[] = [];
   let featured: { title: string; cat: string; cover: string }[] = [];
 
   try {
     const catIds = CATEGORIES.filter(c => c.id !== "Prop").map(c => c.id);
-    const [totalQ, newestQ, popularQ, freeQ, cfgQ, ...perCat] = await Promise.all([
+    const [totalQ, newestQ, popularQ, freeQ, cfgQ, collageQ, ...perCat] = await Promise.all([
       supabase.from("assets").select("id", { count: "exact", head: true })
         .neq("type", "Config").neq("type", "Usage").neq("type", "Generation").eq("is_public", true),
       base().order("created_at", { ascending: false }).limit(12),
       base().order("download_count", { ascending: false }).limit(12),
       base().eq("is_free", true).order("created_at", { ascending: false }).limit(12),
       supabase.from("assets").select("description").eq("type", "Config").eq("title", "homepage-config").limit(1),
+      // hero collage: LOCATIONS only — single cinematic frames that crop
+      // beautifully in a mosaic (turnaround sheets never crop — owner's rule)
+      base().eq("type", "Location").order("created_at", { ascending: false }).limit(6),
       ...catIds.map(id => base().eq("type", id).order("created_at", { ascending: false }).limit(1)),
       ...catIds.map(id =>
         supabase.from("assets").select("id", { count: "exact", head: true }).eq("type", id).eq("is_public", true)),
@@ -91,6 +101,7 @@ export default async function HomePage() {
     popular = ((popularQ.data ?? []) as Row[]).filter(r => (r.download_count ?? 0) > 0);
     if (popular.length < 4) popular = (popularQ.data ?? []) as Row[];
     freePicks = (freeQ.data ?? []) as Row[];
+    collageRows = (collageQ.data ?? []) as Row[];
     catIds.forEach((id, i) => {
       covers[id] = ((perCat[i]?.data ?? []) as Row[])[0] ?? null;
       counts[id] = (perCat[catIds.length + i] as { count: number | null })?.count ?? 0;
@@ -104,16 +115,18 @@ export default async function HomePage() {
   // Featured fallback: top categories, covers from the freshest asset
   if (featured.length === 0) {
     featured = [
-      { title: "Portraits & people", cat: "People", cover: covers.People ? img1024(covers.People.file_url) : "" },
-      { title: "Cinematic worlds", cat: "Location", cover: covers.Location ? img1024(covers.Location.file_url) : "" },
-      { title: "Vehicles & starships", cat: "Vehicle", cover: covers.Vehicle ? img1024(covers.Vehicle.file_url) : "" },
-      { title: "Creatures & monsters", cat: "Creature", cover: covers.Creature ? img1024(covers.Creature.file_url) : "" },
+      { title: "Portraits & people", cat: "People", cover: covers.People ? coverSrc(covers.People, true) : "" },
+      { title: "Cinematic worlds", cat: "Location", cover: covers.Location ? coverSrc(covers.Location, true) : "" },
+      { title: "Vehicles & starships", cat: "Vehicle", cover: covers.Vehicle ? coverSrc(covers.Vehicle, true) : "" },
+      { title: "Creatures & monsters", cat: "Creature", cover: covers.Creature ? coverSrc(covers.Creature, true) : "" },
     ].filter(t => t.cover);
   }
 
-  // Hero collage: one strong frame per section — real product, no black void
-  const collage = ["People", "Location", "Vehicle", "Creature", "Robot", "Zombie"]
-    .map(t => covers[t]).filter(Boolean) as Row[];
+  // Hero collage: cinematic location frames — single images that crop
+  // cleanly in a mosaic; turnaround sheets never get cropped anywhere
+  const collage = collageRows.length >= 4
+    ? collageRows
+    : (["Location", "People", "Vehicle", "Creature", "Robot", "Zombie"].map(t => covers[t]).filter(Boolean) as Row[]);
 
   const catTiles = CATEGORIES.filter(c => c.id !== "Prop" && (counts[c.id] ?? 0) > 0);
 
@@ -175,7 +188,7 @@ export default async function HomePage() {
                   }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img480(a.file_url)} alt={a.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  <img src={coverSrc(a)} alt={a.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
                 </Link>
               ))}
             </div>
@@ -190,16 +203,17 @@ export default async function HomePage() {
             <h2 className="text-2xl font-bold" style={{ color: "var(--fg)" }}>Featured collections</h2>
             <Link href="/catalog" className="text-sm font-semibold" style={{ color: "#9765E0" }}>Browse all →</Link>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {featured.slice(0, 4).map(t => (
               <Link
                 key={t.title}
                 href={t.cat === "Free" ? "/catalog?free=1" : `/catalog?category=${encodeURIComponent(t.cat)}`}
                 className="group hover:-translate-y-1 transition-transform duration-200"
-                style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)", aspectRatio: "4/5", display: "block" }}
+                style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)", aspectRatio: "16/9", display: "block", backgroundColor: "#0C0916" }}
               >
+                {/* full sheet, never cropped (owner's rule) */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={t.cover} alt={t.title} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                <img src={t.cover} alt={t.title} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 45%, rgba(8,5,15,0.88) 100%)" }} />
                 <div style={{ position: "absolute", left: 14, right: 14, bottom: 12 }}>
                   <p className="text-base font-bold" style={{ color: "white", margin: 0 }}>{t.title}</p>
@@ -216,7 +230,7 @@ export default async function HomePage() {
       {/* ── CATEGORY TILES with live counters ────────────────── */}
       <section className="max-w-7xl mx-auto px-6" style={{ marginBottom: 56 }}>
         <h2 className="text-2xl font-bold mb-4" style={{ color: "var(--fg)" }}>Shop by category</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {catTiles.map(c => (
             <Link
               key={c.id}
@@ -224,10 +238,10 @@ export default async function HomePage() {
               className="group hover:-translate-y-1 transition-transform duration-200"
               style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)", backgroundColor: "var(--bg-card)", display: "block" }}
             >
-              <div style={{ aspectRatio: "1/1", overflow: "hidden", backgroundColor: "var(--bg-subtle)" }}>
+              <div style={{ aspectRatio: "16/9", overflow: "hidden", backgroundColor: "#0C0916" }}>
                 {covers[c.id] && (
                   /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={img480(covers[c.id]!.file_url)} alt={c.label} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                  <img src={coverSrc(covers[c.id]!)} alt={c.label} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
                 )}
               </div>
               <div style={{ padding: "9px 12px" }}>
