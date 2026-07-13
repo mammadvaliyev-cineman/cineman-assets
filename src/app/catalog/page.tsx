@@ -144,15 +144,15 @@ function FilterPopover({
         aria-expanded={open}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
-          backgroundColor: active ? 'rgba(151,101,224,0.15)' : 'var(--bg-subtle)',
-          border: `1px solid ${active ? '#9765E0' : 'var(--border)'}`,
+          backgroundColor: active ? 'color-mix(in srgb, var(--accent) 15%, transparent)' : 'var(--bg-subtle)',
+          border: `1px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
           borderRadius: 999, padding: `6px ${active ? 28 : 26}px 6px ${iconD ? 11 : 12}px`,
-          fontSize: 13, color: active ? '#9765E0' : 'var(--fg-muted)',
+          fontSize: 13, color: active ? 'var(--accent)' : 'var(--fg-muted)',
           fontWeight: active ? 600 : 400, lineHeight: 1.4, position: 'relative',
           transition: 'border-color .15s ease, background-color .15s ease',
         }}
       >
-        {iconD && <span style={{ display: 'flex', color: active ? '#9765E0' : 'var(--fg-subtle)' }}><LineIcon d={iconD} size={12} /></span>}
+        {iconD && <span style={{ display: 'flex', color: active ? 'var(--accent)' : 'var(--fg-subtle)' }}><LineIcon d={iconD} size={12} /></span>}
         {pillText}
         {active ? (
           <span
@@ -162,7 +162,7 @@ function FilterPopover({
             style={{
               position: 'absolute', right: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
               width: 16, height: 16, borderRadius: 999,
-              backgroundColor: 'rgba(151,101,224,0.3)', color: '#EDE4FF', fontSize: 11, fontWeight: 700, lineHeight: 1,
+              backgroundColor: 'color-mix(in srgb, var(--accent) 30%, transparent)', color: '#EDE4FF', fontSize: 11, fontWeight: 700, lineHeight: 1,
             }}
           >
             ×
@@ -193,15 +193,15 @@ function FilterPopover({
               style={{
                 display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
                 padding: '7px 10px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer',
-                backgroundColor: value === o.value ? 'rgba(127,119,221,0.18)' : (hi === i ? 'rgba(255,255,255,0.05)' : 'transparent'),
-                color: value === o.value ? '#CE95FB' : 'var(--fg)',
+                backgroundColor: value === o.value ? 'color-mix(in srgb, var(--accent) 18%, transparent)' : (hi === i ? 'rgba(255,255,255,0.05)' : 'transparent'),
+                color: value === o.value ? 'var(--accent-soft)' : 'var(--fg)',
                 fontWeight: value === o.value ? 600 : 400,
                 transition: 'background-color .12s ease',
               }}
             >
-              {o.iconD && <span style={{ display: 'flex', color: o.iconColor ?? (value === o.value ? '#CE95FB' : 'var(--fg-subtle)') }}><LineIcon d={o.iconD} size={13} /></span>}
+              {o.iconD && <span style={{ display: 'flex', color: o.iconColor ?? (value === o.value ? 'var(--accent-soft)' : 'var(--fg-subtle)') }}><LineIcon d={o.iconD} size={13} /></span>}
               <span style={{ flex: 1 }}>{o.label}</span>
-              {value === o.value && <span style={{ display: 'flex', color: '#CE95FB' }}><LineIcon d={CHECK_D} size={13} /></span>}
+              {value === o.value && <span style={{ display: 'flex', color: 'var(--accent-soft)' }}><LineIcon d={CHECK_D} size={13} /></span>}
             </button>
           ))}
         </div>
@@ -235,12 +235,12 @@ function SidebarItem({
       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-all"
       style={{
         color: active ? 'var(--fg)' : 'var(--fg-muted)',
-        backgroundColor: active ? 'rgba(151,101,224,0.12)' : 'transparent',
+        backgroundColor: active ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'transparent',
         fontWeight: active ? 600 : 400,
-        borderLeft: active ? `3px solid ${color ?? '#9765E0'}` : '3px solid transparent',
+        borderLeft: active ? `3px solid ${color ?? 'var(--accent)'}` : '3px solid transparent',
       }}
     >
-      {iconD && <span style={{ color: active ? (color ?? '#9765E0') : 'var(--fg-subtle)', display: 'flex' }}><LineIcon d={iconD} /></span>}
+      {iconD && <span style={{ color: active ? (color ?? 'var(--accent)') : 'var(--fg-subtle)', display: 'flex' }}><LineIcon d={iconD} /></span>}
       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
       {count !== undefined && count > 0 && (
         <span style={{ fontSize: 11, color: 'var(--fg-subtle)', flexShrink: 0 }}>{count.toLocaleString()}</span>
@@ -392,7 +392,7 @@ export default function CatalogPage() {
   useEffect(() => {
     try {
       const saved = Number(localStorage.getItem('cineman_preview'))
-      if ([70, 100, 130, 160].includes(saved)) setPreviewSize(saved)
+      if (Number.isFinite(saved) && saved >= 60 && saved <= 170) setPreviewSize(saved)
     } catch { /* noop */ }
   }, [])
   const [quickView, setQuickView]     = useState<'all' | 'fav' | 'dl' | 'downloads' | 'saved'>('all')
@@ -691,7 +691,7 @@ export default function CatalogPage() {
             they navigate away and can never stick across categories */}
         <div style={{ paddingTop: 6, paddingBottom: 6, borderBottom: '1px solid var(--border)' }}>
           <SidebarItem iconD={CAT_ICONS.download} label="My downloads" count={purchasedCount} active={quickView === 'downloads'} color="#00C2BA" onClick={() => { setQuickView('downloads'); setActiveCat('All'); setSearch('') }} />
-          <SidebarItem iconD={CAT_ICONS.bookmark} label="Saved" count={favIds.size} active={quickView === 'saved'} color="#CE95FB" onClick={() => { setQuickView('saved'); setActiveCat('All'); setSearch('') }} />
+          <SidebarItem iconD={CAT_ICONS.bookmark} label="Saved" count={favIds.size} active={quickView === 'saved'} color="var(--accent-soft)" onClick={() => { setQuickView('saved'); setActiveCat('All'); setSearch('') }} />
         </div>
 
         {/* Categories — All assets first, then the sections */}
@@ -699,7 +699,7 @@ export default function CatalogPage() {
           <p style={{ padding: '4px 16px 6px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-subtle)', textTransform: 'uppercase' }}>
             Categories
           </p>
-          <SidebarItem iconD={CAT_ICONS.grid} label="All assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search && !activeFree} color="#9765E0" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch(''); setActiveFree(false) }} />
+          <SidebarItem iconD={CAT_ICONS.grid} label="All assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search && !activeFree} color="var(--accent)" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch(''); setActiveFree(false) }} />
           {CATEGORIES.filter(cat => assets.some(a => String(a.type) === cat.id) || activeCat === cat.id).map(cat => (
             <div key={cat.id}>
               <SidebarItem
@@ -719,7 +719,7 @@ export default function CatalogPage() {
                         display: 'block', width: '100%', textAlign: 'left',
                         padding: '5px 12px', fontSize: 12.5, borderRadius: 6, cursor: 'pointer',
                         color: activeSubcat === sub ? 'var(--fg)' : 'var(--fg-muted)',
-                        background: activeSubcat === sub ? 'rgba(151,101,224,0.14)' : 'transparent',
+                        background: activeSubcat === sub ? 'color-mix(in srgb, var(--accent) 14%, transparent)' : 'transparent',
                         fontWeight: activeSubcat === sub ? 600 : 400,
                         border: 'none',
                       }}
@@ -754,7 +754,7 @@ export default function CatalogPage() {
             <span style={{ display: 'flex', color: 'var(--fg-subtle)' }}><LineIcon d={CAT_ICONS.sliders} size={14} /></span>
             <span>Filters</span>
             {activeFilterCount > 0 && (
-              <span style={{ marginLeft: 'auto', backgroundColor: '#9765E0', color: 'white', fontSize: 10, fontWeight: 700, borderRadius: 9999, padding: '1px 7px' }}>
+              <span style={{ marginLeft: 'auto', backgroundColor: 'var(--accent)', color: 'var(--on-accent)', fontSize: 10, fontWeight: 700, borderRadius: 9999, padding: '1px 7px' }}>
                 {activeFilterCount}
               </span>
             )}
@@ -770,7 +770,7 @@ export default function CatalogPage() {
         {(quickView === 'downloads' || quickView === 'saved') ? (
           <>
             <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 20, color: 'var(--fg)', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ display: 'flex', color: quickView === 'downloads' ? '#00C2BA' : '#CE95FB' }}>
+              <span style={{ display: 'flex', color: quickView === 'downloads' ? '#00C2BA' : 'var(--accent-soft)' }}>
                 <LineIcon d={quickView === 'downloads' ? CAT_ICONS.download : CAT_ICONS.bookmark} size={22} />
               </span>
               {quickView === 'downloads' ? 'My downloads' : 'Saved'}
@@ -891,26 +891,18 @@ export default function CatalogPage() {
 
           {/* Sort + View toggle */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
-            {/* Preview size — DISCRETE steps (DEV_batch_60 §2): segmented
-                S/M/L/XL, each maps to a fixed card width; saved in localStorage */}
+            {/* Preview size — SLIDER (owner's rework of §2): the value applies
+                INSTANTLY (no easing on the cards) and is saved in localStorage */}
             {viewMode === 'grid' && (
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginRight: 6, backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 999, padding: 3 }}>
-                {([['S', 70], ['M', 100], ['L', 130], ['XL', 160]] as const).map(([lbl, size]) => (
-                  <button
-                    key={lbl}
-                    onClick={() => { setPreviewSize(size); try { localStorage.setItem('cineman_preview', String(size)) } catch { /* noop */ } }}
-                    title={`Preview size ${lbl}`}
-                    style={{
-                      padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
-                      backgroundColor: previewSize === size ? 'rgba(151,101,224,0.25)' : 'transparent',
-                      color: previewSize === size ? '#CE95FB' : 'var(--fg-subtle)',
-                      transition: 'background-color .15s ease, color .15s ease',
-                    }}
-                  >
-                    {lbl}
-                  </button>
-                ))}
-              </div>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginRight: 6 }} title="Preview size">
+                <span style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--fg-subtle)', whiteSpace: 'nowrap' }}>Preview</span>
+                <input
+                  type="range" min={60} max={170} step={5} value={previewSize}
+                  className="cine-range"
+                  onChange={e => { const v = Number(e.target.value); setPreviewSize(v); try { localStorage.setItem('cineman_preview', String(v)) } catch { /* noop */ } }}
+                  style={{ width: 110 }}
+                />
+              </label>
             )}
             {/* Sort — custom popover with icons (DEV_batch_60 §1) */}
             <FilterPopover
@@ -924,7 +916,7 @@ export default function CatalogPage() {
                 { value: 'random', label: 'Random', iconD: CAT_ICONS.shuffle },
                 { value: 'newest', label: 'Newest', iconD: CAT_ICONS.Fantasy },
                 { value: 'downloads', label: 'Most downloaded', iconD: CAT_ICONS.flame },
-                { value: '4k', label: '4K first', iconD: CAT_ICONS.diamond, iconColor: '#E5A94B' },
+                { value: '4k', label: '4K first', iconD: CAT_ICONS.diamond },
                 { value: 'price-desc', label: 'Price: high → low', iconD: CAT_ICONS.arrowDown },
                 { value: 'price-asc', label: 'Price: low → high', iconD: CAT_ICONS.arrowUp },
               ]}
@@ -957,7 +949,7 @@ export default function CatalogPage() {
               .map((n, i) => typeof n === 'string'
                 ? <span key={'e' + i} style={{ color: 'var(--fg-subtle)', padding: '0 4px' }}>…</span>
                 : <button key={n} onClick={() => { setPage(n); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
-                    style={{ minWidth: 36, padding: '8px 10px', borderRadius: 8, fontSize: 13, cursor: 'pointer', border: '1px solid ' + (n === page ? '#9765E0' : 'var(--border)'), background: n === page ? 'linear-gradient(135deg,#9765E0,#534FA5)' : 'var(--bg-subtle)', color: n === page ? '#fff' : 'var(--fg)', fontWeight: n === page ? 600 : 400 }}
+                    style={{ minWidth: 36, padding: '8px 10px', borderRadius: 8, fontSize: 13, cursor: 'pointer', border: '1px solid ' + (n === page ? 'var(--accent)' : 'var(--border)'), background: n === page ? 'linear-gradient(135deg,var(--accent),var(--accent-strong))' : 'var(--bg-subtle)', color: n === page ? '#fff' : 'var(--fg)', fontWeight: n === page ? 600 : 400 }}
                   >{n}</button>)}
             <button
               onClick={() => { setPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
