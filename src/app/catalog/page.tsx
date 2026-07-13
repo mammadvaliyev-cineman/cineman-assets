@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Asset } from '@/lib/mock-data'
 import { CATEGORIES } from '@/config/categories'
@@ -91,67 +91,137 @@ const CAT_ICONS: Record<string, string> = {
   droplet: 'M12 2.7l5.7 5.6a8 8 0 1 1-11.4 0z',
   sort: 'M11 5h10|M11 9h7|M11 13h4|M3 17l3 3 3-3|M6 6v14',
   hourglass: 'M6 2h12|M6 22h12|M8 2v4l4 4 4-4V2|M8 22v-4l4-4 4 4v4',
+  shuffle: 'M16 3h5v5|M4 20L21 3|M21 16v5h-5|M15 15l6 6|M4 4l5 5',
+  flame: 'M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z',
+  diamond: 'M6 3h12l4 6-10 12L2 9l4-6z|M2 9h20',
+  arrowDown: 'M12 5v14|M19 12l-7 7-7-7',
+  arrowUp: 'M12 19V5|M5 12l7-7 7 7',
 }
 
 // ── Filter chip (select dropdown styled as pill) ──────────────
-// Rounded pill, ONE arrow, a small anchor icon, and when active the pill
-// shows «Label: Value» + a «×» that resets just this filter (owner's spec).
+// ── Custom filter popover (DEV_batch_60 §1): NO native <select> anywhere.
+// Graphite panel, uppercase group header, rounded rows, violet highlight
+// + check on the selected item, keyboard (arrows/Enter/Esc), outside click.
+// Items are SHORT (no «Style: …» prefix) — the header names the group once.
+const CHECK_D = 'M20 6L9 17l-5-5'
+type MenuOpt = { value: string; label: string; iconD?: string; iconColor?: string }
+
+function FilterPopover({
+  label, value, options, onChange, iconD, pillPrefix = true, resettable = true,
+}: {
+  label: string; value: string; options: MenuOpt[]; onChange: (v: string) => void
+  iconD?: string; pillPrefix?: boolean; resettable?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const [hi, setHi] = useState(-1)
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false) }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey) }
+  }, [open])
+  const active = resettable && value !== 'All'
+  const current = options.find(o => o.value === value)
+  const pillText = active ? `${pillPrefix ? label + ': ' : ''}${current?.label ?? value}` : (pillPrefix ? label : (current?.label ?? label))
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (!open) { setOpen(true); setHi(0); return }
+      setHi(h => (h + (e.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length)
+    } else if (e.key === 'Enter' && open && hi >= 0) {
+      e.preventDefault(); onChange(options[hi].value); setOpen(false)
+    }
+  }
+  return (
+    <div ref={rootRef} style={{ position: 'relative', display: 'inline-flex' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        onKeyDown={onKeyDown}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer',
+          backgroundColor: active ? 'rgba(151,101,224,0.15)' : 'var(--bg-subtle)',
+          border: `1px solid ${active ? '#9765E0' : 'var(--border)'}`,
+          borderRadius: 999, padding: `6px ${active ? 28 : 26}px 6px ${iconD ? 11 : 12}px`,
+          fontSize: 13, color: active ? '#9765E0' : 'var(--fg-muted)',
+          fontWeight: active ? 600 : 400, lineHeight: 1.4, position: 'relative',
+          transition: 'border-color .15s ease, background-color .15s ease',
+        }}
+      >
+        {iconD && <span style={{ display: 'flex', color: active ? '#9765E0' : 'var(--fg-subtle)' }}><LineIcon d={iconD} size={12} /></span>}
+        {pillText}
+        {active ? (
+          <span
+            role="button"
+            onClick={e => { e.stopPropagation(); onChange('All'); setOpen(false) }}
+            title={`Reset ${label}`}
+            style={{
+              position: 'absolute', right: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 16, height: 16, borderRadius: 999,
+              backgroundColor: 'rgba(151,101,224,0.3)', color: '#EDE4FF', fontSize: 11, fontWeight: 700, lineHeight: 1,
+            }}
+          >
+            ×
+          </span>
+        ) : (
+          <span style={{ position: 'absolute', right: 9, pointerEvents: 'none', color: 'var(--fg-subtle)' }}><ChevronDown /></span>
+        )}
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          style={{
+            position: 'absolute', top: 'calc(100% + 6px)', left: 0, minWidth: 200, zIndex: 60,
+            backgroundColor: '#17151E', border: '1px solid rgba(255,255,255,0.08)',
+            borderRadius: 12, padding: 6, boxShadow: '0 18px 48px rgba(0,0,0,0.55)',
+          }}
+        >
+          <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--fg-subtle)', padding: '4px 10px 6px', margin: 0 }}>
+            {label}
+          </p>
+          {options.map((o, i) => (
+            <button
+              key={o.value}
+              role="option"
+              aria-selected={value === o.value}
+              onClick={() => { onChange(o.value); setOpen(false) }}
+              onMouseEnter={() => setHi(i)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+                padding: '7px 10px', borderRadius: 8, fontSize: 13, border: 'none', cursor: 'pointer',
+                backgroundColor: value === o.value ? 'rgba(127,119,221,0.18)' : (hi === i ? 'rgba(255,255,255,0.05)' : 'transparent'),
+                color: value === o.value ? '#CE95FB' : 'var(--fg)',
+                fontWeight: value === o.value ? 600 : 400,
+                transition: 'background-color .12s ease',
+              }}
+            >
+              {o.iconD && <span style={{ display: 'flex', color: o.iconColor ?? (value === o.value ? '#CE95FB' : 'var(--fg-subtle)') }}><LineIcon d={o.iconD} size={13} /></span>}
+              <span style={{ flex: 1 }}>{o.label}</span>
+              {value === o.value && <span style={{ display: 'flex', color: '#CE95FB' }}><LineIcon d={CHECK_D} size={13} /></span>}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// same props as the old chip — call sites stay tiny
 function FilterChip({
   label, value, options, onChange, iconD,
 }: { label: string; value: string; options: string[]; onChange: (v: string) => void; iconD?: string }) {
-  const active = value !== 'All'
   return (
-    <div
-      style={{
-        position: 'relative', display: 'inline-flex', alignItems: 'center',
-        backgroundColor: active ? 'rgba(151,101,224,0.15)' : 'var(--bg-subtle)',
-        border: `1px solid ${active ? '#9765E0' : 'var(--border)'}`,
-        borderRadius: 999,
-        paddingLeft: iconD ? 11 : 4,
-        transition: 'border-color .15s ease, background-color .15s ease',
-      }}
-    >
-      {iconD && (
-        <span style={{ display: 'flex', color: active ? '#9765E0' : 'var(--fg-subtle)', pointerEvents: 'none' }}>
-          <LineIcon d={iconD} size={12} />
-        </span>
-      )}
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        style={{
-          appearance: 'none', WebkitAppearance: 'none',
-          background: 'transparent', border: 'none', outline: 'none',
-          padding: '6px 26px 6px 6px',
-          fontSize: 13,
-          color: active ? '#9765E0' : 'var(--fg-muted)',
-          fontWeight: active ? 600 : 400,
-          cursor: 'pointer', lineHeight: 1.4,
-        }}
-      >
-        <option value="All">{label}</option>
-        {options.filter(o => o !== 'All').map(opt => (
-          <option key={opt} value={opt}>{label}: {opt}</option>
-        ))}
-      </select>
-      {active ? (
-        <button
-          onClick={() => onChange('All')}
-          title={`Reset ${label}`}
-          style={{
-            position: 'absolute', right: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: 16, height: 16, borderRadius: 999, border: 'none', cursor: 'pointer',
-            backgroundColor: 'rgba(151,101,224,0.3)', color: '#EDE4FF', fontSize: 11, fontWeight: 700, lineHeight: 1, padding: 0,
-          }}
-        >
-          ×
-        </button>
-      ) : (
-        <span style={{ position: 'absolute', right: 9, pointerEvents: 'none', color: 'var(--fg-subtle)' }}>
-          <ChevronDown />
-        </span>
-      )}
-    </div>
+    <FilterPopover
+      label={label}
+      value={value}
+      options={options.map(o => ({ value: o, label: o }))}
+      onChange={onChange}
+      iconD={iconD}
+    />
   )
 }
 
@@ -317,7 +387,14 @@ export default function CatalogPage() {
   // Grid only (owner's spec): the list view is gone from the catalog
   const viewMode = 'grid' as const
   const [sortBy, setSortBy]           = useState<'random' | 'newest' | 'downloads' | '4k' | 'price-desc' | 'price-asc'>('random')
+  // discrete preview steps — remembered across visits (DEV_batch_60 §2)
   const [previewSize, setPreviewSize] = useState(100)
+  useEffect(() => {
+    try {
+      const saved = Number(localStorage.getItem('cineman_preview'))
+      if ([70, 100, 130, 160].includes(saved)) setPreviewSize(saved)
+    } catch { /* noop */ }
+  }, [])
   const [quickView, setQuickView]     = useState<'all' | 'fav' | 'dl' | 'downloads' | 'saved'>('all')
   // FREE section (lead funnel): sidebar entry that shows only is_free assets
   const [activeFree, setActiveFree]   = useState(false)
@@ -623,17 +700,6 @@ export default function CatalogPage() {
             Categories
           </p>
           <SidebarItem iconD={CAT_ICONS.grid} label="All assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search && !activeFree} color="#9765E0" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch(''); setActiveFree(false) }} />
-          {/* FREE section (funnel): non-payers find the free stuff in one click */}
-          {(assets.some(a => a.isFree) || activeFree) && (
-            <SidebarItem
-              iconD={CAT_ICONS.bolt}
-              label="Free"
-              count={assets.filter(a => a.isFree).length}
-              active={activeFree}
-              color="#2DD4C4"
-              onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch(''); setActiveFree(true) }}
-            />
-          )}
           {CATEGORIES.filter(cat => assets.some(a => String(a.type) === cat.id) || activeCat === cat.id).map(cat => (
             <div key={cat.id}>
               <SidebarItem
@@ -757,6 +823,22 @@ export default function CatalogPage() {
             {types.length > 2 && (
               <FilterChip label="Asset Type" value={activeType} options={types} onChange={setActiveType} iconD={CAT_ICONS.grid} />
             )}
+            {/* FREE — a filter chip, not a sidebar section (DEV_batch_60 §3) */}
+            {(assets.some(a => a.isFree) || activeFree) && (
+              <button
+                onClick={() => setActiveFree(v => !v)}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  backgroundColor: activeFree ? 'rgba(45,212,196,0.15)' : 'var(--bg-subtle)',
+                  border: `1px solid ${activeFree ? '#2DD4C4' : 'var(--border)'}`,
+                  borderRadius: 999, padding: '6px 14px', fontSize: 13, cursor: 'pointer',
+                  color: activeFree ? '#2DD4C4' : 'var(--fg-muted)', fontWeight: activeFree ? 600 : 400,
+                  transition: 'border-color .15s ease, background-color .15s ease',
+                }}
+              >
+                <LineIcon d={CAT_ICONS.bolt} size={12} /> Free
+              </button>
+            )}
             {styleOptions.length > 2 && (
               <FilterChip label="Style" value={activeStyle} options={styleOptions} onChange={setActiveStyle} iconD={CAT_ICONS.Fantasy} />
             )}
@@ -809,51 +891,44 @@ export default function CatalogPage() {
 
           {/* Sort + View toggle */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+            {/* Preview size — DISCRETE steps (DEV_batch_60 §2): segmented
+                S/M/L/XL, each maps to a fixed card width; saved in localStorage */}
             {viewMode === 'grid' && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--fg-subtle)', whiteSpace: 'nowrap' }}>Preview Size</span>
-                <input
-                  type="range"
-                  className="cine-range"
-                  min={60}
-                  max={160}
-                  step={10}
-                  value={previewSize}
-                  onChange={e => setPreviewSize(Number(e.target.value))}
-                  style={{ width: 130 }}
-                />
-                <span style={{ fontSize: 12, color: '#a78bfa', width: 38, fontWeight: 600 }}>{previewSize}%</span>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2, marginRight: 6, backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 999, padding: 3 }}>
+                {([['S', 70], ['M', 100], ['L', 130], ['XL', 160]] as const).map(([lbl, size]) => (
+                  <button
+                    key={lbl}
+                    onClick={() => { setPreviewSize(size); try { localStorage.setItem('cineman_preview', String(size)) } catch { /* noop */ } }}
+                    title={`Preview size ${lbl}`}
+                    style={{
+                      padding: '3px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer',
+                      backgroundColor: previewSize === size ? 'rgba(151,101,224,0.25)' : 'transparent',
+                      color: previewSize === size ? '#CE95FB' : 'var(--fg-subtle)',
+                      transition: 'background-color .15s ease, color .15s ease',
+                    }}
+                  >
+                    {lbl}
+                  </button>
+                ))}
               </div>
             )}
-            {/* Sort — rounded pill with an anchor icon; «Sort by» appears
-                once as the menu header (optgroup), options stay short */}
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 999, paddingLeft: 11 }}>
-              <span style={{ display: 'flex', color: 'var(--fg-subtle)', pointerEvents: 'none' }}>
-                <LineIcon d={CAT_ICONS.sort} size={13} />
-              </span>
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value as typeof sortBy)}
-                style={{
-                  appearance: 'none', WebkitAppearance: 'none',
-                  background: 'transparent', border: 'none', outline: 'none',
-                  padding: '6px 26px 6px 6px', fontSize: 13,
-                  color: 'var(--fg-muted)', cursor: 'pointer', lineHeight: 1.4,
-                }}
-              >
-                <optgroup label="Sort by">
-                  <option value="random">Random</option>
-                  <option value="newest">Newest</option>
-                  <option value="downloads">Most downloaded</option>
-                  <option value="4k">4K first</option>
-                  <option value="price-desc">Price: high → low</option>
-                  <option value="price-asc">Price: low → high</option>
-                </optgroup>
-              </select>
-              <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--fg-subtle)' }}>
-                <ChevronDown />
-              </span>
-            </div>
+            {/* Sort — custom popover with icons (DEV_batch_60 §1) */}
+            <FilterPopover
+              label="Sort by"
+              value={sortBy}
+              onChange={v => setSortBy(v as typeof sortBy)}
+              iconD={CAT_ICONS.sort}
+              pillPrefix={false}
+              resettable={false}
+              options={[
+                { value: 'random', label: 'Random', iconD: CAT_ICONS.shuffle },
+                { value: 'newest', label: 'Newest', iconD: CAT_ICONS.Fantasy },
+                { value: 'downloads', label: 'Most downloaded', iconD: CAT_ICONS.flame },
+                { value: '4k', label: '4K first', iconD: CAT_ICONS.diamond, iconColor: '#E5A94B' },
+                { value: 'price-desc', label: 'Price: high → low', iconD: CAT_ICONS.arrowDown },
+                { value: 'price-asc', label: 'Price: low → high', iconD: CAT_ICONS.arrowUp },
+              ]}
+            />
             {/* Grid only — the list view was removed (owner's spec) */}
           </div>
         </div>
