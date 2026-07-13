@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
 
     // Look up the asset server-side — never trust client-provided URLs
     const { data, error } = await supabase
-      .from('assets').select('file_url, title, credit_cost, price_tier, resolution, exclusive_owner, r2_key, is_public').eq('id', assetId).single()
+      .from('assets').select('file_url, title, credit_cost, price_tier, resolution, exclusive_owner, r2_key, is_public, is_free').eq('id', assetId).single()
     if (error || !data?.file_url) {
       return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
     }
@@ -71,6 +71,17 @@ export async function POST(req: NextRequest) {
         // reaching here means this user does NOT own it
         if (!data.is_public && !adminFree) {
           return NextResponse.json({ error: 'Asset not found' }, { status: 404 })
+        }
+        // FREE assets (lead funnel): any signed-in account downloads at no
+        // cost — ownership is still recorded so repeats stay free forever
+        if (data.is_free) {
+          await admin.from('purchases').upsert(
+            { user_id: userId, asset_id: assetId, cost: 0 },
+            { onConflict: 'user_id,asset_id', ignoreDuplicates: true },
+          ).then(() => {}, () => {})
+          await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost: 0 }).then(() => {}, () => {})
+          admin.rpc('bump_download_count', { p_asset: assetId }).then(() => {}, () => {})
+          return NextResponse.json({ url: servedUrl(data), cost: 0, free: true })
         }
         if (adminFree) {
           await admin.from('purchases').upsert(
@@ -121,7 +132,9 @@ export async function POST(req: NextRequest) {
     if (data.exclusive_owner) {
       return NextResponse.json({ error: 'Exclusively sold', code: 'sold' }, { status: 403 })
     }
-    return NextResponse.json({ url: servedUrl(data) })
+    // FUNNEL: anonymous visitors browse everything, but downloading needs a
+    // free account — the email is the whole point of the free tier
+    return NextResponse.json({ error: 'Sign up free to download', code: 'auth' }, { status: 401 })
   } catch (err) {
     console.error('Download error:', err)
     return NextResponse.json({ error: 'Could not generate download link' }, { status: 500 })
