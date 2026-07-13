@@ -745,33 +745,6 @@ export default function CatalogPage() {
           ))}
         </div>
 
-        {/* Filters badge at bottom */}
-        <div style={{ padding: 12, borderTop: '1px solid var(--border)' }}>
-          <button
-            onClick={clearAll}
-            style={{
-              width: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '8px 12px',
-              borderRadius: 8,
-              fontSize: 13,
-              color: 'var(--fg-muted)',
-              backgroundColor: 'var(--bg-subtle)',
-              border: '1px solid var(--border)',
-              cursor: 'pointer',
-            }}
-          >
-            <span style={{ display: 'flex', color: 'var(--fg-subtle)' }}><LineIcon d={CAT_ICONS.sliders} size={14} /></span>
-            <span>Filters</span>
-            {activeFilterCount > 0 && (
-              <span style={{ marginLeft: 'auto', backgroundColor: 'var(--accent)', color: 'var(--on-accent)', fontSize: 10, fontWeight: 700, borderRadius: 9999, padding: '1px 7px' }}>
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-        </div>
       </aside>
 
       {/* ── MAIN CONTENT ─────────────────────────────────────── */}
