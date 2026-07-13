@@ -255,143 +255,256 @@ type BatchItem = {
 // Up to 4 tiles: title + which catalog section it opens + cover URL.
 // Empty = the homepage falls back to top categories automatically.
 function HomepageFeaturedEditor() {
-  type Tile = { title: string; cat: string; cover: string }
-  type PickAsset = { id: string; title: string; file_url: string }
+  // ── ALL homepage sections in one editor (DEV_batch_60 §5/§6):
+  // Featured tiles (catalog cover OR uploaded promo poster with link),
+  // Shop-by-category covers, hero showreel frames, New-this-week set.
+  // Two modes everywhere: «Рандом всё разом» (fast) + click-to-pick (exact).
+  type Tile = { title: string; cat: string; cover: string; promo?: boolean; href?: string; hideTitle?: boolean }
+  type PickAsset = { id: string; title: string; file_url: string; created_at?: string }
   const CAT_OPTIONS = [...CATEGORIES.map(c => c.id), 'Free']
+  const SECTION_CATS = CATEGORIES.filter(c => c.id !== 'Prop').map(c => c.id)
   const [tiles, setTiles] = useState<Tile[]>([])
+  const [catCovers, setCatCovers] = useState<Record<string, string>>({})
+  const [heroFrames, setHeroFrames] = useState<string[]>([])
+  const [weekIds, setWeekIds] = useState<string[]>([])
+  const [weekPrev, setWeekPrev] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
-  // Visual cover PICKER (owner's spec): no URL pasting — the admin sees a
-  // grid of random previews (from the tile's category), clicks one, done.
-  const [pickerFor, setPickerFor] = useState<number | null>(null)
+  const [randBusy, setRandBusy] = useState('')
+  // universal picker: which slot is being filled
+  const [picker, setPicker] = useState<{ kind: 'featured' | 'cat' | 'hero' | 'week'; key: string | number } | null>(null)
   const [pickerAssets, setPickerAssets] = useState<PickAsset[]>([])
   const [pickerBusy, setPickerBusy] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [uploadFor, setUploadFor] = useState<number | null>(null)
 
   const render = (url: string, w: number) =>
     url.includes('/storage/v1/object/public/')
       ? url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + `?width=${w}&quality=68&resize=contain`
       : url
 
+  const baseQ = () => supabase.from('assets').select('id,title,file_url,created_at')
+    .eq('is_public', true).neq('type', 'Config').neq('type', 'Usage').neq('type', 'Generation')
+  const countQ = () => supabase.from('assets').select('id', { count: 'exact', head: true })
+    .eq('is_public', true).neq('type', 'Config').neq('type', 'Usage').neq('type', 'Generation')
+
   useEffect(() => {
     fetch('/api/admin/homepage-config', { cache: 'no-store' })
       .then(r => r.json())
-      .then(j => {
+      .then(async j => {
         const f = (j?.config?.featured ?? []) as Tile[]
         setTiles([0, 1, 2, 3].map(i => f[i] ?? { title: '', cat: 'People', cover: '' }))
+        setCatCovers(j?.config?.catCovers ?? {})
+        setHeroFrames(j?.config?.heroFrames ?? [])
+        const ids = (j?.config?.newWeekIds ?? []) as string[]
+        setWeekIds(ids)
+        if (ids.length) {
+          const { data } = await supabase.from('assets').select('id,file_url').in('id', ids)
+          const m: Record<string, string> = {}
+          for (const a of data ?? []) m[String(a.id)] = render(String(a.file_url), 240)
+          setWeekPrev(m)
+        }
       })
       .catch(() => setTiles([0, 1, 2, 3].map(() => ({ title: '', cat: 'People', cover: '' }))))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const upd = (i: number, patch: Partial<Tile>) => setTiles(prev => prev.map((t, k) => k === i ? { ...t, ...patch } : t))
 
-  async function loadPicker(i: number) {
-    setPickerFor(i); setPickerBusy(true); setPickerAssets([])
+  async function randomOf(cat: string | null, n: number): Promise<PickAsset[]> {
+    let cq = countQ(); if (cat === 'Free') cq = cq.eq('is_free', true); else if (cat) cq = cq.eq('type', cat)
+    const { count } = await cq
+    const span = Math.max(24, n * 3)
+    const off = Math.max(0, Math.floor(Math.random() * Math.max(1, (count ?? span) - span)))
+    let q = baseQ(); if (cat === 'Free') q = q.eq('is_free', true); else if (cat) q = q.eq('type', cat)
+    const { data } = await q.range(off, off + span - 1)
+    return (((data ?? []) as PickAsset[])).sort(() => Math.random() - 0.5).slice(0, n)
+  }
+
+  async function openPicker(kind: 'featured' | 'cat' | 'hero' | 'week', key: string | number) {
+    setPicker({ kind, key }); setPickerBusy(true); setPickerAssets([])
     try {
-      const cat = tiles[i]?.cat
-      let cq = supabase.from('assets').select('id', { count: 'exact', head: true })
-        .eq('is_public', true).neq('type', 'Config').neq('type', 'Usage').neq('type', 'Generation')
-      if (cat === 'Free') cq = cq.eq('is_free', true)
-      else if (cat) cq = cq.eq('type', cat)
-      const { count } = await cq
-      const off = Math.max(0, Math.floor(Math.random() * Math.max(1, (count ?? 24) - 24)))
-      let q = supabase.from('assets').select('id,title,file_url')
-        .eq('is_public', true).neq('type', 'Config').neq('type', 'Usage').neq('type', 'Generation')
-      if (cat === 'Free') q = q.eq('is_free', true)
-      else if (cat) q = q.eq('type', cat)
-      const { data } = await q.range(off, off + 23)
-      setPickerAssets((((data ?? []) as PickAsset[])).sort(() => Math.random() - 0.5))
+      if (kind === 'week') {
+        // «New this week» pool = the freshest 48 (order stays by date on save)
+        const { data } = await baseQ().order('created_at', { ascending: false }).limit(48)
+        setPickerAssets((((data ?? []) as PickAsset[])).sort(() => Math.random() - 0.5).slice(0, 24))
+      } else {
+        const cat = kind === 'hero' ? 'Location' : kind === 'cat' ? String(key) : (tiles[Number(key)]?.cat ?? null)
+        setPickerAssets(await randomOf(cat, 24))
+      }
     } finally { setPickerBusy(false) }
+  }
+
+  function pick(a: PickAsset) {
+    if (!picker) return
+    if (picker.kind === 'featured') upd(Number(picker.key), { cover: render(a.file_url, 1024), promo: false, href: '', hideTitle: false })
+    if (picker.kind === 'cat') setCatCovers(prev => ({ ...prev, [String(picker.key)]: render(a.file_url, 480) }))
+    if (picker.kind === 'hero') setHeroFrames(prev => { const n = [...prev]; n[Number(picker.key)] = render(a.file_url, 1024); return n.slice(0, 6) })
+    if (picker.kind === 'week') {
+      setWeekIds(prev => { const n = [...prev]; n[Number(picker.key)] = a.id; return n.slice(0, 12) })
+      setWeekPrev(prev => ({ ...prev, [a.id]: render(a.file_url, 240) }))
+    }
+    setPicker(null)
+  }
+
+  async function randomAllCats() {
+    setRandBusy('cat')
+    try {
+      const out: Record<string, string> = {}
+      for (const id of SECTION_CATS) {
+        const [a] = await randomOf(id, 1)
+        if (a) out[id] = render(a.file_url, 480)
+      }
+      setCatCovers(out)
+    } finally { setRandBusy('') }
+  }
+  async function randomAllHero() {
+    setRandBusy('hero')
+    try { setHeroFrames((await randomOf('Location', 6)).map(a => render(a.file_url, 1024))) } finally { setRandBusy('') }
+  }
+  async function randomAllWeek() {
+    setRandBusy('week')
+    try {
+      // pick 12 random from the freshest 48, KEEP date order (owner's rule)
+      const { data } = await baseQ().order('created_at', { ascending: false }).limit(48)
+      const pool = (data ?? []) as PickAsset[]
+      const chosen = [...pool].sort(() => Math.random() - 0.5).slice(0, 12)
+      chosen.sort((a, b) => pool.indexOf(a) - pool.indexOf(b))
+      setWeekIds(chosen.map(a => a.id))
+      const m: Record<string, string> = {}
+      for (const a of chosen) m[a.id] = render(a.file_url, 240)
+      setWeekPrev(m)
+    } finally { setRandBusy('') }
+  }
+
+  async function onUploadPromo(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file === undefined || uploadFor === null) return
+    setMsg('Загружаю постер…')
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const r = await fetch('/api/admin/upload-cover', { method: 'POST', headers: await adminHeaders(), body: fd })
+      const j = await r.json()
+      if (j.ok) { upd(uploadFor, { cover: j.url, promo: true }); setMsg('Постер загружен — задай ссылку и сохрани') }
+      else setMsg(j.error || 'Ошибка загрузки')
+    } catch { setMsg('Ошибка загрузки') }
+    if (fileRef.current) fileRef.current.value = ''
   }
 
   async function save() {
     setBusy(true); setMsg('')
     try {
-      // A tile needs only a COVER — the title falls back to the category
-      // label (the old title-required rule silently dropped tiles → «bug»)
       const labelFor = (cat: string) => CATEGORIES.find(c => c.id === cat)?.label ?? cat
-      const featured = tiles
-        .filter(t => t.cover.trim())
-        .map(t => ({ ...t, title: t.title.trim() || labelFor(t.cat) }))
-      const skipped = tiles.filter(t => !t.cover.trim() && t.title.trim()).length
+      const featured = tiles.filter(t => t.cover.trim()).map(t => ({ ...t, title: t.title.trim() || labelFor(t.cat) }))
       const r = await fetch('/api/admin/homepage-config', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
-        body: JSON.stringify({ config: { featured } }),
+        method: 'POST', headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ config: { featured, catCovers, heroFrames: heroFrames.filter(Boolean), newWeekIds: weekIds.filter(Boolean) } }),
       })
       const j = await r.json()
-      setMsg(j.ok
-        ? `Опубликовано плиток: ${featured.length}${skipped ? ` (пропущено без обложки: ${skipped})` : ''}. Главная обновлена.`
-        : (j.error || 'Ошибка'))
+      setMsg(j.ok ? `Сохранено: витрина ${featured.length}, категории ${Object.keys(catCovers).length}, hero ${heroFrames.filter(Boolean).length}, new-this-week ${weekIds.filter(Boolean).length}. Главная обновлена.` : (j.error || 'Ошибка'))
     } catch { setMsg('Ошибка — попробуй ещё раз') }
     setBusy(false)
   }
 
+  const slotBtn = (filled: string | undefined, onClick: () => void, w = 76, h = 46) => (
+    <button onClick={onClick} title={filled ? 'Заменить' : 'Выбрать'} style={{ width: w, height: h, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)', backgroundColor: '#17151E', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {filled ? <img src={filled} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 16, color: 'var(--fg-subtle)' }}>+</span>}
+    </button>
+  )
+  const randBtn = (label: string, onClick: () => void, key: string) => (
+    <button onClick={onClick} disabled={randBusy === key} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'rgba(151,101,224,0.12)', border: '1px solid rgba(151,101,224,0.4)', color: '#CE95FB', cursor: 'pointer' }}>
+      {randBusy === key ? '…' : label}
+    </button>
+  )
+
   return (
     <div className="card p-6">
       <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
-        Главная — Featured collections
+        Главная — витрина, категории, hero, new this week
       </h3>
       <p className="text-xs mb-4" style={{ color: 'var(--fg-subtle)' }}>
-        До 4 плиток-витрин. Обложку выбираешь кликом из случайных фото («Ещё варианты» — новая пачка).
-        Публикуется всё, где есть обложка; название можно не писать — подставится категория.
-        Совсем пусто = автоматически топ-категории.
+        Везде два режима: «Рандом всё разом» или клик по слоту → выбрать точно. Пусто = автоматика. Один «Сохранить» на всё.
       </p>
-      <div className="grid gap-3 mb-4">
+
+      {/* ── Featured tiles (+ promo poster upload) ── */}
+      <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--fg-subtle)' }}>Featured collections</p>
+      <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onUploadPromo} style={{ display: 'none' }} />
+      <div className="grid gap-3 mb-5">
         {tiles.map((t, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <input
-              value={t.title} onChange={e => upd(i, { title: e.target.value })}
-              placeholder={`Плитка ${i + 1} — название`}
-              className="input-field text-xs" style={{ padding: '8px 10px', flex: 1.1 }}
-            />
-            <select
-              value={t.cat} onChange={e => upd(i, { cat: e.target.value })}
-              className="input-field text-xs" style={{ padding: '8px 10px', width: 110 }}
-            >
-              {CAT_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            {t.cover ? (
-              <div className="flex items-center gap-2" style={{ flex: 1.4 }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={t.cover} alt="cover" style={{ width: 72, height: 44, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} />
-                <button onClick={() => loadPicker(i)} className="text-[11px] font-semibold" style={{ color: '#CE95FB', background: 'none', border: 'none', cursor: 'pointer' }}>Заменить</button>
-                <button onClick={() => upd(i, { cover: '' })} className="text-[11px]" style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>Очистить</button>
-              </div>
-            ) : (
-              <button
-                onClick={() => loadPicker(i)}
-                className="text-xs font-semibold px-3 py-2 rounded-lg"
-                style={{ flex: 1.4, backgroundColor: 'rgba(151,101,224,0.12)', border: '1px solid rgba(151,101,224,0.4)', color: '#CE95FB', cursor: 'pointer' }}
-              >
-                Выбрать обложку
+          <div key={i}>
+            <div className="flex items-center gap-2">
+              {slotBtn(t.cover || undefined, () => openPicker('featured', i))}
+              <input value={t.title} onChange={e => upd(i, { title: e.target.value })} placeholder={`Плитка ${i + 1} — название`} className="input-field text-xs" style={{ padding: '8px 10px', flex: 1 }} />
+              <select value={t.cat} onChange={e => upd(i, { cat: e.target.value })} className="input-field text-xs" style={{ padding: '8px 10px', width: 104 }}>
+                {CAT_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <button onClick={() => { setUploadFor(i); fileRef.current?.click() }} className="text-[11px] font-semibold px-2 py-1.5 rounded-lg" style={{ backgroundColor: 'rgba(229,169,75,0.1)', border: '1px solid rgba(229,169,75,0.4)', color: '#E5A94B', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                Upload image
               </button>
+              {t.cover && <button onClick={() => upd(i, { cover: '', promo: false, href: '', hideTitle: false })} className="text-[11px]" style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>}
+            </div>
+            {t.promo && (
+              <div className="flex items-center gap-3 mt-1.5" style={{ paddingLeft: 84 }}>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(229,169,75,0.15)', color: '#E5A94B' }}>PROMO</span>
+                <input value={t.href ?? ''} onChange={e => upd(i, { href: e.target.value })} placeholder="Ссылка: /catalog?free=1, ?category=… или любой URL" className="input-field text-xs" style={{ padding: '6px 10px', flex: 1 }} />
+                <label className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={Boolean(t.hideTitle)} onChange={e => upd(i, { hideTitle: e.target.checked })} />
+                  скрыть подпись
+                </label>
+              </div>
             )}
           </div>
         ))}
       </div>
 
-      {/* Random-photo picker: click a preview to make it the cover */}
-      {pickerFor !== null && (
+      {/* ── Shop by category covers ── */}
+      <div className="flex items-center gap-3 mb-2">
+        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>Shop by category</p>
+        {randBtn('Рандом всё разом', randomAllCats, 'cat')}
+      </div>
+      <div className="flex flex-wrap gap-2 mb-5">
+        {SECTION_CATS.map(id => (
+          <div key={id} className="text-center">
+            {slotBtn(catCovers[id], () => openPicker('cat', id), 88, 50)}
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--fg-subtle)', margin: 0 }}>{id}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Hero showreel (locations) ── */}
+      <div className="flex items-center gap-3 mb-2">
+        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>Hero-карусель (локации)</p>
+        {randBtn('Рандом всё разом', randomAllHero, 'hero')}
+      </div>
+      <div className="flex flex-wrap gap-2 mb-5">
+        {[0, 1, 2, 3, 4, 5].map(i => slotBtn(heroFrames[i], () => openPicker('hero', i), 88, 50))}
+      </div>
+
+      {/* ── New this week ── */}
+      <div className="flex items-center gap-3 mb-2">
+        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>New this week (из пула свежих, порядок по дате)</p>
+        {randBtn('Рандом всё разом', randomAllWeek, 'week')}
+      </div>
+      <div className="flex flex-wrap gap-2 mb-5">
+        {Array.from({ length: 12 }, (_, i) => slotBtn(weekIds[i] ? weekPrev[weekIds[i]] : undefined, () => openPicker('week', i), 66, 42))}
+      </div>
+
+      {/* ── Universal picker ── */}
+      {picker && (
         <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
           <div className="flex items-center gap-3 mb-3">
-            <span className="text-xs font-bold" style={{ color: 'var(--fg)' }}>
-              Обложка для плитки {pickerFor + 1} ({tiles[pickerFor]?.cat}) — кликни фото
-            </span>
-            <button onClick={() => loadPicker(pickerFor)} disabled={pickerBusy} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'rgba(151,101,224,0.12)', border: '1px solid rgba(151,101,224,0.4)', color: '#CE95FB', cursor: 'pointer' }}>
+            <span className="text-xs font-bold" style={{ color: 'var(--fg)' }}>Кликни фото для слота</span>
+            <button onClick={() => openPicker(picker.kind, picker.key)} disabled={pickerBusy} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'rgba(151,101,224,0.12)', border: '1px solid rgba(151,101,224,0.4)', color: '#CE95FB', cursor: 'pointer' }}>
               {pickerBusy ? '…' : 'Ещё варианты'}
             </button>
-            <button onClick={() => setPickerFor(null)} className="text-[11px] ml-auto" style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>Закрыть</button>
+            <button onClick={() => setPicker(null)} className="text-[11px] ml-auto" style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>Закрыть</button>
           </div>
           {pickerBusy && pickerAssets.length === 0 ? (
             <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Загружаю варианты…</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
               {pickerAssets.map(a => (
-                <button
-                  key={a.id}
-                  onClick={() => { upd(pickerFor, { cover: render(a.file_url, 1024) }); setPickerFor(null) }}
-                  title={a.title}
-                  style={{ padding: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', backgroundColor: '#17151E', aspectRatio: '16/10' }}
-                >
+                <button key={a.id} onClick={() => pick(a)} title={a.title} style={{ padding: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', cursor: 'pointer', backgroundColor: '#17151E', aspectRatio: '16/10' }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={render(a.file_url, 240)} alt={a.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
                 </button>
@@ -403,7 +516,7 @@ function HomepageFeaturedEditor() {
 
       <div className="flex items-center gap-3">
         <button onClick={save} disabled={busy} className="btn-primary text-xs px-4 py-2 font-bold">
-          {busy ? 'Сохраняю…' : 'Сохранить витрину'}
+          {busy ? 'Сохраняю…' : 'Сохранить всё'}
         </button>
         {msg && <span className="text-xs" style={{ color: '#5EEAD4' }}>{msg}</span>}
       </div>
