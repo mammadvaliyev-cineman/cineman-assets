@@ -171,20 +171,21 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-3">
-          {/* «View as client» (DEV_batch_60 §8) — visible to the REAL admin
-              even while the client view is on, so he can always flip back */}
-          {isRealAdminEmail(user?.email) && (
+          {/* The «View as client» toggle lives in Admin → Dashboard (owner's
+              spec §8). The navbar only shows the RETURN button while the
+              client view is on — /admin itself is locked in that mode. */}
+          {isRealAdminEmail(user?.email) && isViewingAsClient() && (
             <button
               onClick={toggleViewAsClient}
-              title={isViewingAsClient() ? 'Вернуться в админ-вид' : 'Посмотреть сайт глазами клиента'}
-              className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
+              title="Вернуться в админ-вид"
+              className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
               style={{
-                backgroundColor: isViewingAsClient() ? 'rgba(229,169,75,0.15)' : 'var(--bg-subtle)',
-                border: `1px solid ${isViewingAsClient() ? 'rgba(229,169,75,0.5)' : 'var(--border)'}`,
-                color: isViewingAsClient() ? '#E5A94B' : 'var(--fg-subtle)', cursor: 'pointer',
+                backgroundColor: 'rgba(229,169,75,0.15)',
+                border: '1px solid rgba(229,169,75,0.5)',
+                color: '#E5A94B', cursor: 'pointer',
               }}
             >
-              {isViewingAsClient() ? '← Back to admin' : 'View as client'}
+              ← Back to admin
             </button>
           )}
           {/* Library moved to the catalog sidebar (owner's layout) */}
