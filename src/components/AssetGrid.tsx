@@ -197,12 +197,19 @@ function UpgradeModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
 
+        <button
+          onClick={() => { onClose(); window.dispatchEvent(new Event('cineman-open-topup')) }}
+          className="block w-full py-3 rounded-xl font-bold text-sm text-center"
+          style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer', boxShadow: '0 0 20px color-mix(in srgb, var(--accent) 40%, transparent)' }}
+        >
+          Buy credits — разовый докуп
+        </button>
         <a
           href="/pricing"
-          className="block w-full py-3 rounded-xl font-bold text-sm text-white text-center"
-          style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))', boxShadow: '0 0 20px color-mix(in srgb, var(--accent) 40%, transparent)' }}
+          className="block w-full py-2.5 mt-2 rounded-xl font-semibold text-sm text-center"
+          style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }}
         >
-          View Plans →
+          View plans →
         </a>
         <p className="text-xs mt-3" style={{ color: 'var(--fg-subtle)' }}>Cancel anytime. Resets monthly.</p>
       </div>
@@ -719,14 +726,13 @@ function AssetCard({
                 <LockIcon size={13} /> Exclusively sold
               </button>
             ) : downloadState === 'nocredits' ? (
-              <a
-                href="/pricing"
-                onClick={e => e.stopPropagation()}
+              <button
+                onClick={e => { e.stopPropagation(); window.dispatchEvent(new Event('cineman-open-topup')) }}
                 className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-all"
-                style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', textAlign: 'center' }}
+                style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', textAlign: 'center', border: 'none', cursor: 'pointer' }}
               >
-                Get credits
-              </a>
+                Buy credits
+              </button>
             ) : (
               <button
                 onClick={e => { e.stopPropagation(); onDownload() }}

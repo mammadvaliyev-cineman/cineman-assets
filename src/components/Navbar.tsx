@@ -6,6 +6,7 @@ import { useTheme } from '@/components/ThemeProvider'
 import { useAuth } from '@/components/AuthProvider'
 import { isAdminEmail, isRealAdminEmail, isViewingAsClient, toggleViewAsClient } from '@/components/AdminGate'
 import { CreditGem } from '@/components/AssetGrid'
+import TopupModal from '@/components/TopupModal'
 import { supabase } from '@/lib/supabase'
 
 // ── Cineman Logo Icon ─────────────────────────────────────────
@@ -86,8 +87,8 @@ export default function Navbar() {
   useEffect(() => {
     if (!user) { setCredits(null); return }
     const load = async () => {
-      const { data } = await supabase.from('profiles').select('credits, avatar_url').eq('id', user.id).single()
-      if (data) { setCredits(data.credits); setAvatarUrl(data.avatar_url ?? null) }
+      const { data } = await supabase.from('profiles').select('credits, topup_credits, avatar_url').eq('id', user.id).single()
+      if (data) { setCredits(Number(data.credits ?? 0) + Number(data.topup_credits ?? 0)); setAvatarUrl(data.avatar_url ?? null) }
     }
     load()
     const onChange = (e: Event) => {
@@ -115,6 +116,15 @@ export default function Navbar() {
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+
+  // TOP-UP modal (DEV_topup_credits) — hosted here so every page can
+  // open it: balance chip, «Buy credits», and 402-flows via the event
+  const [topupOpen, setTopupOpen] = useState(false)
+  useEffect(() => {
+    const open = () => setTopupOpen(true)
+    window.addEventListener('cineman-open-topup', open)
+    return () => window.removeEventListener('cineman-open-topup', open)
   }, [])
 
   // BRAND THEME toggle (owner's §7 rework): Purple <-> Yellow through the
@@ -223,18 +233,31 @@ export default function Navbar() {
           )}
           {/* Library moved to the catalog sidebar (owner's layout) */}
           {user && credits !== null && (
-            <Link
-              href="/pricing"
-              title="Ваши кредиты — клик, чтобы пополнить"
-              className="flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-full"
-              style={{
-                backgroundColor: 'color-mix(in srgb, var(--accent) 14%, transparent)', color: 'var(--accent-soft)', border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
-                animation: pulse ? 'cine-chip-pulse .45s ease-out' : undefined,
-              }}
-            >
-              <CreditGem size={14} />
-              {credits}
-            </Link>
+            <>
+              <button
+                onClick={() => setTopupOpen(true)}
+                title="Ваши кредиты — клик, чтобы докупить"
+                className="flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-full"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--accent) 14%, transparent)', color: 'var(--accent-soft)',
+                  border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)', cursor: 'pointer',
+                  animation: pulse ? 'cine-chip-pulse .45s ease-out' : undefined,
+                }}
+              >
+                <CreditGem size={14} />
+                {credits}
+              </button>
+              <button
+                onClick={() => setTopupOpen(true)}
+                className="hidden md:inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full"
+                style={{
+                  backgroundColor: 'transparent', color: 'var(--accent-soft)',
+                  border: '1px solid color-mix(in srgb, var(--accent) 45%, transparent)', cursor: 'pointer',
+                }}
+              >
+                Buy credits
+              </button>
+            </>
           )}
           {user ? (
             <Link href="/profile" title="Profile" className="flex items-center">
@@ -277,6 +300,7 @@ export default function Navbar() {
           </button>
         </div>
       </div>
+      {topupOpen && <TopupModal onClose={() => setTopupOpen(false)} />}
     </nav>
   )
 }
