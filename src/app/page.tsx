@@ -3,6 +3,22 @@ import { supabase } from "@/lib/supabase";
 import { CATEGORIES } from "@/config/categories";
 import HomeShelf, { ShelfItem } from "@/components/HomeShelf";
 import Reveal from "@/components/Reveal";
+import Tilt from "@/components/Tilt";
+import HeroShowreel from "@/components/HeroShowreel";
+
+// Signature moment (DEV_flair_motion §4): the hero headline reveals
+// letter by letter, once, on load. The ONLY branded flourish.
+function Letters({ text, base = 0 }: { text: string; base?: number }) {
+  return (
+    <>
+      {text.split("").map((ch, i) => (
+        <span key={i} className="cine-letter" style={{ animationDelay: `${base + i * 26}ms` }}>
+          {ch === " " ? "\u00A0" : ch}
+        </span>
+      ))}
+    </>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // HOMEPAGE v2 (owner's brief): a stylish STORE, not a text landing.
@@ -172,8 +188,8 @@ export default async function HomePage() {
               <LineIcon d={D.clapper} size={13} color="#CE95FB" /> Your personal AI film studio
             </span>
             <h1 className="text-5xl md:text-6xl font-bold mb-5 leading-[1.06] tracking-tight" style={{ color: "var(--fg)" }}>
-              Direct films with{" "}
-              <span className="gradient-animate">Cineman</span>
+              <Letters text="Direct films with" />{" "}
+              <span className="cine-letter gradient-animate" style={{ animationDelay: "520ms" }}>Cineman</span>
             </h1>
             <p className="text-lg mb-8 max-w-md" style={{ color: "var(--fg-muted)" }}>
               Ready cast, cinematic locations and an AI director that shoots
@@ -196,26 +212,10 @@ export default async function HomePage() {
               ))}
             </div>
           </div>
-          {/* Right: live collage of real frames */}
+          {/* Right: living showreel — ken-burns crossfade over cinematic
+              location frames (single images, safe to cover-crop) */}
           <div className="fade-in-up hidden md:block" style={{ animationDelay: "0.12s" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gridAutoRows: 110, gap: 10 }}>
-              {collage.slice(0, 6).map((a, i) => (
-                <Link
-                  key={a.id}
-                  href={`/catalog?category=${encodeURIComponent(a.type)}`}
-                  className="cine-lift cine-sheen"
-                  style={{
-                    gridRow: i === 0 || i === 3 ? "span 2" : "span 1",
-                    borderRadius: 12, overflow: "hidden",
-                    border: "0.5px solid rgba(255,255,255,0.07)",
-                    boxShadow: "0 10px 34px rgba(0,0,0,0.4)",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={coverSrc(a)} alt={a.title} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                </Link>
-              ))}
-            </div>
+            <HeroShowreel frames={collage.slice(0, 6).map(a => ({ src: coverSrc(a, true), alt: a.title }))} />
           </div>
         </div>
       </section>
@@ -228,23 +228,31 @@ export default async function HomePage() {
             <Link href="/catalog" className="text-sm font-semibold" style={{ color: "#9765E0" }}>Browse all →</Link>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {featured.slice(0, 4).map(t => (
+            {featured.slice(0, 4).map((t, i) => (
               <Link
                 key={t.title}
                 href={t.cat === "Free" ? "/catalog?free=1" : `/catalog?category=${encodeURIComponent(t.cat)}`}
-                className="group cine-lift cine-sheen"
-                style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "0.5px solid rgba(255,255,255,0.07)", aspectRatio: "16/9", display: "block", backgroundColor: "#17151E" }}
+                className="group block cine-stagger"
+                style={{ ["--stg" as never]: `${i * 60}ms` }}
               >
-                {/* full sheet on the graphite mat, never cropped (owner's rule) */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={t.cover} alt={t.title} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 12 }} />
-                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "45%", background: "linear-gradient(to top, rgba(10,10,15,0.85) 0%, transparent 100%)", pointerEvents: "none" }} />
-                <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, zIndex: 2 }}>
-                  <p className="text-base font-bold" style={{ color: "white", margin: 0 }}>{t.title}</p>
-                  <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.65)", margin: 0 }}>
-                    {t.cat === "Free" ? "Free assets" : `${(counts[t.cat] ?? 0).toLocaleString("en-US")} assets`}
-                  </p>
-                </div>
+                <Tilt
+                  max={6}
+                  className="cine-ring cine-shadow cine-sheen"
+                  style={{ borderRadius: 12, overflow: "hidden", border: "0.5px solid rgba(255,255,255,0.07)", backgroundColor: "#17151E" }}
+                >
+                  {/* full sheet on the graphite mat — no text on the photo */}
+                  <div style={{ aspectRatio: "16/9", overflow: "hidden" }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={t.cover} alt={t.title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 12 }} />
+                  </div>
+                  {/* caption UNDER the image (owner's rollback) */}
+                  <div style={{ padding: "11px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                    <p className="text-base font-bold" style={{ color: "var(--fg)", margin: 0 }}>{t.title}</p>
+                    <p className="text-xs mt-0.5" style={{ color: "var(--fg-muted)", margin: 0 }}>
+                      {t.cat === "Free" ? "Free assets" : `${(counts[t.cat] ?? 0).toLocaleString("en-US")} assets`}
+                    </p>
+                  </div>
+                </Tilt>
               </Link>
             ))}
           </div>
@@ -255,24 +263,30 @@ export default async function HomePage() {
       <Reveal><section className="max-w-7xl mx-auto px-6" style={{ marginBottom: 56 }}>
         <h2 className="text-2xl font-bold mb-4" style={{ color: "var(--fg)" }}>Shop by category</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {catTiles.map(c => (
+          {catTiles.map((c, i) => (
             <Link
               key={c.id}
               href={`/catalog?category=${encodeURIComponent(c.id)}`}
-              className="group cine-lift"
-              style={{ borderRadius: 12, overflow: "hidden", border: "0.5px solid rgba(255,255,255,0.07)", backgroundColor: "#17151E", display: "block", position: "relative" }}
+              className="group block cine-stagger"
+              style={{ ["--stg" as never]: `${i * 45}ms` }}
             >
-              <div style={{ aspectRatio: "16/9", overflow: "hidden", position: "relative" }}>
-                {covers[c.id] && (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={coverSrc(covers[c.id]!)} alt={c.label} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 8 }} />
-                )}
-                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "45%", background: "linear-gradient(to top, rgba(10,10,15,0.85) 0%, transparent 100%)", pointerEvents: "none" }} />
-                <div style={{ position: "absolute", left: 12, right: 12, bottom: 8, zIndex: 2 }}>
-                  <p className="text-sm font-semibold" style={{ color: "#fff", margin: 0 }}>{c.label}</p>
-                  <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>{(counts[c.id] ?? 0).toLocaleString("en-US")}</p>
+              <Tilt
+                max={7}
+                className="cine-ring cine-shadow"
+                style={{ borderRadius: 12, overflow: "hidden", border: "0.5px solid rgba(255,255,255,0.07)", backgroundColor: "#17151E" }}
+              >
+                <div style={{ aspectRatio: "16/9", overflow: "hidden" }}>
+                  {covers[c.id] && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img src={coverSrc(covers[c.id]!)} alt={c.label} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 8 }} />
+                  )}
                 </div>
-              </div>
+                {/* label UNDER the image (owner's rollback) */}
+                <div style={{ padding: "9px 12px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                  <p className="text-sm font-semibold" style={{ color: "var(--fg)", margin: 0 }}>{c.label}</p>
+                  <p className="text-[11px]" style={{ color: "var(--fg-muted)", margin: 0 }}>{(counts[c.id] ?? 0).toLocaleString("en-US")}</p>
+                </div>
+              </Tilt>
             </Link>
           ))}
         </div>
