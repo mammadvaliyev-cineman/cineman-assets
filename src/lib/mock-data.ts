@@ -9,6 +9,7 @@ export type Asset = {
   tags: string[]
   fileUrl?: string // storage path for signed URL generation
   creditCost?: number // download price in credits (default 5)
+  isFree?: boolean // opt-in free asset (lead funnel) — the admin sets it manually
   exclusivePrice?: number // exclusive buyout price in credits (default = tier)
   priceTier?: string // 'standard' | 'premium' | 'exclusive' — pricing_defaults key
   resolution?: string // '2K' | '4K' — 4K doubles the download price
