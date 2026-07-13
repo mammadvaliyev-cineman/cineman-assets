@@ -22,6 +22,7 @@ type AssetRow = {
   exclusive_price?: number | null
   price_tier?: string
   exclusive_owner?: string | null
+  is_free?: boolean
 }
 
 type Stats = {
@@ -250,6 +251,80 @@ type BatchItem = {
 }
 
 // ── Main Component ──────────────────────────────────────────
+// ── Homepage: Featured collections editor (owner's brief §3).
+// Up to 4 tiles: title + which catalog section it opens + cover URL.
+// Empty = the homepage falls back to top categories automatically.
+function HomepageFeaturedEditor() {
+  type Tile = { title: string; cat: string; cover: string }
+  const CAT_OPTIONS = [...CATEGORIES.map(c => c.id), 'Free']
+  const [tiles, setTiles] = useState<Tile[]>([])
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  useEffect(() => {
+    fetch('/api/admin/homepage-config', { cache: 'no-store' })
+      .then(r => r.json())
+      .then(j => {
+        const f = (j?.config?.featured ?? []) as Tile[]
+        setTiles([0, 1, 2, 3].map(i => f[i] ?? { title: '', cat: 'People', cover: '' }))
+      })
+      .catch(() => setTiles([0, 1, 2, 3].map(() => ({ title: '', cat: 'People', cover: '' }))))
+  }, [])
+  const upd = (i: number, patch: Partial<Tile>) => setTiles(prev => prev.map((t, k) => k === i ? { ...t, ...patch } : t))
+  async function save() {
+    setBusy(true); setMsg('')
+    try {
+      const featured = tiles.filter(t => t.title.trim() && t.cover.trim())
+      const r = await fetch('/api/admin/homepage-config', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ config: { featured } }),
+      })
+      const j = await r.json()
+      setMsg(j.ok ? `Сохранено (${featured.length} плиток)` : (j.error || 'Ошибка'))
+    } catch { setMsg('Ошибка — попробуй ещё раз') }
+    setBusy(false)
+  }
+  return (
+    <div className="card p-6">
+      <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
+        Главная — Featured collections
+      </h3>
+      <p className="text-xs mb-4" style={{ color: 'var(--fg-subtle)' }}>
+        До 4 плиток-витрин. Cover — URL картинки (правый клик по ассету в каталоге → Copy image address).
+        Пустые строки не публикуются; всё пусто = автоматически топ-категории.
+      </p>
+      <div className="grid gap-3 mb-4">
+        {tiles.map((t, i) => (
+          <div key={i} className="grid gap-2" style={{ gridTemplateColumns: '1.2fr 0.8fr 2fr' }}>
+            <input
+              value={t.title} onChange={e => upd(i, { title: e.target.value })}
+              placeholder={`Плитка ${i + 1} — название`}
+              className="input-field text-xs" style={{ padding: '8px 10px' }}
+            />
+            <select
+              value={t.cat} onChange={e => upd(i, { cat: e.target.value })}
+              className="input-field text-xs" style={{ padding: '8px 10px' }}
+            >
+              {CAT_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input
+              value={t.cover} onChange={e => upd(i, { cover: e.target.value })}
+              placeholder="Cover — URL картинки"
+              className="input-field text-xs" style={{ padding: '8px 10px' }}
+            />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-3">
+        <button onClick={save} disabled={busy} className="btn-primary text-xs px-4 py-2 font-bold">
+          {busy ? 'Сохраняю…' : 'Сохранить витрину'}
+        </button>
+        {msg && <span className="text-xs" style={{ color: '#5EEAD4' }}>{msg}</span>}
+      </div>
+    </div>
+  )
+}
+
 // ── Provider balances (owner's spec): Kie.ai credits via their API,
 // Gemini → deep link to Google Cloud Billing (pay-as-you-go, no
 // prepaid balance). Goal: see at a glance when to top up.
@@ -668,6 +743,30 @@ function AdminDashboard() {
     setSelectedIds(new Set())
     setBulkBusy(false)
     alert(`Стиль обновлён: ${done}/${ids.length}`)
+  }
+
+  // Bulk FREE (owner's funnel): opt-in only, never a default — the admin
+  // selects a batch and flips it free (price 0) or back to paid (5)
+  async function bulkFree(free: boolean) {
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0 || bulkBusy) return
+    if (!confirm(`${ids.length} ассетов — сделать ${free ? 'FREE (цена 0)' : 'платными (цена 5)'}?`)) return
+    setBulkBusy(true)
+    const headers = await adminHeaders()
+    let done = 0
+    for (const id of ids) {
+      try {
+        const r = await fetch('/api/admin/assets', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json', ...headers },
+          body: JSON.stringify({ id, is_free: free, credit_cost: free ? 0 : 5 }),
+        })
+        if (r.ok) { done++; setAssets(prev => prev.map(a => a.id === id ? { ...a, is_free: free, credit_cost: free ? 0 : 5 } : a)) }
+      } catch { /* keep going */ }
+    }
+    setSelectedIds(new Set())
+    setBulkBusy(false)
+    alert(`${free ? 'Free' : 'Платные'}: ${done}/${ids.length}`)
   }
 
   // ── Pricing tab: tier defaults + plan grants (pricing_defaults) ──
@@ -1207,6 +1306,22 @@ function AdminDashboard() {
                       style={{ color: '#CE95FB', border: '1px solid rgba(206,149,251,0.4)', backgroundColor: 'rgba(206,149,251,0.08)' }}
                     >
                       {bulkBusy ? '…' : 'Задать стиль'}
+                    </button>
+                    <button
+                      onClick={() => bulkFree(true)}
+                      disabled={bulkBusy}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: 'rgba(45,212,196,0.12)', color: '#2DD4C4', border: '1px solid rgba(45,212,196,0.4)' }}
+                    >
+                      {bulkBusy ? '…' : 'Сделать Free'}
+                    </button>
+                    <button
+                      onClick={() => bulkFree(false)}
+                      disabled={bulkBusy}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                      style={{ backgroundColor: 'rgba(151,101,224,0.12)', color: '#CE95FB', border: '1px solid rgba(151,101,224,0.4)' }}
+                    >
+                      {bulkBusy ? '…' : 'Сделать платными'}
                     </button>
                     <button
                       onClick={() => bulkAction('show')}
@@ -1905,6 +2020,9 @@ function AdminDashboard() {
 
       {activeTab === 'settings' && (
         <div className="grid gap-6 max-w-3xl">
+
+          {/* Homepage — Featured collections (owner curates the showcase) */}
+          <HomepageFeaturedEditor />
 
           {/* Catalog display */}
           <div className="card p-6">
