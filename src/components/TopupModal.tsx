@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useAuth } from '@/components/AuthProvider'
 import { supabase } from '@/lib/supabase'
 import { CreditGem } from '@/components/AssetGrid'
@@ -41,6 +42,11 @@ function CloseIcon() {
 
 export default function TopupModal({ onClose }: { onClose: () => void }) {
   const { user } = useAuth()
+  // PORTAL to <body>: the modal is hosted inside the glass navbar whose
+  // backdrop-filter creates a containing block — position:fixed would
+  // pin to the navbar instead of the viewport without this.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
   const [packs, setPacks] = useState<Pack[] | null>(null)
   const [phase, setPhase] = useState<'pick' | 'waiting' | 'success'>('pick')
   const [granted, setGranted] = useState(0)
@@ -91,7 +97,8 @@ export default function TopupModal({ onClose }: { onClose: () => void }) {
 
   const anyLink = (packs ?? []).some(p => p.ls_url)
 
-  return (
+  if (!mounted) return null
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ backgroundColor: 'rgba(8,5,15,0.80)', backdropFilter: 'blur(8px)' }}
@@ -205,6 +212,7 @@ export default function TopupModal({ onClose }: { onClose: () => void }) {
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
