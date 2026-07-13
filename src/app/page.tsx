@@ -110,8 +110,9 @@ export default async function HomePage() {
     .eq("is_public", true);
   void PUBLIC;
 
-  let total = 0;
-  const counts: Record<string, number> = {};
+  // NOTE (DEV_batch_60 §4): NO asset counts anywhere on the public
+  // homepage — scale is communicated with words; exact numbers live
+  // in the admin dashboard only.
   const covers: Record<string, Row | null> = {};
   let newest: Row[] = [];
   let popular: Row[] = [];
@@ -121,21 +122,15 @@ export default async function HomePage() {
 
   try {
     const catIds = CATEGORIES.filter(c => c.id !== "Prop").map(c => c.id);
-    const [totalQ, newestQ, popularQ, freeQ, cfgQ, collageQ, ...perCat] = await Promise.all([
-      supabase.from("assets").select("id", { count: "exact", head: true })
-        .neq("type", "Config").neq("type", "Usage").neq("type", "Generation").eq("is_public", true),
+    const [newestQ, popularQ, freeQ, cfgQ, collageQ, ...perCat] = await Promise.all([
       base().order("created_at", { ascending: false }).limit(24),
       base().order("download_count", { ascending: false }).limit(24),
       base().eq("is_free", true).order("created_at", { ascending: false }).limit(12),
       supabase.from("assets").select("description").eq("type", "Config").eq("title", "homepage-config").limit(1),
-      // hero collage: LOCATIONS only — single cinematic frames that crop
-      // beautifully in a mosaic (turnaround sheets never crop — owner's rule)
+      // hero showreel: LOCATIONS only — single cinematic frames
       base().eq("type", "Location").order("created_at", { ascending: false }).limit(6),
       ...catIds.map(id => base().eq("type", id).order("created_at", { ascending: false }).limit(1)),
-      ...catIds.map(id =>
-        supabase.from("assets").select("id", { count: "exact", head: true }).eq("type", id).eq("is_public", true)),
     ]);
-    total = totalQ.count ?? 0;
     newest = breakGreyWalls((newestQ.data ?? []) as Row[]).slice(0, 12);
     popular = ((popularQ.data ?? []) as Row[]).filter(r => (r.download_count ?? 0) > 0);
     if (popular.length < 4) popular = (popularQ.data ?? []) as Row[];
@@ -144,7 +139,6 @@ export default async function HomePage() {
     collageRows = (collageQ.data ?? []) as Row[];
     catIds.forEach((id, i) => {
       covers[id] = ((perCat[i]?.data ?? []) as Row[])[0] ?? null;
-      counts[id] = (perCat[catIds.length + i] as { count: number | null })?.count ?? 0;
     });
     try {
       const saved = cfgQ.data?.[0]?.description ? JSON.parse(cfgQ.data[0].description) : {};
@@ -168,7 +162,7 @@ export default async function HomePage() {
     ? collageRows
     : (["Location", "People", "Vehicle", "Creature", "Robot", "Zombie"].map(t => covers[t]).filter(Boolean) as Row[]);
 
-  const catTiles = CATEGORIES.filter(c => c.id !== "Prop" && (counts[c.id] ?? 0) > 0);
+  const catTiles = CATEGORIES.filter(c => c.id !== "Prop" && covers[c.id]);
 
   return (
     <>
@@ -192,8 +186,8 @@ export default async function HomePage() {
               <span className="cine-letter gradient-animate" style={{ animationDelay: "520ms" }}>Cineman</span>
             </h1>
             <p className="text-lg mb-8 max-w-md" style={{ color: "var(--fg-muted)" }}>
-              Ready cast, cinematic locations and an AI director that shoots
-              video for films, ads and music videos. Commercial license included.
+              A huge library of cinematic assets for AI video — cast, locations,
+              vehicles and more. Commercial license included.
             </p>
             <div className="flex flex-wrap gap-4">
               <Link href="/studio" className="btn-primary text-base btn-shimmer">Try Studio →</Link>
@@ -201,7 +195,7 @@ export default async function HomePage() {
             </div>
             <div className="mt-10 flex gap-10">
               {[
-                [total > 0 ? total.toLocaleString("en-US") : "2,300+", "ready assets"],
+                ["Huge", "cinematic asset library"],
                 ["7 steps", "idea → video"],
                 ["1", "AI director"],
               ].map(([val, label]) => (
@@ -245,11 +239,11 @@ export default async function HomePage() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={t.cover} alt={t.title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 12 }} />
                   </div>
-                  {/* caption UNDER the image (owner's rollback) */}
+                  {/* caption UNDER the image — no counters on the public page */}
                   <div style={{ padding: "11px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                     <p className="text-base font-bold" style={{ color: "var(--fg)", margin: 0 }}>{t.title}</p>
                     <p className="text-xs mt-0.5" style={{ color: "var(--fg-muted)", margin: 0 }}>
-                      {t.cat === "Free" ? "Free assets" : `${(counts[t.cat] ?? 0).toLocaleString("en-US")} assets`}
+                      {t.cat === "Free" ? "Free picks" : "Curated collection"}
                     </p>
                   </div>
                 </Tilt>
@@ -281,10 +275,9 @@ export default async function HomePage() {
                     <img src={coverSrc(covers[c.id]!)} alt={c.label} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 8 }} />
                   )}
                 </div>
-                {/* label UNDER the image (owner's rollback) */}
+                {/* label UNDER the image — no counters on the public page */}
                 <div style={{ padding: "9px 12px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
                   <p className="text-sm font-semibold" style={{ color: "var(--fg)", margin: 0 }}>{c.label}</p>
-                  <p className="text-[11px]" style={{ color: "var(--fg-muted)", margin: 0 }}>{(counts[c.id] ?? 0).toLocaleString("en-US")}</p>
                 </div>
               </Tilt>
             </Link>
