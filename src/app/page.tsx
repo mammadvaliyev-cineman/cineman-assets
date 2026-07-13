@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { CATEGORIES } from "@/config/categories";
 import HomeShelf, { ShelfItem } from "@/components/HomeShelf";
+import Reveal from "@/components/Reveal";
 
 // ─────────────────────────────────────────────────────────────
 // HOMEPAGE v2 (owner's brief): a stylish STORE, not a text landing.
@@ -47,6 +48,28 @@ function coverSrc(r: Row, big = false): string {
   return big ? img1024(r.file_url) : img480(r.file_url);
 }
 
+// DEV_shelf_style §3: never 4+ grey studio sheets in a row. Heuristic:
+// People/Animal/Zombie/Vehicle sit on grey studio, Location/Creature/Robot
+// bring dark or colored frames. Reorder so a colored card breaks every
+// run of three greys — the row breathes without losing its content.
+const GREY_TYPES = new Set(["People", "Animal", "Zombie", "Vehicle", "Character"]);
+function breakGreyWalls<T extends { type: string }>(rows: T[]): T[] {
+  const out = [...rows];
+  let run = 0;
+  for (let i = 0; i < out.length; i++) {
+    if (!GREY_TYPES.has(out[i].type)) { run = 0; continue; }
+    run++;
+    if (run >= 3) {
+      const j = out.findIndex((r, k) => k > i && !GREY_TYPES.has(r.type));
+      if (j === -1) break; // no colored cards left — nothing to interleave
+      const [colored] = out.splice(j, 1);
+      out.splice(i, 0, colored);
+      run = 0;
+    }
+  }
+  return out;
+}
+
 function toShelf(rows: Row[]): ShelfItem[] {
   return rows.map(r => ({
     id: r.id,
@@ -85,8 +108,8 @@ export default async function HomePage() {
     const [totalQ, newestQ, popularQ, freeQ, cfgQ, collageQ, ...perCat] = await Promise.all([
       supabase.from("assets").select("id", { count: "exact", head: true })
         .neq("type", "Config").neq("type", "Usage").neq("type", "Generation").eq("is_public", true),
-      base().order("created_at", { ascending: false }).limit(12),
-      base().order("download_count", { ascending: false }).limit(12),
+      base().order("created_at", { ascending: false }).limit(24),
+      base().order("download_count", { ascending: false }).limit(24),
       base().eq("is_free", true).order("created_at", { ascending: false }).limit(12),
       supabase.from("assets").select("description").eq("type", "Config").eq("title", "homepage-config").limit(1),
       // hero collage: LOCATIONS only — single cinematic frames that crop
@@ -97,9 +120,10 @@ export default async function HomePage() {
         supabase.from("assets").select("id", { count: "exact", head: true }).eq("type", id).eq("is_public", true)),
     ]);
     total = totalQ.count ?? 0;
-    newest = (newestQ.data ?? []) as Row[];
+    newest = breakGreyWalls((newestQ.data ?? []) as Row[]).slice(0, 12);
     popular = ((popularQ.data ?? []) as Row[]).filter(r => (r.download_count ?? 0) > 0);
     if (popular.length < 4) popular = (popularQ.data ?? []) as Row[];
+    popular = breakGreyWalls(popular).slice(0, 12);
     freePicks = (freeQ.data ?? []) as Row[];
     collageRows = (collageQ.data ?? []) as Row[];
     catIds.forEach((id, i) => {
@@ -179,11 +203,11 @@ export default async function HomePage() {
                 <Link
                   key={a.id}
                   href={`/catalog?category=${encodeURIComponent(a.type)}`}
-                  className="hover:-translate-y-1 transition-transform duration-200"
+                  className="cine-lift cine-sheen"
                   style={{
                     gridRow: i === 0 || i === 3 ? "span 2" : "span 1",
                     borderRadius: 12, overflow: "hidden",
-                    border: "1px solid var(--border)",
+                    border: "0.5px solid rgba(255,255,255,0.07)",
                     boxShadow: "0 10px 34px rgba(0,0,0,0.4)",
                   }}
                 >
@@ -198,7 +222,7 @@ export default async function HomePage() {
 
       {/* ── FEATURED COLLECTIONS (owner curates via Admin → Settings) ── */}
       {featured.length > 0 && (
-        <section className="max-w-7xl mx-auto px-6" style={{ marginBottom: 56 }}>
+        <Reveal><section className="max-w-7xl mx-auto px-6" style={{ marginBottom: 56 }}>
           <div className="flex items-end justify-between mb-4">
             <h2 className="text-2xl font-bold" style={{ color: "var(--fg)" }}>Featured collections</h2>
             <Link href="/catalog" className="text-sm font-semibold" style={{ color: "#9765E0" }}>Browse all →</Link>
@@ -208,14 +232,14 @@ export default async function HomePage() {
               <Link
                 key={t.title}
                 href={t.cat === "Free" ? "/catalog?free=1" : `/catalog?category=${encodeURIComponent(t.cat)}`}
-                className="group hover:-translate-y-1 transition-transform duration-200"
-                style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)", aspectRatio: "16/9", display: "block", backgroundColor: "#0C0916" }}
+                className="group cine-lift cine-sheen"
+                style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "0.5px solid rgba(255,255,255,0.07)", aspectRatio: "16/9", display: "block", backgroundColor: "#17151E" }}
               >
-                {/* full sheet, never cropped (owner's rule) */}
+                {/* full sheet on the graphite mat, never cropped (owner's rule) */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={t.cover} alt={t.title} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
-                <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 45%, rgba(8,5,15,0.88) 100%)" }} />
-                <div style={{ position: "absolute", left: 14, right: 14, bottom: 12 }}>
+                <img src={t.cover} alt={t.title} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 12 }} />
+                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "45%", background: "linear-gradient(to top, rgba(10,10,15,0.85) 0%, transparent 100%)", pointerEvents: "none" }} />
+                <div style={{ position: "absolute", left: 14, right: 14, bottom: 12, zIndex: 2 }}>
                   <p className="text-base font-bold" style={{ color: "white", margin: 0 }}>{t.title}</p>
                   <p className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.65)", margin: 0 }}>
                     {t.cat === "Free" ? "Free assets" : `${(counts[t.cat] ?? 0).toLocaleString("en-US")} assets`}
@@ -224,34 +248,35 @@ export default async function HomePage() {
               </Link>
             ))}
           </div>
-        </section>
+        </section></Reveal>
       )}
 
       {/* ── CATEGORY TILES with live counters ────────────────── */}
-      <section className="max-w-7xl mx-auto px-6" style={{ marginBottom: 56 }}>
+      <Reveal><section className="max-w-7xl mx-auto px-6" style={{ marginBottom: 56 }}>
         <h2 className="text-2xl font-bold mb-4" style={{ color: "var(--fg)" }}>Shop by category</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {catTiles.map(c => (
             <Link
               key={c.id}
               href={`/catalog?category=${encodeURIComponent(c.id)}`}
-              className="group hover:-translate-y-1 transition-transform duration-200"
-              style={{ borderRadius: 12, overflow: "hidden", border: "1px solid var(--border)", backgroundColor: "var(--bg-card)", display: "block" }}
+              className="group cine-lift"
+              style={{ borderRadius: 12, overflow: "hidden", border: "0.5px solid rgba(255,255,255,0.07)", backgroundColor: "#17151E", display: "block", position: "relative" }}
             >
-              <div style={{ aspectRatio: "16/9", overflow: "hidden", backgroundColor: "#0C0916" }}>
+              <div style={{ aspectRatio: "16/9", overflow: "hidden", position: "relative" }}>
                 {covers[c.id] && (
                   /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={coverSrc(covers[c.id]!)} alt={c.label} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+                  <img src={coverSrc(covers[c.id]!)} alt={c.label} loading="lazy" className="group-hover:scale-[1.03] transition-transform duration-200" style={{ width: "100%", height: "100%", objectFit: "contain", display: "block", padding: 8 }} />
                 )}
-              </div>
-              <div style={{ padding: "9px 12px" }}>
-                <p className="text-sm font-semibold" style={{ color: "var(--fg)", margin: 0 }}>{c.label}</p>
-                <p className="text-[11px]" style={{ color: "var(--fg-muted)", margin: 0 }}>{(counts[c.id] ?? 0).toLocaleString("en-US")}</p>
+                <div style={{ position: "absolute", left: 0, right: 0, bottom: 0, height: "45%", background: "linear-gradient(to top, rgba(10,10,15,0.85) 0%, transparent 100%)", pointerEvents: "none" }} />
+                <div style={{ position: "absolute", left: 12, right: 12, bottom: 8, zIndex: 2 }}>
+                  <p className="text-sm font-semibold" style={{ color: "#fff", margin: 0 }}>{c.label}</p>
+                  <p className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>{(counts[c.id] ?? 0).toLocaleString("en-US")}</p>
+                </div>
               </div>
             </Link>
           ))}
         </div>
-      </section>
+      </section></Reveal>
 
       {/* ── CURATED SHELVES: live store rows ─────────────────── */}
       <HomeShelf title="New this week" seeAllHref="/catalog" items={toShelf(newest)} />
@@ -259,7 +284,7 @@ export default async function HomePage() {
       <HomeShelf title="Free picks" badge="Free" accent="#2DD4C4" seeAllHref="/catalog?free=1" items={toShelf(freePicks)} />
 
       {/* ── HOW IT WORKS — after the showcase (owner's order) ── */}
-      <section className="px-6 max-w-5xl mx-auto" style={{ marginBottom: 64 }}>
+      <Reveal><section className="px-6 max-w-5xl mx-auto" style={{ marginBottom: 64 }}>
         <div className="text-center mb-10 fade-in-up">
           <h2 className="text-3xl font-bold mb-3" style={{ color: "var(--fg)" }}>How it works</h2>
           <p style={{ color: "var(--fg-muted)" }}>From idea to cinematic shot in three moves</p>
@@ -284,10 +309,10 @@ export default async function HomePage() {
             </div>
           ))}
         </div>
-      </section>
+      </section></Reveal>
 
       {/* ── EVERYTHING YOU NEED (kept) ───────────────────────── */}
-      <section className="px-6 max-w-7xl mx-auto" style={{ marginBottom: 64 }}>
+      <Reveal><section className="px-6 max-w-7xl mx-auto" style={{ marginBottom: 64 }}>
         <div className="text-center mb-12 fade-in-up">
           <h2 className="text-3xl font-bold mb-3" style={{ color: "var(--fg)" }}>Everything you need</h2>
           <p style={{ color: "var(--fg-muted)" }}>
@@ -317,7 +342,7 @@ export default async function HomePage() {
             </div>
           ))}
         </div>
-      </section>
+      </section></Reveal>
 
       {/* ── FINAL CTA ─────────────────────────────────────────── */}
       <section

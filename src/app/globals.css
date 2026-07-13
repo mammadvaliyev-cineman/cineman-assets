@@ -224,3 +224,31 @@ input[type="range"].cine-range::-webkit-slider-thumb {
 /* Credit-spend micro-interactions (master handoff §3) */
 @keyframes cine-fly-up { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, -26px); } }
 @keyframes cine-chip-pulse { 0% { transform: scale(1); } 40% { transform: scale(1.12); } 100% { transform: scale(1); } }
+
+/* ── Showcase style (DEV_shelf_style): graphite mat, restrained motion ──
+   Rules: full sheets (contain, no crop), one accent, no constant gloss. */
+
+/* Shimmer skeleton while a lazy image loads (1.4s soft light sweep) */
+@keyframes cineShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.cine-shimmer {
+  background: linear-gradient(100deg, #17151E 40%, #221F2C 50%, #17151E 60%);
+  background-size: 200% 100%;
+  animation: cineShimmer 1.4s linear infinite;
+}
+
+/* Card hover: lift + brand-violet ring. 150-200ms, smooth, no glow. */
+.cine-lift { transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.cine-lift:hover { transform: translateY(-3px); border-color: #7F77DD !important; }
+
+/* One-pass diagonal sheen — Featured / hero tiles ONLY (never the grids) */
+.cine-sheen { position: relative; overflow: hidden; }
+.cine-sheen::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,.10) 50%, transparent 58%);
+  transform: translateX(-130%);
+}
+.cine-sheen:hover::after { transform: translateX(130%); transition: transform .7s ease; }
+
+/* Section reveal on scroll: opacity + 8px rise, 300ms */
+.cine-reveal { opacity: 0; transform: translateY(8px); transition: opacity .3s ease, transform .3s ease; }
+.cine-reveal.cine-in { opacity: 1; transform: none; }
