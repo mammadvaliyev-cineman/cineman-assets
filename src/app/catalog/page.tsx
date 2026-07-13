@@ -84,40 +84,73 @@ const CAT_ICONS: Record<string, string> = {
   Fantasy: 'M12 3l1.9 5.8L19.7 11l-5.8 1.9L12 18.7l-1.9-5.8L4.3 11l5.8-2.2L12 3z|M19 3v4|M17 5h4',
   'Sci-Fi': 'M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z|M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z|M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0|M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5',
   Prop: 'M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8z|M3.3 7l8.7 5 8.7-5|M12 22V12',
+  // small anchors for the filter pills + Free section
+  bolt: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+  clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z|M12 6v6l4 2',
+  globe: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z|M2 12h20|M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z',
+  droplet: 'M12 2.7l5.7 5.6a8 8 0 1 1-11.4 0z',
+  sort: 'M11 5h10|M11 9h7|M11 13h4|M3 17l3 3 3-3|M6 6v14',
+  hourglass: 'M6 2h12|M6 22h12|M8 2v4l4 4 4-4V2|M8 22v-4l4-4 4 4v4',
 }
 
 // ── Filter chip (select dropdown styled as pill) ──────────────
+// Rounded pill, ONE arrow, a small anchor icon, and when active the pill
+// shows «Label: Value» + a «×» that resets just this filter (owner's spec).
 function FilterChip({
-  label, value, options, onChange,
-}: { label: string; value: string; options: string[]; onChange: (v: string) => void }) {
+  label, value, options, onChange, iconD,
+}: { label: string; value: string; options: string[]; onChange: (v: string) => void; iconD?: string }) {
   const active = value !== 'All'
   return (
-    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+    <div
+      style={{
+        position: 'relative', display: 'inline-flex', alignItems: 'center',
+        backgroundColor: active ? 'rgba(151,101,224,0.15)' : 'var(--bg-subtle)',
+        border: `1px solid ${active ? '#9765E0' : 'var(--border)'}`,
+        borderRadius: 999,
+        paddingLeft: iconD ? 11 : 4,
+        transition: 'border-color .15s ease, background-color .15s ease',
+      }}
+    >
+      {iconD && (
+        <span style={{ display: 'flex', color: active ? '#9765E0' : 'var(--fg-subtle)', pointerEvents: 'none' }}>
+          <LineIcon d={iconD} size={12} />
+        </span>
+      )}
       <select
         value={value}
         onChange={e => onChange(e.target.value)}
         style={{
-          appearance: 'none',
-          WebkitAppearance: 'none',
-          backgroundColor: active ? 'rgba(151,101,224,0.15)' : 'var(--bg-subtle)',
-          border: `1px solid ${active ? '#9765E0' : 'var(--border)'}`,
-          borderRadius: 8,
-          padding: '6px 28px 6px 12px',
+          appearance: 'none', WebkitAppearance: 'none',
+          background: 'transparent', border: 'none', outline: 'none',
+          padding: '6px 26px 6px 6px',
           fontSize: 13,
           color: active ? '#9765E0' : 'var(--fg-muted)',
           fontWeight: active ? 600 : 400,
-          cursor: 'pointer',
-          lineHeight: 1.4,
+          cursor: 'pointer', lineHeight: 1.4,
         }}
       >
-        <option value="All">{label} ▾</option>
+        <option value="All">{label}</option>
         {options.filter(o => o !== 'All').map(opt => (
-          <option key={opt} value={opt}>{opt}</option>
+          <option key={opt} value={opt}>{label}: {opt}</option>
         ))}
       </select>
-      <span style={{ position: 'absolute', right: 8, pointerEvents: 'none', color: active ? '#9765E0' : 'var(--fg-subtle)' }}>
-        <ChevronDown />
-      </span>
+      {active ? (
+        <button
+          onClick={() => onChange('All')}
+          title={`Reset ${label}`}
+          style={{
+            position: 'absolute', right: 7, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 16, height: 16, borderRadius: 999, border: 'none', cursor: 'pointer',
+            backgroundColor: 'rgba(151,101,224,0.3)', color: '#EDE4FF', fontSize: 11, fontWeight: 700, lineHeight: 1, padding: 0,
+          }}
+        >
+          ×
+        </button>
+      ) : (
+        <span style={{ position: 'absolute', right: 9, pointerEvents: 'none', color: 'var(--fg-subtle)' }}>
+          <ChevronDown />
+        </span>
+      )}
     </div>
   )
 }
@@ -182,6 +215,7 @@ function toAsset(a: Record<string, unknown>): Asset {
     tags: Array.isArray(a.tags) ? a.tags : [],
     fileUrl: String(a.file_url ?? ''),
     creditCost: a.credit_cost == null ? undefined : Number(a.credit_cost),
+    isFree: Boolean(a.is_free),
     downloadCount: Number(a.download_count ?? 0),
     exclusivePrice: a.exclusive_price == null ? undefined : Number(a.exclusive_price),
     priceTier: String(a.price_tier ?? 'standard'),
@@ -264,11 +298,18 @@ export default function CatalogPage() {
   const [sortBy, setSortBy]           = useState<'random' | 'newest' | 'downloads' | '4k' | 'price-desc' | 'price-asc'>('random')
   const [previewSize, setPreviewSize] = useState(100)
   const [quickView, setQuickView]     = useState<'all' | 'fav' | 'dl' | 'downloads' | 'saved'>('all')
-  // deep link: /catalog?view=downloads|saved (старый /library редиректит сюда)
+  // FREE section (lead funnel): sidebar entry that shows only is_free assets
+  const [activeFree, setActiveFree]   = useState(false)
+  // deep links: ?view=downloads|saved (старый /library), ?category=<id>
+  // (homepage tiles), ?free=1 (Free picks «See all»)
   useEffect(() => {
     try {
-      const v = new URLSearchParams(window.location.search).get('view')
+      const p = new URLSearchParams(window.location.search)
+      const v = p.get('view')
       if (v === 'downloads' || v === 'saved') setQuickView(v)
+      const cat = p.get('category')
+      if (cat && CATEGORIES.some(c => c.id === cat)) setActiveCat(cat)
+      if (p.get('free') === '1') setActiveFree(true)
     } catch { /* noop */ }
   }, [])
   const [storeTick, setStoreTick]     = useState(0)
@@ -410,6 +451,7 @@ export default function CatalogPage() {
     return assets.filter(a => {
       if (quickView === 'fav' && !favIds.has(a.id)) return false
       if (quickView === 'dl' && !dlIds.has(a.id)) return false
+      if (activeFree && !a.isFree) return false
       const q = search.toLowerCase()
       const matchSearch =
         !q ||
@@ -485,13 +527,13 @@ export default function CatalogPage() {
       const matchSubcat = activeSubcat === 'All' || a.category.toLowerCase() === activeSubcat.toLowerCase()
       return matchSearch && matchCat && matchType && matchBrand && matchColor && matchClass && matchRType && matchGender && matchAge && matchEthnicity && matchSetting && matchTime && matchEra && matchSubcat && matchStyle
     })
-  }, [assets, search, activeCat, activeType, activeBrand, activeColor, activeClass, activeRType, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeEra, activeSubcat, activeStyle, quickView, favIds, dlIds])
+  }, [assets, search, activeCat, activeType, activeBrand, activeColor, activeClass, activeRType, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeEra, activeSubcat, activeStyle, quickView, favIds, dlIds, activeFree])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const paged = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE)
-  useEffect(() => { setPage(1) }, [search, activeCat, activeType, activeSubcat, activeBrand, activeColor, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeEra, activeStyle, quickView])
+  useEffect(() => { setPage(1) }, [search, activeCat, activeType, activeSubcat, activeBrand, activeColor, activeGender, activeAge, activeEthnicity, activeSetting, activeTime, activeEra, activeStyle, quickView, activeFree])
 
-  const hasFilters = activeEra !== 'All' || activeStyle !== 'All' || activeCat !== 'All' || activeType !== 'All' || activeBrand !== 'All' || activeColor !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== ''
+  const hasFilters = activeEra !== 'All' || activeStyle !== 'All' || activeCat !== 'All' || activeType !== 'All' || activeBrand !== 'All' || activeColor !== 'All' || activeGender !== 'All' || activeAge !== 'All' || activeEthnicity !== 'All' || activeSetting !== 'All' || activeTime !== 'All' || activeSubcat !== 'All' || search !== '' || activeFree
   const activeFilterCount = [activeCat !== 'All', activeType !== 'All', activeBrand !== 'All', activeColor !== 'All'].filter(Boolean).length
 
   function clearAll() {
@@ -499,7 +541,7 @@ export default function CatalogPage() {
     setActiveBrand('All'); setActiveColor('All')
     setActiveGender('All'); setActiveAge('All'); setActiveEthnicity('All')
     setActiveSetting('All'); setActiveTime('All'); setActiveSubcat('All')
-    setActiveStyle('All'); setActiveEra('All')
+    setActiveStyle('All'); setActiveEra('All'); setActiveFree(false)
   }
 
   const activeCatObj = CATEGORIES.find(c => c.id === activeCat)
@@ -557,7 +599,18 @@ export default function CatalogPage() {
           <p style={{ padding: '4px 16px 6px', fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', color: 'var(--fg-subtle)', textTransform: 'uppercase' }}>
             Categories
           </p>
-          <SidebarItem iconD={CAT_ICONS.grid} label="All assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search} color="#9765E0" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch('') }} />
+          <SidebarItem iconD={CAT_ICONS.grid} label="All assets" count={assets.length} active={quickView === 'all' && activeCat === 'All' && !search && !activeFree} color="#9765E0" onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch(''); setActiveFree(false) }} />
+          {/* FREE section (funnel): non-payers find the free stuff in one click */}
+          {(assets.some(a => a.isFree) || activeFree) && (
+            <SidebarItem
+              iconD={CAT_ICONS.bolt}
+              label="Free"
+              count={assets.filter(a => a.isFree).length}
+              active={activeFree}
+              color="#2DD4C4"
+              onClick={() => { setQuickView('all'); setActiveCat('All'); setSearch(''); setActiveFree(true) }}
+            />
+          )}
           {CATEGORIES.filter(cat => assets.some(a => String(a.type) === cat.id) || activeCat === cat.id).map(cat => (
             <div key={cat.id}>
               <SidebarItem
@@ -565,7 +618,7 @@ export default function CatalogPage() {
                 label={cat.label}
                 active={activeCat === cat.id && activeSubcat === 'All'}
                 color={cat.color}
-                onClick={() => { setQuickView('all'); setActiveCat(cat.id); setActiveSubcat('All') }}
+                onClick={() => { setQuickView('all'); setActiveCat(cat.id); setActiveSubcat('All'); setActiveFree(false) }}
               />
               {activeCat === cat.id && (subcatsForType[cat.id] || []).length > 0 && (
                 <div style={{ marginLeft: 20, borderLeft: '1px solid var(--border)', paddingLeft: 6, marginBottom: 4 }}>
@@ -639,7 +692,12 @@ export default function CatalogPage() {
         <>
         {/* Title */}
         <h1 style={{ fontSize: 26, fontWeight: 700, marginBottom: 20, color: 'var(--fg)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          {activeCatObj ? (
+          {activeFree ? (
+            <>
+              <span style={{ display: 'flex', color: '#2DD4C4' }}><LineIcon d={CAT_ICONS.bolt} size={22} /></span>
+              <span>Free assets</span>
+            </>
+          ) : activeCatObj ? (
             <>
               <span style={{ display: 'flex', color: activeCatObj.color }}><LineIcon d={CAT_ICONS[activeCatObj.id] ?? CAT_ICONS.grid} size={22} /></span>
               <span>{activeCatObj.label}</span>
@@ -674,10 +732,10 @@ export default function CatalogPage() {
           {/* Chips */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {types.length > 2 && (
-              <FilterChip label="Asset Type" value={activeType} options={types} onChange={setActiveType} />
+              <FilterChip label="Asset Type" value={activeType} options={types} onChange={setActiveType} iconD={CAT_ICONS.grid} />
             )}
             {styleOptions.length > 2 && (
-              <FilterChip label="Style" value={activeStyle} options={styleOptions} onChange={setActiveStyle} />
+              <FilterChip label="Style" value={activeStyle} options={styleOptions} onChange={setActiveStyle} iconD={CAT_ICONS.Fantasy} />
             )}
             {(() => {
               // Contextual filters: one Category chip per section + filters
@@ -691,26 +749,26 @@ export default function CatalogPage() {
                       Gender/Age tags (Women vs Woman bug). One concept = one
                       dimension: chips come from tag prefixes only. */}
                   {curSubcats.length > 2 && curType !== 'People' && (
-                    <FilterChip label="Category" value={activeSubcat} options={curSubcats} onChange={setActiveSubcat} />
+                    <FilterChip label="Category" value={activeSubcat} options={curSubcats} onChange={setActiveSubcat} iconD={CAT_ICONS.sliders} />
                   )}
                   {curType === 'People' && (
                     <>
-                      <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} />
-                      <FilterChip label="Age"       value={activeAge}       options={['All', 'Kids', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} />
-                      <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} />
+                      <FilterChip label="Gender"    value={activeGender}    options={['All', 'Man', 'Woman']} onChange={setActiveGender} iconD={CAT_ICONS.People} />
+                      <FilterChip label="Age"       value={activeAge}       options={['All', 'Kids', 'Young', 'Middle-aged', 'Elderly']} onChange={setActiveAge} iconD={CAT_ICONS.clock} />
+                      <FilterChip label="Ethnicity" value={activeEthnicity} options={['All', 'White', 'Black', 'East Asian', 'South Asian', 'Latino', 'Middle Eastern', 'Mixed']} onChange={setActiveEthnicity} iconD={CAT_ICONS.globe} />
                     </>
                   )}
                   {curType === 'Location' && (
                     <>
-                      <FilterChip label="Setting" value={activeSetting} options={['All', 'Interior', 'Exterior']} onChange={setActiveSetting} />
-                      <FilterChip label="Time"    value={activeTime}    options={['All', 'Dawn', 'Day', 'Golden Hour', 'Night']} onChange={setActiveTime} />
-                      <FilterChip label="Era"     value={activeEra}     options={['All', 'Modern', 'Vintage', 'Medieval', 'Post-apocalyptic', 'Sci-fi']} onChange={setActiveEra} />
+                      <FilterChip label="Setting" value={activeSetting} options={['All', 'Interior', 'Exterior']} onChange={setActiveSetting} iconD={CAT_ICONS.Location} />
+                      <FilterChip label="Time"    value={activeTime}    options={['All', 'Dawn', 'Day', 'Golden Hour', 'Night']} onChange={setActiveTime} iconD={CAT_ICONS.clock} />
+                      <FilterChip label="Era"     value={activeEra}     options={['All', 'Modern', 'Vintage', 'Medieval', 'Post-apocalyptic', 'Sci-fi']} onChange={setActiveEra} iconD={CAT_ICONS.hourglass} />
                     </>
                   )}
                   {curType === 'Vehicle' && (
                     <>
-                      {vehBrands.length > 2 && <FilterChip label="Brand" value={activeBrand} options={vehBrands} onChange={setActiveBrand} />}
-                      {vehColors.length > 2 && <FilterChip label="Color" value={activeColor} options={vehColors} onChange={setActiveColor} />}
+                      {vehBrands.length > 2 && <FilterChip label="Brand" value={activeBrand} options={vehBrands} onChange={setActiveBrand} iconD={CAT_ICONS.Vehicle} />}
+                      {vehColors.length > 2 && <FilterChip label="Color" value={activeColor} options={vehColors} onChange={setActiveColor} iconD={CAT_ICONS.droplet} />}
                     </>
                   )}
                 </>
@@ -719,7 +777,7 @@ export default function CatalogPage() {
             {hasFilters && (
               <button
                 onClick={clearAll}
-                style={{ fontSize: 13, color: '#9765E0', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 4px' }}
+                style={{ fontSize: 12.5, color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 4px' }}
               >
                 Clear all
               </button>
@@ -744,25 +802,32 @@ export default function CatalogPage() {
                 <span style={{ fontSize: 12, color: '#a78bfa', width: 38, fontWeight: 600 }}>{previewSize}%</span>
               </div>
             )}
-            <div style={{ position: 'relative' }}>
+            {/* Sort — rounded pill with an anchor icon; «Sort by» appears
+                once as the menu header (optgroup), options stay short */}
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 999, paddingLeft: 11 }}>
+              <span style={{ display: 'flex', color: 'var(--fg-subtle)', pointerEvents: 'none' }}>
+                <LineIcon d={CAT_ICONS.sort} size={13} />
+              </span>
               <select
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value as typeof sortBy)}
                 style={{
                   appearance: 'none', WebkitAppearance: 'none',
-                  backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)',
-                  borderRadius: 8, padding: '6px 28px 6px 12px', fontSize: 13,
-                  color: 'var(--fg-muted)', cursor: 'pointer',
+                  background: 'transparent', border: 'none', outline: 'none',
+                  padding: '6px 26px 6px 6px', fontSize: 13,
+                  color: 'var(--fg-muted)', cursor: 'pointer', lineHeight: 1.4,
                 }}
               >
-                <option value="random">Sort by: Random</option>
-                <option value="newest">Sort by: Newest</option>
-                <option value="downloads">Sort by: Most downloaded</option>
-                <option value="4k">Sort by: Resolution — 4K first</option>
-                <option value="price-desc">Sort by: Price high → low</option>
-                <option value="price-asc">Sort by: Price low → high</option>
+                <optgroup label="Sort by">
+                  <option value="random">Random</option>
+                  <option value="newest">Newest</option>
+                  <option value="downloads">Most downloaded</option>
+                  <option value="4k">4K first</option>
+                  <option value="price-desc">Price: high → low</option>
+                  <option value="price-asc">Price: low → high</option>
+                </optgroup>
               </select>
-              <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--fg-subtle)' }}>
+              <span style={{ position: 'absolute', right: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: 'var(--fg-subtle)' }}>
                 <ChevronDown />
               </span>
             </div>
