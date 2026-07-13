@@ -308,7 +308,8 @@ function confettiBurst(x: number, y: number, count = 42, life = 650) {
   canvas.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:9999'
   document.body.appendChild(canvas)
   const ctx = canvas.getContext('2d')!
-  const colors = ['#3BE3D0', '#9765E0', '#ffffff', '#F4B41A']
+  // GOLD celebration (DEV_batch_60 §7): victory sparks are warm gold
+  const colors = ['#E5A94B', '#F5C878', '#ffffff', '#9765E0']
   const parts = Array.from({ length: count }, () => {
     const a = Math.random() * Math.PI * 2
     const v = 2.5 + Math.random() * 4.5
@@ -672,9 +673,9 @@ function AssetCard({
             className="absolute top-2 right-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-md"
             style={{
               zIndex: 4,
-              color: mine ? '#7EE7C7' : '#5EEAD4',
+              color: mine ? '#E5A94B' : '#5EEAD4',
               backgroundColor: 'rgba(8,5,15,0.78)',
-              border: `1px solid ${mine ? 'rgba(126,231,199,0.45)' : 'rgba(94,234,212,0.4)'}`,
+              border: `1px solid ${mine ? 'rgba(229,169,75,0.5)' : 'rgba(94,234,212,0.4)'}`,
               backdropFilter: 'blur(6px)',
             }}
           >
@@ -758,7 +759,8 @@ function AssetCard({
                       {mine ? (
                         <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
                       ) : owned ? (
-                        <span style={{ fontWeight: 800, color: '#7EE7C7', fontSize: 12, letterSpacing: '0.03em' }}>Owned</span>
+                        // GOLD = ownership (DEV_batch_60 §7)
+                        <span style={{ fontWeight: 800, color: '#E5A94B', fontSize: 12, letterSpacing: '0.03em' }}>✓ Owned</span>
                       ) : asset.isFree ? (
                         <span style={{ fontWeight: 800, color: '#2DD4C4', fontSize: 12, letterSpacing: '0.03em' }}>Free</span>
                       ) : (
@@ -767,9 +769,14 @@ function AssetCard({
                           <span style={{ fontWeight: 800, color: 'white', fontSize: 13 }}>{displayPrice(asset)}</span>
                         </>
                       )}
+                      {/* 4K = quality award → warm-gold outline (§7) */}
                       <span
                         className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-                        style={{ border: '1px solid rgba(255,255,255,0.3)', color: 'rgba(255,255,255,0.85)', lineHeight: '12px' }}
+                        style={{
+                          border: `1px solid ${(asset.resolution ?? '2K') === '4K' ? 'rgba(229,169,75,0.75)' : 'rgba(255,255,255,0.3)'}`,
+                          color: (asset.resolution ?? '2K') === '4K' ? '#E5A94B' : 'rgba(255,255,255,0.85)',
+                          lineHeight: '12px',
+                        }}
                       >
                         {asset.resolution ?? '2K'}
                       </span>
@@ -820,7 +827,8 @@ function AssetCard({
                   style={{
                     background: 'none', border: 'none', cursor: 'pointer',
                     display: 'inline-flex', alignItems: 'center', gap: 5,
-                    fontSize: 11.5, fontWeight: 600, color: 'var(--fg-muted)',
+                    // GOLD = premium action (DEV_batch_60 §7)
+                    fontSize: 11.5, fontWeight: 600, color: '#E5A94B',
                   }}
                 >
                   {isBuying ? <SpinnerIcon /> : <CrownIcon size={12} />}

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useEffect, useState, useRef } from 'react'
 import { useTheme } from '@/components/ThemeProvider'
 import { useAuth } from '@/components/AuthProvider'
-import { isAdminEmail } from '@/components/AdminGate'
+import { isAdminEmail, isRealAdminEmail, isViewingAsClient, toggleViewAsClient } from '@/components/AdminGate'
 import { CreditGem } from '@/components/AssetGrid'
 import { supabase } from '@/lib/supabase'
 
@@ -171,6 +171,22 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-3">
+          {/* «View as client» (DEV_batch_60 §8) — visible to the REAL admin
+              even while the client view is on, so he can always flip back */}
+          {isRealAdminEmail(user?.email) && (
+            <button
+              onClick={toggleViewAsClient}
+              title={isViewingAsClient() ? 'Вернуться в админ-вид' : 'Посмотреть сайт глазами клиента'}
+              className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
+              style={{
+                backgroundColor: isViewingAsClient() ? 'rgba(229,169,75,0.15)' : 'var(--bg-subtle)',
+                border: `1px solid ${isViewingAsClient() ? 'rgba(229,169,75,0.5)' : 'var(--border)'}`,
+                color: isViewingAsClient() ? '#E5A94B' : 'var(--fg-subtle)', cursor: 'pointer',
+              }}
+            >
+              {isViewingAsClient() ? '← Back to admin' : 'View as client'}
+            </button>
+          )}
           {/* Library moved to the catalog sidebar (owner's layout) */}
           {user && credits !== null && (
             <Link

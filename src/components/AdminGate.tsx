@@ -12,8 +12,33 @@ import { supabase } from '@/lib/supabase'
 
 const ADMIN_EMAILS = ['mammadvaliyev@gmail.com']
 
-export function isAdminEmail(email?: string | null): boolean {
+// «View as client» (DEV_batch_60 §8): the admin can flip the whole UI
+// into the plain-customer view without logging out. When the flag is on,
+// EVERY admin affordance disappears (this function is the single source
+// of truth for the client-side admin UI). Server APIs still verify the
+// real session token — this only changes what is rendered.
+const VIEW_CLIENT_KEY = 'cineman_view_client'
+
+export function isViewingAsClient(): boolean {
+  try { return typeof window !== 'undefined' && localStorage.getItem(VIEW_CLIENT_KEY) === '1' } catch { return false }
+}
+
+export function toggleViewAsClient(): void {
+  try {
+    if (isViewingAsClient()) localStorage.removeItem(VIEW_CLIENT_KEY)
+    else localStorage.setItem(VIEW_CLIENT_KEY, '1')
+    window.location.reload()
+  } catch { /* noop */ }
+}
+
+// TRUE admin identity — ignores the view-as-client flag (used only by
+// the toggle itself so the admin can always switch back)
+export function isRealAdminEmail(email?: string | null): boolean {
   return !!email && ADMIN_EMAILS.includes(email.toLowerCase())
+}
+
+export function isAdminEmail(email?: string | null): boolean {
+  return isRealAdminEmail(email) && !isViewingAsClient()
 }
 
 export async function adminHeaders(): Promise<Record<string, string>> {
