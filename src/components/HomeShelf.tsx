@@ -75,20 +75,22 @@ export default function HomeShelf({
             href={it.href}
             className="group hover:-translate-y-1 transition-transform duration-200"
             style={{
-              width: 200, flexShrink: 0, scrollSnapAlign: 'start',
+              width: 320, flexShrink: 0, scrollSnapAlign: 'start',
               borderRadius: 12, overflow: 'hidden',
               border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)',
               textDecoration: 'none',
             }}
           >
-            <div style={{ aspectRatio: '4/5', overflow: 'hidden', position: 'relative', backgroundColor: 'var(--bg-subtle)' }}>
+            {/* Horizontal card, full turnaround sheet, NEVER cropped
+                (owner's rule): contain + neutral dark letterbox */}
+            <div style={{ aspectRatio: '3/2', overflow: 'hidden', position: 'relative', backgroundColor: '#0C0916' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={it.img}
                 alt={it.title}
                 loading="lazy"
                 className="group-hover:scale-[1.03] transition-transform duration-200"
-                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
               />
               {it.isFree && (
                 <span
