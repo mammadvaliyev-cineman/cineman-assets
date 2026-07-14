@@ -34,6 +34,16 @@ const PRESETS: Record<string, { label: string; hint: string; lighting: string; m
   music: { label: 'Music', hint: 'Neon, rhythm, stylized', lighting: 'neon practicals and strobe accents', mood: 'stylized, rhythmic', color: '#CE95FB' },
 }
 
+// ── DIRECTOR'S CONSOLE (DEV_studio_panel §1): expandable model MENU,
+// one compact button — not tiles. Meta drives which options show and
+// the LIVE price multiplier (mirrored by the API route — same math).
+const MODELS_UI: Record<string, { label: string; tag: string; meta: string; durations: number[]; resolutions: string[]; audio: boolean; mult: number; beta?: boolean }> = {
+  'seedance-2':      { label: 'Seedance 2.0',      tag: 'Native 4K · fast',  meta: 'up to 1080p · 15s · audio', durations: [5, 10, 15], resolutions: ['720p', '1080p'], audio: true, mult: 1 },
+  'kling-3':         { label: 'Kling 3.0',         tag: 'Cinematic · audio', meta: 'up to 1080p · 10s · audio', durations: [5, 10],     resolutions: ['720p', '1080p'], audio: true, mult: 1.2, beta: true },
+  'seedance-2-fast': { label: 'Seedance 2.0 Fast', tag: 'Draft · cheap',     meta: 'up to 720p · 15s · audio',  durations: [5, 10, 15], resolutions: ['720p'],          audio: true, mult: 0.6 },
+}
+const CAMERA_MOVES = ['none', 'static shot', 'slow pan', 'dolly in', 'handheld', 'orbit'] as const
+
 const MENTION_TABS = [
   { id: 'Characters', types: ['People', 'Character'] },
   { id: 'Locations', types: ['Location'] },
@@ -69,7 +79,15 @@ export default function StudioPage() {
   const [uploads, setUploads] = useState<{ image?: string; video?: string; audio?: string }>({})
   const [uploading, setUploading] = useState(false)
   const [audio, setAudio] = useState(false)
-  const [model, setModel] = useState<'seedance-2' | 'seedance-2-fast'>('seedance-2')
+  const [model, setModel] = useState<string>('seedance-2')
+  const [modelOpen, setModelOpen] = useState(false)
+  const [advOpen, setAdvOpen] = useState(false)
+  const [camera, setCamera] = useState<string>('none')
+  const [negative, setNegative] = useState('')
+  const [consistency, setConsistency] = useState(70)
+  const [seed, setSeed] = useState('')
+  const [castTab, setCastTab] = useState<'Cast' | 'Locations'>('Cast')
+  const [balance, setBalance] = useState<number | null>(null)
   const [duration, setDuration] = useState(5)
   const [aspect, setAspect] = useState('16:9')
   const [resolution, setResolution] = useState('720p')
@@ -84,8 +102,13 @@ export default function StudioPage() {
   const [pickOpen, setPickOpen] = useState(false)
   const [pickTab, setPickTab] = useState<(typeof MENTION_TABS)[number]['id']>('Characters')
   const [pickQuery, setPickQuery] = useState('')
-  const [pickRows, setPickRows] = useState<{ id: string; title: string; type: string; file_url: string; mine: boolean }[]>([])
+  type PickRow = { id: string; title: string; type: string; file_url: string; mine: boolean; owned: boolean; isFree: boolean; cost: number }
+  const [pickRows, setPickRows] = useState<PickRow[]>([])
   const [mineIds, setMineIds] = useState<Set<string>>(new Set())
+  const [purchasedIds, setPurchasedIds] = useState<Set<string>>(new Set())
+  const [pickSource, setPickSource] = useState<'library' | 'catalog'>('library')
+  const [hoverRow, setHoverRow] = useState<PickRow | null>(null)
+  const [buyBusy, setBuyBusy] = useState<string | null>(null)
 
   // ── history ─────────────────────────────────────────────────
   const [history, setHistory] = useState<Gen[]>([])
@@ -114,11 +137,59 @@ export default function StudioPage() {
       supabase.from('favorites').select('asset_id').eq('user_id', user.id),
     ]).then(([p, f]) => {
       const s = new Set<string>()
-      for (const r of p.data || []) s.add(String(r.asset_id))
+      const bought = new Set<string>()
+      for (const r of p.data || []) { s.add(String(r.asset_id)); bought.add(String(r.asset_id)) }
       for (const r of f.data || []) s.add(String(r.asset_id))
       setMineIds(s)
+      setPurchasedIds(bought)
     })
   }, [user])
+
+  // Balance near Generate (§6) — total pool, live via the credits event
+  useEffect(() => {
+    if (!user) { setBalance(null); return }
+    const load = () => {
+      supabase.from('profiles').select('credits, topup_credits').eq('id', user.id).single()
+        .then(({ data }) => { if (data) setBalance(Number(data.credits ?? 0) + Number(data.topup_credits ?? 0)) })
+    }
+    load()
+    const on = (e: Event) => { const d = (e as CustomEvent).detail; if (typeof d === 'number') setBalance(d); else load() }
+    window.addEventListener('cineman-credits-changed', on)
+    return () => window.removeEventListener('cineman-credits-changed', on)
+  }, [user])
+
+  // DRAFT AUTOSAVE (§extra): the scene survives reloads — prompt, refs,
+  // uploads and every setting go to localStorage (debounced)
+  const draftLoaded = useRef(false)
+  useEffect(() => {
+    try {
+      const d = JSON.parse(localStorage.getItem('cineman_studio_draft') || 'null')
+      if (d) {
+        if (typeof d.prompt === 'string') setPrompt(d.prompt)
+        if (Array.isArray(d.refs)) setRefs(d.refs)
+        if (d.uploads && typeof d.uploads === 'object') setUploads(d.uploads)
+        if (d.model && MODELS_UI[d.model]) setModel(d.model)
+        if ([5, 10, 15].includes(Number(d.duration))) setDuration(Number(d.duration))
+        if (['16:9', '9:16', '1:1'].includes(d.aspect)) setAspect(d.aspect)
+        if (['720p', '1080p'].includes(d.resolution)) setResolution(d.resolution)
+        if (d.preset && PRESETS[d.preset as keyof typeof PRESETS]) setPreset(d.preset)
+        if (typeof d.audio === 'boolean') setAudio(d.audio)
+        if (typeof d.camera === 'string') setCamera(d.camera)
+        if (typeof d.negative === 'string') setNegative(d.negative)
+        if (Number.isFinite(Number(d.consistency))) setConsistency(Number(d.consistency))
+        if (typeof d.seed === 'string') setSeed(d.seed)
+      }
+    } catch { /* noop */ }
+    draftLoaded.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  useEffect(() => {
+    if (!draftLoaded.current) return
+    const t = setTimeout(() => {
+      try { localStorage.setItem('cineman_studio_draft', JSON.stringify({ prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, negative, consistency, seed })) } catch { /* noop */ }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, negative, consistency, seed])
 
   const loadHistory = useCallback(async () => {
     if (!user) return
@@ -137,13 +208,48 @@ export default function StudioPage() {
   useEffect(() => {
     if (!pickOpen) return
     const types = MENTION_TABS.find(t => t.id === pickTab)!.types
-    const q = supabase.from('assets').select('id,title,type,file_url').in('type', types as unknown as string[]).eq('is_public', true).limit(40)
+    const q = supabase.from('assets')
+      .select('id,title,type,file_url,credit_cost,is_free')
+      .in('type', types as unknown as string[]).eq('is_public', true).limit(60)
     ;(pickQuery.trim() ? q.ilike('title', `%${pickQuery.trim()}%`) : q).then(({ data }) => {
-      const rows = (data || []).map(a => ({ ...a, id: String(a.id), mine: mineIds.has(String(a.id)) }))
-      rows.sort((a, b) => Number(b.mine) - Number(a.mine))
+      let rows: PickRow[] = (data || []).map(a => ({
+        id: String(a.id), title: String(a.title), type: String(a.type), file_url: String(a.file_url),
+        mine: mineIds.has(String(a.id)),
+        owned: purchasedIds.has(String(a.id)),
+        isFree: Boolean(a.is_free),
+        cost: a.credit_cost == null ? 5 : Number(a.credit_cost),
+      }))
+      // «My library» (§3a) = what the user already owns or saved
+      if (pickSource === 'library') rows = rows.filter(r => r.mine)
+      rows.sort((a, b) => Number(b.owned) - Number(a.owned) || Number(b.mine) - Number(a.mine))
       setPickRows(rows)
     })
-  }, [pickOpen, pickTab, pickQuery, mineIds])
+  }, [pickOpen, pickTab, pickQuery, mineIds, purchasedIds, pickSource])
+
+  // BUY & USE (§3a — the main upsell): purchase happens the moment the
+  // asset is needed. /api/download records ownership + spends credits;
+  // the asset drops straight into the references.
+  async function buyAndUse(a: PickRow) {
+    if (buyBusy) return
+    setBuyBusy(a.id)
+    try {
+      const res = await fetch('/api/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ assetId: a.id }),
+      })
+      const json = await res.json()
+      if (res.status === 402 && json.code === 'credits') { window.dispatchEvent(new Event('cineman-open-topup')); return }
+      if (!res.ok) { say(json.error || 'Purchase failed'); return }
+      if (typeof json.remaining === 'number') window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: json.remaining }))
+      else window.dispatchEvent(new Event('cineman-credits-changed'))
+      setPurchasedIds(prev => new Set(prev).add(a.id))
+      setMineIds(prev => new Set(prev).add(a.id))
+      pickAsset(a)
+      say(`${a.title} — bought & added to references`)
+    } catch { say('Purchase failed') }
+    finally { setBuyBusy(null) }
+  }
 
   function onPromptChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const v = e.target.value
@@ -198,15 +304,23 @@ export default function StudioPage() {
         Lighting: pr.lighting,
         Mood: pr.mood,
       }
-      const settings = overrides?.settings ?? { model, duration, aspect, resolution, audio, preset }
-      const fullPrompt = overrides?.prompt ? p : `${p}. ${pr.lighting}, ${pr.mood}.`
+      const settings = overrides?.settings ?? { model, duration, aspect, resolution, audio, preset, camera, negative, consistency, seed }
+      let fullPrompt = p
+      if (!overrides?.prompt) {
+        const parts = [p]
+        if (camera && camera !== 'none') parts.push(`camera: ${camera}`)
+        parts.push(`${pr.lighting}, ${pr.mood}`)
+        if (consistency >= 60 && useRefs.length) parts.push('strictly preserve the exact appearance of the referenced characters and locations')
+        fullPrompt = parts.join('. ') + '.'
+        if (negative.trim()) fullPrompt += ` Avoid: ${negative.trim()}.`
+      }
       const res = await fetch('/api/studio/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ prompt: fullPrompt, structured, settings, refs: useRefs, uploads }),
       })
       const json = await res.json()
-      if (res.status === 402 && json.code === 'credits') { say(`Not enough credits (${json.cost} needed)`); return }
+      if (res.status === 402 && json.code === 'credits') { say(`Not enough credits (${json.cost} needed)`); window.dispatchEvent(new Event('cineman-open-topup')); return }
       if (res.status === 503 && json.code === 'soon') { say('Video generation — coming soon'); return }
       if (!json.genId) { say(json.error || 'Could not start the render'); return }
       if (typeof json.credits === 'number') window.dispatchEvent(new CustomEvent('cineman-credits-changed', { detail: json.credits }))
@@ -254,6 +368,10 @@ export default function StudioPage() {
   }
   const cardW = Math.round(120 + (size / 100) * 340)
 
+  // LIVE COST (§6) — mirrors the API's computeCost exactly
+  const modelUi = MODELS_UI[model] ?? MODELS_UI['seedance-2']
+  const genCost = Math.max(1, Math.round(price * modelUi.mult * (duration / 5) * (resolution === '1080p' ? 1.5 : 1)))
+
   const inputStyle: React.CSSProperties = { padding: '7px 9px', fontSize: 12 }
 
   // ── UI ──────────────────────────────────────────────────────
@@ -262,7 +380,7 @@ export default function StudioPage() {
       {/* Top bar: title + history controls */}
       <div className="flex items-center gap-3 mb-5">
         <h1 className="text-xl font-bold mr-2" style={{ color: 'var(--fg)' }}>Cineman Studio</h1>
-        <span className="text-[11px] px-2 py-0.5 rounded-full font-bold" style={{ backgroundColor: 'rgba(0,194,186,0.12)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}>Seedance 2.0</span>
+        <span className="text-[11px] px-2 py-0.5 rounded-full font-bold" style={{ backgroundColor: 'rgba(0,194,186,0.12)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}>{modelUi.label}</span>
         <div className="flex-1" />
         <div className="flex items-center gap-1 rounded-lg p-0.5" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
           {(['grid', 'list'] as const).map(v => (
@@ -285,23 +403,54 @@ export default function StudioPage() {
         <div className="grid gap-5 mb-8" style={{ gridTemplateColumns: '320px 1fr 280px' }}>
           {/* ── LEFT: controls ─────────────────────────────── */}
           <div className="card p-4 flex flex-col gap-4" style={{ alignSelf: 'start' }}>
-            {/* Preset */}
-            <div className="rounded-xl p-3" style={{ border: `1px solid ${PRESETS[preset].color}55`, backgroundColor: `${PRESETS[preset].color}14` }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)' }}>Type</p>
-                  <p className="text-sm font-bold" style={{ color: PRESETS[preset].color }}>{PRESETS[preset].label}</p>
-                  <p className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>{PRESETS[preset].hint}</p>
+            {/* MODEL SELECTOR (§1): one compact button, expandable menu */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setModelOpen(v => !v)}
+                className="w-full rounded-xl p-3 text-left"
+                style={{ border: '1px solid color-mix(in srgb, var(--accent) 40%, transparent)', backgroundColor: 'color-mix(in srgb, var(--accent) 9%, transparent)', cursor: 'pointer' }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div style={{ minWidth: 0 }}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>Model</p>
+                    <p className="text-sm font-bold" style={{ color: 'var(--accent-soft)', margin: '1px 0 0' }}>
+                      {modelUi.label}
+                      {modelUi.beta && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded ml-1.5" style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'var(--fg-subtle)' }}>beta</span>}
+                    </p>
+                    <p className="text-[11px]" style={{ color: 'var(--fg-muted)', margin: '1px 0 0' }}>{modelUi.tag} · {modelUi.meta}</p>
+                  </div>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--fg-muted)" strokeWidth="2.5" strokeLinecap="round" style={{ flexShrink: 0, transform: modelOpen ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }}><path d="M6 9l6 6 6-6" /></svg>
                 </div>
-                <button onClick={() => setPresetOpen(v => !v)} className="text-[11px] font-bold px-3 py-1.5 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--fg)', background: 'none', cursor: 'pointer' }}>Change</button>
-              </div>
-              {presetOpen && (
-                <div className="grid grid-cols-2 gap-1.5 mt-3">
-                  {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map(k => (
-                    <button key={k} onClick={() => { setPreset(k); setPresetOpen(false) }}
-                      className="text-xs font-bold px-2 py-2 rounded-lg text-left"
-                      style={{ border: `1px solid ${k === preset ? PRESETS[k].color : 'var(--border)'}`, color: k === preset ? PRESETS[k].color : 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
-                      {PRESETS[k].label}
+              </button>
+              {modelOpen && (
+                <div style={{
+                  position: 'absolute', top: '104%', left: 0, right: 0, zIndex: 40,
+                  backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 12,
+                  boxShadow: '0 14px 40px rgba(0,0,0,0.65)', padding: 6,
+                }}>
+                  {Object.entries(MODELS_UI).map(([k, mu]) => (
+                    <button
+                      key={k}
+                      onClick={() => {
+                        setModel(k)
+                        setModelOpen(false)
+                        // model-awareness: clamp options the new model can't do
+                        if (!mu.durations.includes(duration)) setDuration(mu.durations[mu.durations.length - 1])
+                        if (!mu.resolutions.includes(resolution)) setResolution(mu.resolutions[mu.resolutions.length - 1])
+                        if (!mu.audio) setAudio(false)
+                      }}
+                      className="w-full text-left rounded-lg p-2.5"
+                      style={{ background: k === model ? 'color-mix(in srgb, var(--accent) 16%, transparent)' : 'none', border: 'none', cursor: 'pointer', display: 'block', width: '100%' }}
+                      onMouseEnter={e => { if (k !== model) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(255,255,255,0.04)' }}
+                      onMouseLeave={e => { if (k !== model) (e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent' }}
+                    >
+                      <span className="flex items-center justify-between">
+                        <span className="text-xs font-bold" style={{ color: k === model ? 'var(--accent-soft)' : 'var(--fg)' }}>
+                          {mu.label}{mu.beta ? ' · beta' : ''}
+                        </span>
+                        {k === model && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent-soft)" strokeWidth="3" strokeLinecap="round"><path d="M20 6L9 17l-5-5" /></svg>}
+                      </span>
+                      <span className="block text-[10.5px]" style={{ color: 'var(--fg-muted)' }}>{mu.tag} · {mu.meta}</span>
                     </button>
                   ))}
                 </div>
@@ -354,47 +503,151 @@ export default function StudioPage() {
                 style={{ padding: '10px 12px', resize: 'vertical' }}
               />
               {pickOpen && (
-                <div style={{
-                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30,
-                  backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 12,
-                  boxShadow: '0 14px 40px rgba(0,0,0,0.65)', padding: 8,
-                }}>
-                  <div className="flex gap-1 mb-2">
-                    {MENTION_TABS.map(t => (
-                      <button key={t.id} onClick={() => setPickTab(t.id)} className="text-[11px] font-bold px-2.5 py-1 rounded-md"
-                        style={pickTab === t.id ? { background: 'linear-gradient(135deg,#9765E0,#534FA5)', color: 'white', border: 'none', cursor: 'pointer' } : { color: 'var(--fg-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                        {t.id}
+                <div
+                  onMouseLeave={() => setHoverRow(null)}
+                  style={{
+                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30,
+                    backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 12,
+                    boxShadow: '0 14px 40px rgba(0,0,0,0.65)', padding: 8,
+                  }}
+                >
+                  {/* source: My library (default) | Browse catalog */}
+                  <div className="flex gap-1 mb-1.5">
+                    {([['library', 'My library'], ['catalog', 'Browse catalog']] as const).map(([k, lbl]) => (
+                      <button key={k} onClick={() => setPickSource(k)} className="text-[11px] font-bold px-2.5 py-1 rounded-md"
+                        style={pickSource === k ? { background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' } : { color: 'var(--fg-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        {lbl}
                       </button>
                     ))}
                     <div className="flex-1" />
-                    <button onClick={() => setPickOpen(false)} style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>×</button>
+                    <button onClick={() => { setPickOpen(false); setHoverRow(null) }} style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>×</button>
+                  </div>
+                  <div className="flex gap-1 mb-2">
+                    {MENTION_TABS.map(t => (
+                      <button key={t.id} onClick={() => setPickTab(t.id)} className="text-[10.5px] font-bold px-2 py-0.5 rounded-md"
+                        style={pickTab === t.id ? { backgroundColor: 'color-mix(in srgb, var(--accent) 20%, transparent)', color: 'var(--accent-soft)', border: 'none', cursor: 'pointer' } : { color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                        {t.id}
+                      </button>
+                    ))}
                   </div>
                   <input
                     value={pickQuery}
                     onChange={e => setPickQuery(e.target.value)}
-                    placeholder="Search assets…"
+                    placeholder="Search by name or description…"
                     className="input-field w-full text-xs mb-2"
                     style={{ padding: '6px 9px' }}
                   />
-                  <div style={{ maxHeight: 230, overflowY: 'auto' }}>
-                    {pickRows.length === 0 && <p className="text-[11px] px-2 py-3" style={{ color: 'var(--fg-subtle)' }}>Nothing found</p>}
-                    {pickRows.map(a => (
-                      <button key={a.id} onClick={() => pickAsset(a)} className="flex items-center gap-2 p-1.5 rounded-lg text-left"
-                        onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'rgba(151,101,224,0.14)')}
-                        onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = 'transparent')}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', width: '100%' }}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={thumb(a.file_url, 120)} alt="" style={{ width: 42, height: 28, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-                        <span className="text-xs truncate" style={{ color: 'var(--fg)', flex: 1, textAlign: 'left' }}>{a.title}</span>
-                        {a.mine && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(126,231,199,0.14)', color: '#7EE7C7' }}>yours</span>}
-                      </button>
-                    ))}
+                  <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                    {pickRows.length === 0 && (
+                      <p className="text-[11px] px-2 py-3" style={{ color: 'var(--fg-subtle)' }}>
+                        {pickSource === 'library' ? 'Your library is empty here — switch to Browse catalog.' : 'Nothing found'}
+                      </p>
+                    )}
+                    {/* HORIZONTAL 16:9 tiles, full sheet, 2 per row (§3a) */}
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {pickRows.map(a => (
+                        <div
+                          key={a.id}
+                          onMouseEnter={() => setHoverRow(a)}
+                          className="rounded-lg overflow-hidden"
+                          style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-subtle)' }}
+                        >
+                          <button
+                            onClick={() => { (a.owned || a.mine || a.isFree) ? pickAsset(a) : buyAndUse(a) }}
+                            disabled={buyBusy === a.id}
+                            style={{ display: 'block', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                          >
+                            <span style={{ display: 'block', aspectRatio: '16/9', backgroundColor: '#17151E', position: 'relative' }}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={thumb(a.file_url, 300)} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} loading="lazy" />
+                              <span className="absolute top-1 right-1 text-[9px] font-bold px-1 py-0.5 rounded" style={{
+                                backgroundColor: 'rgba(8,5,15,0.72)',
+                                color: a.owned ? '#7EE7C7' : a.isFree ? '#2DD4C4' : 'rgba(255,255,255,0.9)',
+                              }}>
+                                {a.owned ? '✓ Owned' : a.isFree ? 'Free' : `◆ ${a.cost}`}
+                              </span>
+                            </span>
+                            <span className="block text-[10.5px] truncate px-1.5 py-1" style={{ color: 'var(--fg)' }}>
+                              {buyBusy === a.id ? 'Buying…' : a.title}
+                            </span>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+
+                  {/* HOVER PREVIEW (§3a): the full turnaround, big, beside
+                      the picker — inspect the face before committing */}
+                  {hoverRow && (
+                    <div style={{
+                      position: 'absolute', left: '103%', top: 0, width: 400, zIndex: 41,
+                      backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 12,
+                      boxShadow: '0 14px 40px rgba(0,0,0,0.7)', padding: 10,
+                    }}>
+                      <div style={{ aspectRatio: '16/9', backgroundColor: '#17151E', borderRadius: 8, overflow: 'hidden' }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={thumb(hoverRow.file_url, 900)} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 4 }} />
+                      </div>
+                      <p className="text-xs font-semibold mt-2 mb-0.5" style={{ color: 'var(--fg)' }}>{hoverRow.title}</p>
+                      <p className="text-[10.5px] mb-2" style={{ color: 'var(--fg-muted)' }}>{hoverRow.type} · full turnaround, all angles</p>
+                      {(hoverRow.owned || hoverRow.mine || hoverRow.isFree) ? (
+                        <button onClick={() => pickAsset(hoverRow)} className="w-full text-xs font-bold py-2 rounded-lg"
+                          style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' }}>
+                          Add to references
+                        </button>
+                      ) : (
+                        <button onClick={() => buyAndUse(hoverRow)} disabled={buyBusy === hoverRow.id} className="w-full text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5"
+                          style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' }}>
+                          {buyBusy === hoverRow.id ? 'Buying…' : (<>Buy & use · {hoverRow.cost} <CreditGem size={12} /></>)}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            {/* Audio toggle */}
+            {/* CAST / LOCATIONS (§3): horizontal 16:9 tiles — our assets
+                are turnaround sheets, squares would crop them */}
+            <div>
+              <div className="flex gap-1 mb-2">
+                {(['Cast', 'Locations'] as const).map(t => (
+                  <button key={t} onClick={() => setCastTab(t)} className="text-[11px] font-bold px-2.5 py-1 rounded-md"
+                    style={castTab === t ? { backgroundColor: 'color-mix(in srgb, var(--accent) 18%, transparent)', color: 'var(--accent-soft)', border: 'none', cursor: 'pointer' } : { color: 'var(--fg-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {refs.filter(r => castTab === 'Cast' ? ['People', 'Character'].includes(r.kind) : r.kind === 'Location').map(r => (
+                  <div key={r.id} className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-subtle)', position: 'relative' }}>
+                    <div style={{ aspectRatio: '16/9', backgroundColor: '#17151E' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={r.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
+                    </div>
+                    <p className="text-[10px] truncate px-1.5 py-1" style={{ color: 'var(--fg)', margin: 0 }}>@{r.title.replace(/\s+/g, '')}</p>
+                    <button
+                      onClick={() => setRefs(prev => prev.filter(x => x.id !== r.id))}
+                      className="absolute top-1 right-1 text-[10px] font-bold rounded"
+                      style={{ backgroundColor: 'rgba(8,5,15,0.72)', color: 'rgba(255,255,255,0.85)', border: 'none', cursor: 'pointer', padding: '1px 5px' }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => { setPickTab(castTab === 'Cast' ? 'Characters' : 'Locations'); setPickSource('library'); setPickQuery(''); setPickOpen(true) }}
+                  className="rounded-lg flex items-center justify-center"
+                  style={{ aspectRatio: '16/9', border: '1px dashed var(--border)', color: 'var(--fg-subtle)', background: 'none', cursor: 'pointer', fontSize: 20, fontWeight: 700 }}
+                  title={castTab === 'Cast' ? 'Add a character' : 'Add a location'}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            {/* Audio toggle — hidden for models without audio (§extra) */}
+            {modelUi.audio && (
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold" style={{ color: 'var(--fg-muted)' }}>Generate audio</span>
               <button onClick={() => setAudio(v => !v)} role="switch" aria-checked={audio}
@@ -405,42 +658,103 @@ export default function StudioPage() {
                 <span style={{ position: 'absolute', top: 2.5, left: audio ? 19 : 3, width: 16, height: 16, borderRadius: '50%', backgroundColor: 'white', transition: 'left .15s' }} />
               </button>
             </div>
+            )}
 
-            {/* Model / duration / aspect / resolution */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Model</p>
-                <select value={model} onChange={e => setModel(e.target.value as typeof model)} className="input-field w-full" style={inputStyle}>
-                  <option value="seedance-2">Seedance 2.0</option>
-                  <option value="seedance-2-fast">Seedance 2.0 Fast</option>
-                </select>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Duration</p>
-                <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="input-field w-full" style={inputStyle}>
-                  <option value={5}>5 s</option><option value={10}>10 s</option><option value={15}>15 s</option>
-                </select>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Aspect</p>
-                <select value={aspect} onChange={e => setAspect(e.target.value)} className="input-field w-full" style={inputStyle}>
-                  <option>16:9</option><option>9:16</option><option>1:1</option><option>4:3</option>
-                </select>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Resolution</p>
-                <select value={resolution} onChange={e => setResolution(e.target.value)} className="input-field w-full" style={inputStyle}>
-                  <option>720p</option><option>1080p</option>
-                </select>
+            {/* SHOT SETTINGS (§5): quick aspect + collapsible Advanced */}
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Aspect</p>
+              <div className="flex gap-1.5">
+                {['16:9', '9:16', '1:1'].map(a => (
+                  <button key={a} onClick={() => setAspect(a)} className="flex-1 text-xs font-bold py-1.5 rounded-lg"
+                    style={aspect === a
+                      ? { background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' }
+                      : { border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
+                    {a}
+                  </button>
+                ))}
               </div>
             </div>
 
+            <div className="rounded-xl" style={{ border: '1px solid var(--border)' }}>
+              <button onClick={() => setAdvOpen(v => !v)} className="w-full flex items-center justify-between px-3 py-2"
+                style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
+                <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Advanced</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--fg-subtle)" strokeWidth="2.5" strokeLinecap="round" style={{ transform: advOpen ? 'rotate(180deg)' : undefined, transition: 'transform .15s' }}><path d="M6 9l6 6 6-6" /></svg>
+              </button>
+              {advOpen && (
+                <div className="px-3 pb-3 flex flex-col gap-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Duration</p>
+                      <div className="flex gap-1">
+                        {modelUi.durations.map(d => (
+                          <button key={d} onClick={() => setDuration(d)} className="flex-1 text-[11px] font-bold py-1 rounded-md"
+                            style={duration === d ? { backgroundColor: 'color-mix(in srgb, var(--accent) 25%, transparent)', color: 'var(--accent-soft)', border: 'none', cursor: 'pointer' } : { border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
+                            {d}s
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Resolution</p>
+                      <div className="flex gap-1">
+                        {modelUi.resolutions.map(r => (
+                          <button key={r} onClick={() => setResolution(r)} className="flex-1 text-[11px] font-bold py-1 rounded-md"
+                            style={resolution === r ? { backgroundColor: 'color-mix(in srgb, var(--accent) 25%, transparent)', color: 'var(--accent-soft)', border: 'none', cursor: 'pointer' } : { border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Camera</p>
+                      <select value={camera} onChange={e => setCamera(e.target.value)} className="input-field w-full" style={inputStyle}>
+                        {CAMERA_MOVES.map(c => <option key={c} value={c}>{c === 'none' ? 'Auto' : c}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Style</p>
+                      <select value={preset} onChange={e => setPreset(e.target.value as keyof typeof PRESETS)} className="input-field w-full" style={inputStyle}>
+                        {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map(k => <option key={k} value={k}>{PRESETS[k].label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Negative prompt</p>
+                    <input value={negative} onChange={e => setNegative(e.target.value)} placeholder="what to avoid…" className="input-field w-full" style={inputStyle} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>
+                      Consistency · {consistency >= 60 ? 'strict' : consistency >= 30 ? 'balanced' : 'loose'}
+                    </p>
+                    <input type="range" min={0} max={100} value={consistency} onChange={e => setConsistency(Number(e.target.value))} className="cine-range w-full" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Seed (blank = random)</p>
+                    <input value={seed} onChange={e => setSeed(e.target.value.replace(/[^0-9]/g, ''))} placeholder="random" className="input-field w-full" style={inputStyle} />
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Generate */}
-            <button onClick={() => generate()} disabled={generating}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold text-white"
-              style={{ background: generating ? 'rgba(151,101,224,0.45)' : 'linear-gradient(135deg,#9765E0,#534FA5)', cursor: generating ? 'default' : 'pointer', border: 'none' }}>
-              {generating ? `Rendering… ${progress}%` : (<>Generate · {price} <CreditGem size={15} /></>)}
-            </button>
+            <div>
+              <button onClick={() => generate()} disabled={generating}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-bold"
+                style={{ background: generating ? 'color-mix(in srgb, var(--accent) 45%, transparent)' : 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: generating ? 'white' : 'var(--on-accent)', cursor: generating ? 'default' : 'pointer', border: 'none' }}>
+                {generating ? `Rendering… ${progress}%` : (<>Generate · {genCost} <CreditGem size={15} /></>)}
+              </button>
+              <div className="flex items-center justify-between mt-1.5 px-0.5">
+                <span className="text-[10.5px]" style={{ color: 'var(--fg-subtle)' }}>{modelUi.label} · {duration}s · {resolution}</span>
+                {balance !== null && (
+                  <span className="text-[10.5px] font-bold flex items-center gap-1" style={{ color: balance < genCost ? '#e08a8a' : 'var(--fg-muted)' }}>
+                    Balance: {balance} <CreditGem size={10} />
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* ── CENTER: preview ────────────────────────────── */}
@@ -459,6 +773,26 @@ export default function StudioPage() {
                   <a href={selected.url} download title="Download" className="p-2 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--fg-subtle)' }}>
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
                   </a>
+                  <button
+                    onClick={() => {
+                      if (!selected) return
+                      // serial consistency (§extra): pull this shot's reference
+                      // sheets + settings back into the console for the next take
+                      if (selected.refs?.length) setRefs(selected.refs)
+                      const st = selected.settings
+                      if (st) {
+                        if (st.model && MODELS_UI[st.model]) setModel(st.model)
+                        if (st.aspect && ['16:9', '9:16', '1:1'].includes(st.aspect)) setAspect(st.aspect)
+                        if (st.duration && [5, 10, 15].includes(Number(st.duration))) setDuration(Number(st.duration))
+                        if (st.resolution && ['720p', '1080p'].includes(st.resolution)) setResolution(st.resolution)
+                      }
+                      say('References & settings loaded — direct the next shot')
+                    }}
+                    className="text-[11px] font-bold px-3 py-2 rounded-lg"
+                    style={{ border: '1px solid color-mix(in srgb, var(--accent) 45%, transparent)', color: 'var(--accent-soft)', background: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Use as reference
+                  </button>
                   <button onClick={() => say('Change voice — coming soon')} className="text-[11px] font-bold px-3 py-2 rounded-lg" style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
                     Change voice
                   </button>
@@ -489,7 +823,7 @@ export default function StudioPage() {
             {selected ? (
               <>
                 <span className="text-[10px] font-bold px-2 py-1 rounded-md" style={{ backgroundColor: 'rgba(0,194,186,0.12)', color: '#00C2BA' }}>
-                  {selected.model === 'seedance-2-fast' ? 'Seedance 2.0 Fast' : 'Seedance 2.0'}
+                  {MODELS_UI[selected.model ?? '']?.label ?? 'Seedance 2.0'}
                 </span>
                 <div className="mt-3 space-y-2">
                   {Object.entries(selected.structured || { Prompt: selected.prompt || '' }).map(([k, v]) => (
