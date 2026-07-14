@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
       brokenCount: r.broken.length,
       orphans: r.orphans.slice(0, 300),
       broken: r.broken.slice(0, 100),
-      note: 'POST {"confirm":true} удалит сирот из Storage. Записи каталога не трогаются.',
+      note: 'POST {"confirm":true} removes orphans from Storage. Catalog rows are untouched.',
     })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'failed' }, { status: 500 })
