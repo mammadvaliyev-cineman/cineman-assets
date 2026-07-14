@@ -787,7 +787,7 @@ function AssetCard({
         <div style={{ minWidth: 0 }}>
           <h3 className="font-semibold truncate text-[13px]" style={{ color: 'var(--fg)', margin: 0 }}>{sentenceCase(asset.title)}</h3>
           <p className="text-[11px] truncate" style={{ color: 'var(--fg-muted)', margin: '2px 0 0' }}>
-            <span style={{ color: typeStyle.color, fontWeight: 600 }}>{asset.type}</span> · {asset.category}
+            {asset.type} · {asset.category}
           </p>
         </div>
         {onBuyout && !soldTo && (
@@ -836,7 +836,7 @@ function AssetCard({
             <div>
               <h2 className="text-lg font-bold" style={{ color: 'var(--fg)', margin: 0 }}>{sentenceCase(asset.title)}</h2>
               <p className="text-xs" style={{ color: 'var(--fg-muted)', margin: '4px 0 0' }}>
-                <span style={{ color: typeStyle.color, fontWeight: 600 }}>{asset.type}</span> · {asset.category}
+                {asset.type} · {asset.category}
               </p>
             </div>
 
