@@ -669,13 +669,28 @@ function AssetCard({
           {saveControl}
         </div>
 
+        {/* Hover title for assets without a file (no Download to show) */}
+        {!asset.fileUrl && (
+          <div
+            className="absolute inset-x-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            style={{ zIndex: 5, padding: '30px 10px 8px', background: 'linear-gradient(to top, rgba(8,5,15,0.9) 0%, transparent 100%)' }}
+          >
+            <p className="truncate text-[12px] font-semibold" style={{ color: 'white', margin: 0 }}>{sentenceCase(asset.title)}</p>
+            <p className="truncate text-[10px]" style={{ color: 'rgba(255,255,255,0.65)', margin: '1px 0 0' }}>{asset.type} · {asset.category}</p>
+          </div>
+        )}
+
         {/* HOVER COMMERCE (§2): Download rises on a bottom gradient scrim */}
         {asset.fileUrl && (
           <div
             className="absolute inset-x-0 bottom-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-            style={{ zIndex: 5, padding: '34px 10px 10px', background: 'linear-gradient(to top, rgba(8,5,15,0.92) 0%, rgba(8,5,15,0.55) 60%, transparent 100%)' }}
+            style={{ zIndex: 5, padding: '44px 10px 10px', background: 'linear-gradient(to top, rgba(8,5,15,0.94) 0%, rgba(8,5,15,0.78) 45%, rgba(8,5,15,0.35) 75%, transparent 100%)' }}
             onClick={e => e.stopPropagation()}
           >
+            {/* title + category live on the scrim — the resting tile is
+                pure image + price corner (owner's Shutterstock spec) */}
+            <p className="truncate text-[12px] font-semibold" style={{ color: 'white', margin: '0 2px 2px' }}>{sentenceCase(asset.title)}</p>
+            <p className="truncate text-[10px]" style={{ color: 'rgba(255,255,255,0.65)', margin: '0 2px 7px' }}>{asset.type} · {asset.category}</p>
             <div style={{ position: 'relative' }}>
               {downloadState === 'done' && !owned && !mine && (
                 <span style={{
@@ -781,25 +796,6 @@ function AssetCard({
         )}
       </div>
 
-      {/* CAPTION (§1): title + category only; «Exclusive →» is a quiet
-          link that opens the detail (never a button on the tile) */}
-      <div className="px-3 py-2.5 flex items-start justify-between gap-2">
-        <div style={{ minWidth: 0 }}>
-          <h3 className="font-semibold truncate text-[13px]" style={{ color: 'var(--fg)', margin: 0 }}>{sentenceCase(asset.title)}</h3>
-          <p className="text-[11px] truncate" style={{ color: 'var(--fg-muted)', margin: '2px 0 0' }}>
-            {asset.type} · {asset.category}
-          </p>
-        </div>
-        {onBuyout && !soldTo && (
-          <button
-            onClick={e => { e.stopPropagation(); setDetailOpen(true) }}
-            className="text-[10.5px] font-semibold flex-shrink-0"
-            style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 2, padding: 0 }}
-          >
-            Exclusive →
-          </button>
-        )}
-      </div>
     </div>
 
     {/* DETAIL MODAL (§3): the full commerce — Download + 4K, exclusive
