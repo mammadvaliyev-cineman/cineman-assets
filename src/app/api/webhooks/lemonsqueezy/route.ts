@@ -94,6 +94,13 @@ export async function POST(req: NextRequest) {
               await admin.from('profiles')
                 .update({ topup_credits: Number(prof.topup_credits ?? 0) + credits })
                 .eq('id', uid)
+              // notify the user (bell)
+              await admin.from('user_events').insert({
+                user_id: uid,
+                title: `+${credits} credits added`,
+                body: 'Your top-up went through — credits never expire.',
+                href: '/profile',
+              }).then(() => {}, () => {})
               // marker row = idempotency + a simple audit trail
               await admin.from('assets').insert({
                 title: seenKey, type: 'Usage', category: 'System', plan: 'free',
