@@ -692,7 +692,7 @@ export default function StudioPage() {
                     ) : (
                       <button
                         onClick={() => { setEditingHandle(r.id); setHandleDraft(handleOf(r)) }}
-                        title="Переименовать хэндл (@Anna)"
+                        title="Rename the handle (@Anna)"
                         className="block w-full text-left text-[10px] truncate px-1.5 py-1"
                         style={{ color: 'var(--fg)', background: 'none', border: 'none', cursor: 'text', margin: 0 }}
                       >
