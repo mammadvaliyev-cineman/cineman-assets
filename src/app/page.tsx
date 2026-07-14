@@ -249,6 +249,9 @@ export default async function HomePage() {
       </section>
 
       {/* ── FEATURED COLLECTIONS (owner curates via Admin → Settings) ── */}
+      {/* cinematic frames lead (owner's polish §4): promo posters first,
+          then colourful location frames; grey studio sheets sink below */}
+      {(() => { const rank = (t: typeof featured[number]) => t.promo ? 0 : t.cat === 'Location' ? 1 : ['Vehicle', 'Creature'].includes(t.cat) ? 2 : 3; featured = [...featured].sort((x, y) => rank(x) - rank(y)); return null })()}
       {featured.length > 0 && (
         <Reveal><section className="max-w-7xl mx-auto px-6" style={{ marginBottom: 56 }}>
           <div className="flex items-end justify-between mb-4">
