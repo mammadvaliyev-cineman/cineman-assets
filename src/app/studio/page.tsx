@@ -18,7 +18,21 @@ import { CreditGem } from '@/components/AssetGrid'
 // Director's Engine (shot-list mode) stays a separate Pro mode later.
 // ─────────────────────────────────────────────────────────────
 
-type RefAsset = { id: string; title: string; image: string; kind: string }
+type RefAsset = { id: string; title: string; image: string; kind: string; handle?: string }
+
+// SHORT @-HANDLES (owner's §9 fix): the prompt uses a 2-word slug
+// (@YoungMan), never the full descriptive title. Renameable per ref.
+function autoHandle(title: string): string {
+  const words = String(title).replace(/[^\w\s-]/g, '').split(/\s+/).filter(Boolean)
+  const base = words.slice(0, 2).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join('')
+  return (base || 'Ref').slice(0, 20)
+}
+function uniqueHandle(base: string, taken: RefAsset[], skipId?: string): string {
+  let h = base, i = 2
+  while (taken.some(r => r.id !== skipId && (r.handle ?? autoHandle(r.title)) === h)) { h = base + i; i++ }
+  return h
+}
+function handleOf(r: RefAsset): string { return r.handle ?? autoHandle(r.title) }
 type Gen = {
   id: string; model: string | null; prompt: string | null
   structured: Record<string, string> | null
@@ -39,7 +53,7 @@ const PRESETS: Record<string, { label: string; hint: string; lighting: string; m
 // the LIVE price multiplier (mirrored by the API route — same math).
 const MODELS_UI: Record<string, { label: string; tag: string; meta: string; durations: number[]; resolutions: string[]; audio: boolean; mult: number; beta?: boolean }> = {
   'seedance-2':      { label: 'Seedance 2.0',      tag: 'Native 4K · fast',  meta: 'up to 1080p · 15s · audio', durations: [5, 10, 15], resolutions: ['720p', '1080p'], audio: true, mult: 1 },
-  'kling-3':         { label: 'Kling 3.0',         tag: 'Cinematic · audio', meta: 'up to 1080p · 10s · audio', durations: [5, 10],     resolutions: ['720p', '1080p'], audio: true, mult: 1.2, beta: true },
+  'kling-3':         { label: 'Kling 3.0',         tag: 'Cinematic · audio', meta: 'up to 1080p · 10s', durations: [5, 10],     resolutions: ['720p', '1080p'], audio: true, mult: 1.2, beta: true },
   'seedance-2-fast': { label: 'Seedance 2.0 Fast', tag: 'Draft · cheap',     meta: 'up to 720p · 15s · audio',  durations: [5, 10, 15], resolutions: ['720p'],          audio: true, mult: 0.6 },
 }
 const CAMERA_MOVES = ['none', 'static shot', 'slow pan', 'dolly in', 'handheld', 'orbit'] as const
@@ -180,6 +194,11 @@ export default function StudioPage() {
         if (typeof d.seed === 'string') setSeed(d.seed)
       }
     } catch { /* noop */ }
+    // MODEL MATCH deep-link (?model=…) — overrides the saved draft
+    try {
+      const m = new URLSearchParams(window.location.search).get('model')
+      if (m && MODELS_UI[m]) setModel(m)
+    } catch { /* noop */ }
     draftLoaded.current = true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -229,8 +248,19 @@ export default function StudioPage() {
   // BUY & USE (§3a — the main upsell): purchase happens the moment the
   // asset is needed. /api/download records ownership + spends credits;
   // the asset drops straight into the references.
+  // 2-tap purchase (owner's §9 fix): first tap arms «Confirm · N◆»,
+  // second tap actually spends — no accidental charges
+  const [confirmBuyId, setConfirmBuyId] = useState<string | null>(null)
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  function armBuy(a: PickRow) {
+    setConfirmBuyId(a.id)
+    if (confirmTimer.current) clearTimeout(confirmTimer.current)
+    confirmTimer.current = setTimeout(() => setConfirmBuyId(null), 5000)
+  }
+
   async function buyAndUse(a: PickRow) {
     if (buyBusy) return
+    setConfirmBuyId(null)
     setBuyBusy(a.id)
     try {
       const res = await fetch('/api/download', {
@@ -246,7 +276,9 @@ export default function StudioPage() {
       setPurchasedIds(prev => new Set(prev).add(a.id))
       setMineIds(prev => new Set(prev).add(a.id))
       pickAsset(a)
-      say(`${a.title} — bought & added to references`)
+      // the spend is VISIBLE: toast with the exact charge + new balance,
+      // and the navbar chip animates via the credits event above
+      say(`−${a.cost} ◆ · Added to library · Balance ${typeof json.remaining === 'number' ? json.remaining : '…'}`)
     } catch { say('Purchase failed') }
     finally { setBuyBusy(null) }
   }
@@ -261,11 +293,30 @@ export default function StudioPage() {
   }
 
   function pickAsset(a: { id: string; title: string; file_url: string; type: string }) {
-    // replace the trailing "@query" with a @Name token + attach the reference sheet
-    setPrompt(prev => prev.replace(/@([\w-]*)$/, `@${a.title.replace(/\s+/g, '')} `))
-    setRefs(prev => prev.some(r => r.id === a.id) ? prev : [...prev, { id: a.id, title: a.title, image: refSheet(a.file_url), kind: a.type }])
+    setRefs(prev => {
+      if (prev.some(r => r.id === a.id)) return prev
+      const handle = uniqueHandle(autoHandle(a.title), prev)
+      // the trailing "@query" becomes the SHORT handle, not the long title
+      setPrompt(pp => pp.match(/@([\w-]*)$/) ? pp.replace(/@([\w-]*)$/, `@${handle} `) : pp + (pp && !pp.endsWith(' ') ? ' ' : '') + `@${handle} `)
+      return [...prev, { id: a.id, title: a.title, image: refSheet(a.file_url), kind: a.type, handle }]
+    })
     setPickOpen(false)
     promptRef.current?.focus()
+  }
+
+  // rename a handle in place — updates the chip AND every @mention in the prompt
+  const [editingHandle, setEditingHandle] = useState<string | null>(null)
+  const [handleDraft, setHandleDraft] = useState('')
+  function commitHandle(r: RefAsset) {
+    const clean = handleDraft.replace(/[^\w-]/g, '').slice(0, 20)
+    setEditingHandle(null)
+    if (!clean) return
+    setRefs(prev => {
+      const next = uniqueHandle(clean, prev, r.id)
+      const old = handleOf(r)
+      if (next !== old) setPrompt(pp => pp.replace(new RegExp('@' + old + '(?![\\w-])', 'g'), '@' + next))
+      return prev.map(x => x.id === r.id ? { ...x, handle: next } : x)
+    })
   }
 
   // ── upload media (optional) ─────────────────────────────────
@@ -469,6 +520,9 @@ export default function StudioPage() {
                 <div className="flex gap-1.5 mt-2 flex-wrap">
                   {(['image', 'video', 'audio'] as const).filter(k => uploads[k]).map(k => (
                     <span key={k} className="text-[10px] font-bold px-2 py-1 rounded-md flex items-center gap-1" style={{ backgroundColor: 'rgba(0,194,186,0.12)', color: '#00C2BA' }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        {k === 'image' ? (<><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="M21 15l-5-5L5 21" /></>) : k === 'video' ? (<><rect x="2" y="4" width="14" height="16" rx="2" /><path d="M22 8l-6 4 6 4V8z" /></>) : (<><path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" /></>)}
+                      </svg>
                       {k}
                       <button onClick={() => setUploads(prev => { const n = { ...prev }; delete n[k]; return n })} style={{ color: '#00C2BA', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
                     </span>
@@ -487,7 +541,7 @@ export default function StudioPage() {
                       style={{ backgroundColor: 'rgba(151,101,224,0.16)', color: '#CE95FB', border: '1px solid rgba(151,101,224,0.35)' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={r.image} alt="" style={{ width: 18, height: 14, borderRadius: 3, objectFit: 'cover' }} />
-                      @{r.title.replace(/\s+/g, '')}
+                      @{handleOf(r)}
                       <button onClick={() => setRefs(prev => prev.filter(x => x.id !== r.id))} style={{ color: '#CE95FB', background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
                     </span>
                   ))}
@@ -553,7 +607,7 @@ export default function StudioPage() {
                           style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-subtle)' }}
                         >
                           <button
-                            onClick={() => { (a.owned || a.mine || a.isFree) ? pickAsset(a) : buyAndUse(a) }}
+                            onClick={() => { if (a.owned || a.mine || a.isFree) pickAsset(a); else if (confirmBuyId === a.id) buyAndUse(a); else armBuy(a) }}
                             disabled={buyBusy === a.id}
                             style={{ display: 'block', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
                           >
@@ -567,8 +621,8 @@ export default function StudioPage() {
                                 {a.owned ? '✓ Owned' : a.isFree ? 'Free' : `◆ ${a.cost}`}
                               </span>
                             </span>
-                            <span className="block text-[10.5px] truncate px-1.5 py-1" style={{ color: 'var(--fg)' }}>
-                              {buyBusy === a.id ? 'Buying…' : a.title}
+                            <span className="block text-[10.5px] truncate px-1.5 py-1" style={{ color: confirmBuyId === a.id ? 'var(--accent-soft)' : 'var(--fg)', fontWeight: confirmBuyId === a.id ? 700 : undefined }}>
+                              {buyBusy === a.id ? 'Buying…' : confirmBuyId === a.id ? `Confirm · ${a.cost} ◆` : a.title}
                             </span>
                           </button>
                         </div>
@@ -596,9 +650,9 @@ export default function StudioPage() {
                           Add to references
                         </button>
                       ) : (
-                        <button onClick={() => buyAndUse(hoverRow)} disabled={buyBusy === hoverRow.id} className="w-full text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5"
-                          style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' }}>
-                          {buyBusy === hoverRow.id ? 'Buying…' : (<>Buy & use · {hoverRow.cost} <CreditGem size={12} /></>)}
+                        <button onClick={() => { if (confirmBuyId === hoverRow.id) buyAndUse(hoverRow); else armBuy(hoverRow) }} disabled={buyBusy === hoverRow.id} className="w-full text-xs font-bold py-2 rounded-lg flex items-center justify-center gap-1.5"
+                          style={{ background: confirmBuyId === hoverRow.id ? 'linear-gradient(135deg,#0EA97A,#0B8763)' : 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' }}>
+                          {buyBusy === hoverRow.id ? 'Buying…' : confirmBuyId === hoverRow.id ? (<>Confirm · {hoverRow.cost} <CreditGem size={12} /></>) : (<>Buy & use · {hoverRow.cost} <CreditGem size={12} /></>)}
                         </button>
                       )}
                     </div>
@@ -625,7 +679,26 @@ export default function StudioPage() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={r.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 3 }} />
                     </div>
-                    <p className="text-[10px] truncate px-1.5 py-1" style={{ color: 'var(--fg)', margin: 0 }}>@{r.title.replace(/\s+/g, '')}</p>
+                    {editingHandle === r.id ? (
+                      <input
+                        autoFocus
+                        value={handleDraft}
+                        onChange={e => setHandleDraft(e.target.value)}
+                        onBlur={() => commitHandle(r)}
+                        onKeyDown={e => { if (e.key === 'Enter') commitHandle(r); if (e.key === 'Escape') setEditingHandle(null) }}
+                        className="input-field w-full text-[10px]"
+                        style={{ padding: '2px 6px', borderRadius: 0 }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => { setEditingHandle(r.id); setHandleDraft(handleOf(r)) }}
+                        title="Переименовать хэндл (@Anna)"
+                        className="block w-full text-left text-[10px] truncate px-1.5 py-1"
+                        style={{ color: 'var(--fg)', background: 'none', border: 'none', cursor: 'text', margin: 0 }}
+                      >
+                        @{handleOf(r)} <span style={{ color: 'var(--fg-subtle)' }}>✎</span>
+                      </button>
+                    )}
                     <button
                       onClick={() => setRefs(prev => prev.filter(x => x.id !== r.id))}
                       className="absolute top-1 right-1 text-[10px] font-bold rounded"
