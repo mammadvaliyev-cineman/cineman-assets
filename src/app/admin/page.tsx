@@ -1426,7 +1426,7 @@ function AdminDashboard() {
             title="Engine"
             style={{ width: '100%', height: 'calc(100vh - 240px)', minHeight: 560, border: 'none', display: 'block' }}
             // same-origin: hide the duplicated site chrome inside the frame
-            onLoad={e => { try { const d = (e.currentTarget as HTMLIFrameElement).contentDocument; d?.querySelectorAll('nav, footer').forEach(el => ((el as HTMLElement).style.display = 'none')) } catch { /* noop */ } }}
+            onLoad={e => { try { const d = (e.currentTarget as HTMLIFrameElement).contentDocument; if (d && !d.getElementById('cine-embed-css')) { const st = d.createElement('style'); st.id = 'cine-embed-css'; st.textContent = 'nav, footer { display: none !important }'; d.head.appendChild(st) } } catch { /* noop */ } }}
           />
         </div>
       )}
