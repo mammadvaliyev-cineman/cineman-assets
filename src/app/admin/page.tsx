@@ -381,14 +381,14 @@ function HomepageFeaturedEditor() {
   async function onUploadPromo(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (file === undefined || uploadFor === null) return
-    setMsg('Загружаю постер…')
+    setMsg('Uploading the poster…')
     try {
       const fd = new FormData(); fd.append('file', file)
       const r = await fetch('/api/admin/upload-cover', { method: 'POST', headers: await adminHeaders(), body: fd })
       const j = await r.json()
-      if (j.ok) { upd(uploadFor, { cover: j.url, promo: true }); setMsg('Постер загружен — задай ссылку и сохрани') }
-      else setMsg(j.error || 'Ошибка загрузки')
-    } catch { setMsg('Ошибка загрузки') }
+      if (j.ok) { upd(uploadFor, { cover: j.url, promo: true }); setMsg('Poster uploaded — set the link and save') }
+      else setMsg(j.error || 'Upload failed')
+    } catch { setMsg('Upload failed') }
     if (fileRef.current) fileRef.current.value = ''
   }
 
@@ -397,18 +397,22 @@ function HomepageFeaturedEditor() {
     try {
       const labelFor = (cat: string) => CATEGORIES.find(c => c.id === cat)?.label ?? cat
       const featured = tiles.filter(t => t.cover.trim()).map(t => ({ ...t, title: t.title.trim() || labelFor(t.cat) }))
+      // no duplicate categories on the showcase (owner's polish §2)
+      const cats = featured.filter(t => !t.promo).map(t => t.cat)
+      const dup = cats.find((c, i) => c && cats.indexOf(c) !== i)
+      if (dup) { setMsg(`Duplicate category on the showcase: ${labelFor(dup)} — pick different ones`); setBusy(false); return }
       const r = await fetch('/api/admin/homepage-config', {
         method: 'POST', headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
         body: JSON.stringify({ config: { featured, catCovers, heroFrames: heroFrames.filter(Boolean), newWeekIds: weekIds.filter(Boolean), trending: trendingText.split(',').map(t => t.trim()).filter(Boolean) } }),
       })
       const j = await r.json()
-      setMsg(j.ok ? `Сохранено: витрина ${featured.length}, категории ${Object.keys(catCovers).length}, hero ${heroFrames.filter(Boolean).length}, new-this-week ${weekIds.filter(Boolean).length}. Главная обновлена.` : (j.error || 'Ошибка'))
-    } catch { setMsg('Ошибка — попробуй ещё раз') }
+      setMsg(j.ok ? `Saved: showcase ${featured.length}, categories ${Object.keys(catCovers).length}, hero ${heroFrames.filter(Boolean).length}, new-this-week ${weekIds.filter(Boolean).length}. Homepage updated.` : (j.error || 'Error'))
+    } catch { setMsg('Error — try again') }
     setBusy(false)
   }
 
   const slotBtn = (filled: string | undefined, onClick: () => void, w = 76, h = 46) => (
-    <button onClick={onClick} title={filled ? 'Заменить' : 'Выбрать'} style={{ width: w, height: h, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)', backgroundColor: '#17151E', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
+    <button onClick={onClick} title={filled ? 'Replace' : 'Pick'} style={{ width: w, height: h, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)', backgroundColor: '#17151E', cursor: 'pointer', padding: 0, flexShrink: 0 }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {filled ? <img src={filled} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 16, color: 'var(--fg-subtle)' }}>+</span>}
     </button>
@@ -422,10 +426,10 @@ function HomepageFeaturedEditor() {
   return (
     <div className="card p-6">
       <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
-        Главная — витрина, категории, hero, new this week
+        Homepage — showcase, categories, hero, new this week
       </h3>
       <p className="text-xs mb-4" style={{ color: 'var(--fg-subtle)' }}>
-        Везде два режима: «Рандом всё разом» или клик по слоту → выбрать точно. Пусто = автоматика. Один «Сохранить» на всё.
+        Two modes everywhere: “Shuffle all” or click a slot to pick exactly. Empty = automatic. One Save for everything.
       </p>
 
       {/* ── Featured tiles (+ promo poster upload) ── */}
@@ -436,7 +440,7 @@ function HomepageFeaturedEditor() {
           <div key={i}>
             <div className="flex items-center gap-2">
               {slotBtn(t.cover || undefined, () => openPicker('featured', i))}
-              <input value={t.title} onChange={e => upd(i, { title: e.target.value })} placeholder={`Плитка ${i + 1} — название`} className="input-field text-xs" style={{ padding: '8px 10px', flex: 1 }} />
+              <input value={t.title} onChange={e => upd(i, { title: e.target.value })} placeholder={`Tile ${i + 1} — title`} className="input-field text-xs" style={{ padding: '8px 10px', flex: 1 }} />
               <select value={t.cat} onChange={e => upd(i, { cat: e.target.value })} className="input-field text-xs" style={{ padding: '8px 10px', width: 104 }}>
                 {CAT_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -448,10 +452,10 @@ function HomepageFeaturedEditor() {
             {t.promo && (
               <div className="flex items-center gap-3 mt-1.5" style={{ paddingLeft: 84 }}>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: 'rgba(229,169,75,0.15)', color: '#E5A94B' }}>PROMO</span>
-                <input value={t.href ?? ''} onChange={e => upd(i, { href: e.target.value })} placeholder="Ссылка: /catalog?free=1, ?category=… или любой URL" className="input-field text-xs" style={{ padding: '6px 10px', flex: 1 }} />
+                <input value={t.href ?? ''} onChange={e => upd(i, { href: e.target.value })} placeholder="Link: /catalog?free=1, ?category=… or any URL" className="input-field text-xs" style={{ padding: '6px 10px', flex: 1 }} />
                 <label className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--fg-muted)', whiteSpace: 'nowrap', cursor: 'pointer' }}>
                   <input type="checkbox" checked={Boolean(t.hideTitle)} onChange={e => upd(i, { hideTitle: e.target.checked })} />
-                  скрыть подпись
+                  hide caption
                 </label>
               </div>
             )}
@@ -462,7 +466,7 @@ function HomepageFeaturedEditor() {
       {/* ── Shop by category covers ── */}
       <div className="flex items-center gap-3 mb-2">
         <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>Shop by category</p>
-        {randBtn('Рандом всё разом', randomAllCats, 'cat')}
+        {randBtn('Shuffle all', randomAllCats, 'cat')}
       </div>
       <div className="flex flex-wrap gap-2 mb-5">
         {SECTION_CATS.map(id => (
@@ -475,8 +479,8 @@ function HomepageFeaturedEditor() {
 
       {/* ── Hero showreel (locations) ── */}
       <div className="flex items-center gap-3 mb-2">
-        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>Hero-карусель (локации)</p>
-        {randBtn('Рандом всё разом', randomAllHero, 'hero')}
+        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>Hero-carousel (locations)</p>
+        {randBtn('Shuffle all', randomAllHero, 'hero')}
       </div>
       <div className="flex flex-wrap gap-2 mb-5">
         {[0, 1, 2, 3, 4, 5].map(i => slotBtn(heroFrames[i], () => openPicker('hero', i), 88, 50))}
@@ -484,15 +488,15 @@ function HomepageFeaturedEditor() {
 
       {/* ── New this week ── */}
       <div className="flex items-center gap-3 mb-2">
-        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>New this week (из пула свежих, порядок по дате)</p>
-        {randBtn('Рандом всё разом', randomAllWeek, 'week')}
+        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>New this week (from the fresh pool, ordered by date)</p>
+        {randBtn('Shuffle all', randomAllWeek, 'week')}
       </div>
       <div className="flex flex-wrap gap-2 mb-5">
         {Array.from({ length: 12 }, (_, i) => slotBtn(weekIds[i] ? weekPrev[weekIds[i]] : undefined, () => openPicker('week', i), 66, 42))}
       </div>
 
       {/* ── Trending chips for the hero search (DEV_homepage_search §2) ── */}
-      <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Trending-чипы под поиском (через запятую)</p>
+      <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Trending-chips under the hero search (comma-separated)</p>
       <input
         value={trendingText}
         onChange={e => setTrendingText(e.target.value)}
@@ -505,14 +509,14 @@ function HomepageFeaturedEditor() {
       {picker && (
         <div className="rounded-xl p-4 mb-4" style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
           <div className="flex items-center gap-3 mb-3">
-            <span className="text-xs font-bold" style={{ color: 'var(--fg)' }}>Кликни фото для слота</span>
+            <span className="text-xs font-bold" style={{ color: 'var(--fg)' }}>Click a photo for the slot</span>
             <button onClick={() => openPicker(picker.kind, picker.key)} disabled={pickerBusy} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'rgba(151,101,224,0.12)', border: '1px solid rgba(151,101,224,0.4)', color: '#CE95FB', cursor: 'pointer' }}>
-              {pickerBusy ? '…' : 'Ещё варианты'}
+              {pickerBusy ? '…' : 'More options'}
             </button>
-            <button onClick={() => setPicker(null)} className="text-[11px] ml-auto" style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>Закрыть</button>
+            <button onClick={() => setPicker(null)} className="text-[11px] ml-auto" style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>Close</button>
           </div>
           {pickerBusy && pickerAssets.length === 0 ? (
-            <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Загружаю варианты…</p>
+            <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Loading options…</p>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 8 }}>
               {pickerAssets.map(a => (
@@ -528,7 +532,7 @@ function HomepageFeaturedEditor() {
 
       <div className="flex items-center gap-3">
         <button onClick={save} disabled={busy} className="btn-primary text-xs px-4 py-2 font-bold">
-          {busy ? 'Сохраняю…' : 'Сохранить всё'}
+          {busy ? 'Saving…' : 'Save all'}
         </button>
         {msg && <span className="text-xs" style={{ color: '#5EEAD4' }}>{msg}</span>}
       </div>
@@ -612,7 +616,7 @@ function ProviderBalances() {
 }
 
 function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories' | 'pricing' | 'settings'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories' | 'pricing' | 'settings' | 'engine'>('overview')
   const [stats, setStats] = useState<Stats>({ total: 0, byType: {}, byPlan: {} })
   const [assets, setAssets] = useState<AssetRow[]>([])
   const [loadingStats, setLoadingStats] = useState(true)
@@ -639,7 +643,7 @@ function AdminDashboard() {
       const res = await fetch('/api/admin/backup', { headers: await adminHeaders() })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
-        setBackupMsg(`Ошибка: ${j.error || res.status}`)
+        setBackupMsg(`Error: ${j.error || res.status}`)
       } else {
         const blob = await res.blob()
         const a = document.createElement('a')
@@ -647,10 +651,10 @@ function AdminDashboard() {
         a.download = `cineman-backup-${new Date().toISOString().slice(0, 10)}.json`
         a.click()
         URL.revokeObjectURL(a.href)
-        setBackupMsg('✓ Бэкап скачан — сохрани файл в надёжное место (Dropbox).')
+        setBackupMsg('✓ Backup downloaded — keep the file somewhere safe (Dropbox).')
       }
     } catch {
-      setBackupMsg('Ошибка: не удалось скачать бэкап')
+      setBackupMsg('Error: could not download the backup')
     }
     setBackupBusy(false)
   }
@@ -849,7 +853,7 @@ function AdminDashboard() {
     if (!delCat) return
     const found = catList.find(c => c.category === delCat)
     const n = found?.count ?? '?'
-    if (!confirm(`Удалить раздел «${delCat.trim()}» ЦЕЛИКОМ?\n${n} ассетов + их файлы в Storage будут удалены НАВСЕГДА.`)) return
+    if (!confirm(`Delete the ENTIRE “${delCat.trim()}” section?\n${n} assets + their Storage files will be removed FOREVER.`)) return
     setDelBusy(true)
     setDelMsg('')
     const res = await fetch('/api/admin/delete-category', {
@@ -860,12 +864,12 @@ function AdminDashboard() {
     const j = await res.json().catch(() => ({}))
     setDelBusy(false)
     if (res.ok) {
-      setDelMsg(`Удалено: ${j.deleted} ассетов, ${j.storageRemoved} файлов из Storage.`)
+      setDelMsg(`Deleted: ${j.deleted} assets, ${j.storageRemoved} Storage files.`)
       setCatList(prev => prev.filter(c => c.category !== delCat))
       setDelCat('')
       loadStats()
     } else {
-      setDelMsg(`Ошибка: ${j.error || 'delete failed'}`)
+      setDelMsg(`Error: ${j.error || 'delete failed'}`)
     }
   }
 
@@ -907,8 +911,8 @@ function AdminDashboard() {
   async function bulkAction(kind: 'show' | 'hide' | 'delete') {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
-    const verb = kind === 'delete' ? 'УДАЛИТЬ НАВСЕГДА (вместе с файлами)' : kind === 'hide' ? 'скрыть из каталога (обратимо)' : 'ОТКРЫТЬ в публичный каталог'
-    if (!confirm(`${ids.length} ассетов — ${verb}. Продолжить?`)) return
+    const verb = kind === 'delete' ? 'DELETE FOREVER (files included)' : kind === 'hide' ? 'hide from the catalog (reversible)' : 'SHOW in the public catalog'
+    if (!confirm(`${ids.length} assets — ${verb}. Continue?`)) return
     setBulkBusy(true)
     const headers = await adminHeaders()
     let done = 0
@@ -926,7 +930,7 @@ function AdminDashboard() {
     }
     setSelectedIds(new Set())
     setBulkBusy(false)
-    alert(`Готово: ${done}/${ids.length}`)
+    alert(`Done: ${done}/${ids.length}`)
     if (kind === 'delete') loadStats()
   }
 
@@ -936,8 +940,8 @@ function AdminDashboard() {
   async function bulkSetStyle() {
     const ids = Array.from(selectedIds)
     if (ids.length === 0) return
-    const label = bulkStyle === 'realistic' ? 'Realistic (убрать style-тег)' : `style:${bulkStyle}`
-    if (!confirm(`${ids.length} ассетов — задать стиль ${label}?`)) return
+    const label = bulkStyle === 'realistic' ? 'Realistic (remove the style tag)' : `style:${bulkStyle}`
+    if (!confirm(`${ids.length} assets — set style ${label}?`)) return
     setBulkBusy(true)
     const headers = await adminHeaders()
     let done = 0
@@ -953,7 +957,7 @@ function AdminDashboard() {
     }
     setSelectedIds(new Set())
     setBulkBusy(false)
-    alert(`Стиль обновлён: ${done}/${ids.length}`)
+    alert(`Style updated: ${done}/${ids.length}`)
   }
 
   // Bulk FREE (owner's funnel): opt-in only, never a default — the admin
@@ -961,7 +965,7 @@ function AdminDashboard() {
   async function bulkFree(free: boolean) {
     const ids = Array.from(selectedIds)
     if (ids.length === 0 || bulkBusy) return
-    if (!confirm(`${ids.length} ассетов — сделать ${free ? 'FREE (цена 0)' : 'платными (цена 5)'}?`)) return
+    if (!confirm(`${ids.length} assets — make ${free ? 'FREE (price 0)' : 'paid (price 5)'}?`)) return
     setBulkBusy(true)
     const headers = await adminHeaders()
     let done = 0
@@ -977,15 +981,15 @@ function AdminDashboard() {
     }
     setSelectedIds(new Set())
     setBulkBusy(false)
-    alert(`${free ? 'Free' : 'Платные'}: ${done}/${ids.length}`)
+    alert(`${free ? 'Free' : 'Paid'}: ${done}/${ids.length}`)
   }
 
   // ── Pricing tab: tier defaults + plan grants (pricing_defaults) ──
   const PRICE_LABELS: Record<string, string> = {
-    standard: 'Standard — цена скачивания', premium: 'Premium — топовые ассеты', exclusive: 'Exclusive — выкуп эксклюзива',
-    plan_free: 'Free — кредитов в месяц', plan_personal: 'Personal — кредитов в месяц', plan_pro: 'Pro — кредитов в месяц',
-    gen_base: 'Генерация — база (Nano Banana)', gen_4k: 'Апскейл 2K→4K (по запросу)',
-    gen_video: 'Видео-генерация (Seedance)',
+    standard: 'Standard — download price', premium: 'Premium — top assets', exclusive: 'Exclusive — exclusive buyout',
+    plan_free: 'Free — credits per month', plan_personal: 'Personal — credits per month', plan_pro: 'Pro — credits per month',
+    gen_base: 'Generation — base (Nano Banana)', gen_4k: 'Upscale 2K→4K (on demand)',
+    gen_video: 'Video generation (Seedance)',
   }
   const [priceRows, setPriceRows] = useState<Record<string, number>>({})
   const [priceBusy, setPriceBusy] = useState(false)
@@ -1010,8 +1014,8 @@ function AdminDashboard() {
         body: JSON.stringify({ packs: topupPacks }),
       })
       const j = await r.json()
-      setTopupMsg(r.ok ? `Сохранено: ${j.saved} пачек` : (j.error || 'Ошибка'))
-    } catch { setTopupMsg('Ошибка сети') }
+      setTopupMsg(r.ok ? `Saved: ${j.saved} packs` : (j.error || 'Error'))
+    } catch { setTopupMsg('Network error') }
     setTopupBusy(false)
   }
 
@@ -1047,9 +1051,9 @@ function AdminDashboard() {
         body: JSON.stringify({ email: ccEmail.trim(), amount: Number(ccAmount) }),
       })
       const json = await res.json()
-      if (json.ok) setToast(`Баланс ${ccEmail.trim()}: ${json.credits} кредитов`)
-      else setToast(json.error || 'Не получилось')
-    } catch { setToast('Не получилось — попробуй ещё раз') }
+      if (json.ok) setToast(`Balance ${ccEmail.trim()}: ${json.credits} credits`)
+      else setToast(json.error || 'Failed')
+    } catch { setToast('Failed — try again') }
     finally { setCcBusy(false) }
   }
 
@@ -1059,8 +1063,8 @@ function AdminDashboard() {
       const res = await fetch(`/api/admin/refund?email=${encodeURIComponent(refEmail.trim())}`, { headers: await adminHeaders() })
       const json = await res.json()
       if (json.purchases) { setRefRows(json.purchases); setRefCredits(json.credits ?? null) }
-      else { setRefRows([]); setToast(json.error || 'Не найдено') }
-    } catch { setToast('Не получилось загрузить покупки') }
+      else { setRefRows([]); setToast(json.error || 'Not found') }
+    } catch { setToast('Could not load purchases') }
   }
 
   const doRefund = async (assetId: string) => {
@@ -1073,9 +1077,9 @@ function AdminDashboard() {
         body: JSON.stringify({ email: refEmail.trim(), assetId }),
       })
       const json = await res.json()
-      if (json.ok) { setToast(`Возврат ${json.refunded} кредитов сделан`); loadRefunds() }
-      else setToast(json.error || 'Возврат не прошёл')
-    } catch { setToast('Возврат не прошёл') }
+      if (json.ok) { setToast(`Refunded ${json.refunded} credits`); loadRefunds() }
+      else setToast(json.error || 'Refund failed')
+    } catch { setToast('Refund failed') }
     finally { setRefBusy(null) }
   }
 
@@ -1085,8 +1089,8 @@ function AdminDashboard() {
       const rows = Object.entries(priceRows).map(([tier, credits]) => ({ tier, credits }))
       const r = await fetch('/api/admin/pricing', { method: 'POST', headers: { 'content-type': 'application/json', ...(await adminHeaders()) }, body: JSON.stringify({ rows }) })
       const j = await r.json()
-      alert(j.ok ? `Сохранено: ${j.saved}` : (j.error || 'Ошибка'))
-    } catch { alert('Ошибка сохранения') } finally { setPriceBusy(false) }
+      alert(j.ok ? `Saved: ${j.saved}` : (j.error || 'Error'))
+    } catch { alert('Save failed') } finally { setPriceBusy(false) }
   }
 
   // ── Category visibility: hide/show whole sections without SQL ──
@@ -1101,8 +1105,8 @@ function AdminDashboard() {
     } catch { /* noop */ }
   }
   async function setComboVisibility(c: Combo, isPublic: boolean) {
-    const verb = isPublic ? 'ОТКРЫТЬ в каталог' : 'скрыть из каталога (обратимо)'
-    if (!confirm(`${c.type} / ${c.category} — ${verb} все ${c.total} ассетов?`)) return
+    const verb = isPublic ? 'SHOW in the catalog' : 'hide from the catalog (reversible)'
+    if (!confirm(`${c.type} / ${c.category} — ${verb} all ${c.total} assets?`)) return
     setComboBusy(`${c.type}|||${c.category}`)
     try {
       const r = await fetch('/api/admin/category-visibility', {
@@ -1112,8 +1116,8 @@ function AdminDashboard() {
       })
       const j = await r.json()
       if (j.ok) loadCombos()
-      else alert(j.error || 'Не сохранилось')
-    } catch { alert('Не сохранилось — попробуй ещё раз') } finally { setComboBusy(null) }
+      else alert(j.error || 'Not saved')
+    } catch { alert('Not saved — try again') } finally { setComboBusy(null) }
   }
 
   // ── Asset price editor modal: tier + override (NULL = follows tier) ──
@@ -1132,7 +1136,7 @@ function AdminDashboard() {
     if (!priceTarget || pBusy) return
     const credit_cost = pOverride.trim() === '' ? null : Math.max(0, Math.round(Number(pOverride)))
     const exclusive_price = pExclusive.trim() === '' ? null : Math.max(0, Math.round(Number(pExclusive)))
-    if ((credit_cost !== null && !Number.isFinite(credit_cost)) || (exclusive_price !== null && !Number.isFinite(exclusive_price))) { alert('Числа или пусто'); return }
+    if ((credit_cost !== null && !Number.isFinite(credit_cost)) || (exclusive_price !== null && !Number.isFinite(exclusive_price))) { alert('Numbers or empty'); return }
     setPBusy(true)
     try {
       const r = await fetch('/api/admin/assets', { method: 'PATCH', headers: { 'content-type': 'application/json', ...(await adminHeaders()) }, body: JSON.stringify({ id: priceTarget.id, price_tier: pTier, credit_cost, exclusive_price }) })
@@ -1140,8 +1144,8 @@ function AdminDashboard() {
       if (j.ok) {
         setAssets(prev => prev.map(a => a.id === priceTarget.id ? { ...a, price_tier: pTier, credit_cost, exclusive_price } : a))
         setPriceTarget(null)
-      } else alert(j.error || 'Не сохранилось')
-    } catch { alert('Не сохранилось') } finally { setPBusy(false) }
+      } else alert(j.error || 'Not saved')
+    } catch { alert('Not saved') } finally { setPBusy(false) }
   }
 
   function fmtSize(b: number): string {
@@ -1390,12 +1394,6 @@ function AdminDashboard() {
           >
             View as client
           </button>
-          <span
-            className="badge text-xs font-semibold px-3 py-1 rounded-full"
-            style={{ backgroundColor: 'rgba(0,194,186,0.15)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.3)' }}
-          >
-            ● Live
-          </span>
         </div>
       </div>
 
@@ -1404,7 +1402,7 @@ function AdminDashboard() {
         className="flex gap-1 rounded-xl p-1 mb-8 w-fit"
         style={{ backgroundColor: 'var(--bg-subtle)' }}
       >
-        {(['overview', 'assets', 'batch', 'categories', 'pricing', 'settings'] as const).map(tab => (
+        {(['overview', 'assets', 'batch', 'categories', 'pricing', 'settings', 'engine'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1418,14 +1416,14 @@ function AdminDashboard() {
             {tab}
           </button>
         ))}
-        <a
-          href="/engine"
-          className="flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-medium transition-all"
-          style={{ color: '#9765E0' }}
-        >
-          <LineIcon d={TYPE_ICON.engine} size={15} /> Engine
-        </a>
       </div>
+
+      {/* ── Engine Tab — the Engine app INSIDE the admin shell (§7) ── */}
+      {activeTab === 'engine' && (
+        <div className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-card)' }}>
+          <iframe src="/engine" title="Engine" style={{ width: '100%', height: 'calc(100vh - 240px)', minHeight: 560, border: 'none', display: 'block' }} />
+        </div>
+      )}
 
       {/* ── Overview Tab ────────────────────────────────────── */}
       {activeTab === 'overview' && (
@@ -1526,22 +1524,22 @@ function AdminDashboard() {
                 <input
                   value={assetSearch}
                   onChange={e => setAssetSearch(e.target.value)}
-                  placeholder="Поиск: название или имя файла…"
+                  placeholder="Search: title or file name…"
                   className="input-field text-sm"
                   style={{ minWidth: 260, padding: '8px 12px' }}
                 />
                 <select value={assetType} onChange={e => setAssetType(e.target.value)} className="input-field text-sm" style={{ padding: '8px 12px' }}>
-                  {assetTypes.map(t => <option key={t} value={t}>{t === 'All' ? 'Все типы' : t}</option>)}
+                  {assetTypes.map(t => <option key={t} value={t}>{t === 'All' ? 'All types' : t}</option>)}
                 </select>
                 <select value={assetSort} onChange={e => setAssetSort(e.target.value as 'date' | 'name' | 'size')} className="input-field text-sm" style={{ padding: '8px 12px' }}>
-                  <option value="date">По дате</option>
-                  <option value="name">По имени</option>
-                  <option value="size">По размеру (крупные сверху)</option>
+                  <option value="date">By date</option>
+                  <option value="name">By name</option>
+                  <option value="size">By size (largest first)</option>
                 </select>
-                <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>{visibleRows.length} шт.</span>
+                <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>{visibleRows.length} items</span>
                 {selectedIds.size > 0 && (
                   <>
-                    <span className="text-xs font-semibold" style={{ color: '#9765E0' }}>выбрано: {selectedIds.size}</span>
+                    <span className="text-xs font-semibold" style={{ color: '#9765E0' }}>selected: {selectedIds.size}</span>
                     <select
                       value={bulkStyle}
                       onChange={e => setBulkStyle(e.target.value)}
@@ -1551,7 +1549,7 @@ function AdminDashboard() {
                       <option value="cartoon">🎨 Cartoon</option>
                       <option value="anime">Anime</option>
                       <option value="3d">3D</option>
-                      <option value="realistic">Realistic (сброс)</option>
+                      <option value="realistic">Realistic (reset)</option>
                     </select>
                     <button
                       onClick={bulkSetStyle}
@@ -1559,7 +1557,7 @@ function AdminDashboard() {
                       className="text-xs font-semibold px-3 py-1.5 rounded-lg"
                       style={{ color: '#CE95FB', border: '1px solid rgba(206,149,251,0.4)', backgroundColor: 'rgba(206,149,251,0.08)' }}
                     >
-                      {bulkBusy ? '…' : 'Задать стиль'}
+                      {bulkBusy ? '…' : 'Set style'}
                     </button>
                     <button
                       onClick={() => bulkFree(true)}
@@ -1567,7 +1565,7 @@ function AdminDashboard() {
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{ backgroundColor: 'rgba(45,212,196,0.12)', color: '#2DD4C4', border: '1px solid rgba(45,212,196,0.4)' }}
                     >
-                      {bulkBusy ? '…' : 'Сделать Free'}
+                      {bulkBusy ? '…' : 'Make Free'}
                     </button>
                     <button
                       onClick={() => bulkFree(false)}
@@ -1575,7 +1573,7 @@ function AdminDashboard() {
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{ backgroundColor: 'rgba(151,101,224,0.12)', color: '#CE95FB', border: '1px solid rgba(151,101,224,0.4)' }}
                     >
-                      {bulkBusy ? '…' : 'Сделать платными'}
+                      {bulkBusy ? '…' : 'Make paid'}
                     </button>
                     <button
                       onClick={() => bulkAction('show')}
@@ -1583,7 +1581,7 @@ function AdminDashboard() {
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{ backgroundColor: 'rgba(0,194,100,0.12)', color: '#00C264', border: '1px solid rgba(0,194,100,0.4)' }}
                     >
-                      {bulkBusy ? '…' : 'Показать выбранные'}
+                      {bulkBusy ? '…' : 'Show selected'}
                     </button>
                     <button
                       onClick={() => bulkAction('hide')}
@@ -1591,7 +1589,7 @@ function AdminDashboard() {
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{ backgroundColor: 'rgba(255,170,60,0.12)', color: '#ffaa3c', border: '1px solid rgba(255,170,60,0.4)' }}
                     >
-                      {bulkBusy ? '…' : 'Скрыть выбранные'}
+                      {bulkBusy ? '…' : 'Hide selected'}
                     </button>
                     <button
                       onClick={() => bulkAction('delete')}
@@ -1599,7 +1597,7 @@ function AdminDashboard() {
                       className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                       style={{ backgroundColor: 'rgba(220,60,60,0.12)', color: '#e06060', border: '1px solid rgba(220,60,60,0.4)' }}
                     >
-                      {bulkBusy ? '…' : 'Удалить выбранные'}
+                      {bulkBusy ? '…' : 'Delete selected'}
                     </button>
                   </>
                 )}
@@ -1612,7 +1610,7 @@ function AdminDashboard() {
                     <th className="px-3 py-3">
                       <input type="checkbox" checked={visibleRows.length > 0 && selectedIds.size === visibleRows.length} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
                     </th>
-                    {['', 'Title', 'Type', 'Category', 'Цена', 'Size', 'Tags', 'Date', ''].map(h => (
+                    {['', 'Title', 'Type', 'Category', 'Price', 'Size', 'Tags', 'Date', ''].map(h => (
                       <th
                         key={h}
                         className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider"
@@ -1661,7 +1659,7 @@ function AdminDashboard() {
                               className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
                               style={{ backgroundColor: 'rgba(255,170,60,0.14)', color: '#ffaa3c', border: '1px solid rgba(255,170,60,0.35)' }}
                             >
-                              Скрыт
+                              Hidden
                             </span>
                           )}
                           {asset.exclusive_owner && (
@@ -1680,7 +1678,7 @@ function AdminDashboard() {
                         <td className="px-4 py-3 text-xs" style={{ whiteSpace: 'nowrap' }}>
                           <button
                             onClick={() => openPriceEditor(asset)}
-                            title="Тир и override цены (пусто = следует тиру)"
+                            title="Tier & price override (empty = follows the tier)"
                             className="font-semibold"
                             style={{ color: '#CE95FB', textDecoration: 'underline dotted', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                           >
@@ -1712,14 +1710,14 @@ function AdminDashboard() {
                           <button
                             onClick={() => toggleVisibility(asset)}
                             disabled={togglingId === asset.id}
-                            title={asset.is_public === false ? 'Показать в каталоге' : 'Скрыть из каталога (обратимо)'}
+                            title={asset.is_public === false ? 'Show in the catalog' : 'Hide from the catalog (reversible)'}
                             className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all mb-1"
                             style={{
                               color: asset.is_public === false ? '#00C264' : '#ffaa3c',
                               backgroundColor: asset.is_public === false ? 'rgba(0,194,100,0.08)' : 'rgba(255,170,60,0.08)',
                             }}
                           >
-                            {togglingId === asset.id ? <SpinnerIcon /> : (asset.is_public === false ? 'Показать' : 'Скрыть')}
+                            {togglingId === asset.id ? <SpinnerIcon /> : (asset.is_public === false ? 'Show' : 'Hide')}
                           </button>
                           <button
                             onClick={() => deleteAsset(asset)}
@@ -1953,9 +1951,9 @@ function AdminDashboard() {
 
           {/* Раздел целиком: скрыть/показать без SQL */}
           <div className="card p-5 mb-8">
-            <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--fg)' }}>Видимость разделов</h3>
+            <h3 className="font-semibold text-sm mb-1" style={{ color: 'var(--fg)' }}>Section visibility</h3>
             <p className="text-xs mb-4" style={{ color: 'var(--fg-muted)' }}>
-              Скрыть или открыть ВСЕ ассеты раздела одной кнопкой. Обратимо — файлы остаются в базе.
+              Hide or show ALL assets of a section with one click. Reversible — files stay in the database.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {combos.map(c => {
@@ -1976,7 +1974,7 @@ function AdminDashboard() {
                         className="px-2 py-1 rounded text-[11px] font-semibold disabled:opacity-30"
                         style={{ color: '#00C264', backgroundColor: 'rgba(0,194,100,0.1)' }}
                       >
-                        {comboBusy === key ? '…' : 'Показать все'}
+                        {comboBusy === key ? '…' : 'Show all'}
                       </button>
                       <button
                         onClick={() => setComboVisibility(c, false)}
@@ -1984,13 +1982,13 @@ function AdminDashboard() {
                         className="px-2 py-1 rounded text-[11px] font-semibold disabled:opacity-30"
                         style={{ color: '#ffaa3c', backgroundColor: 'rgba(255,170,60,0.1)' }}
                       >
-                        {comboBusy === key ? '…' : 'Скрыть все'}
+                        {comboBusy === key ? '…' : 'Hide all'}
                       </button>
                     </span>
                   </div>
                 )
               })}
-              {combos.length === 0 && <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Загружаю разделы…</p>}
+              {combos.length === 0 && <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Loading sections…</p>}
             </div>
           </div>
 
@@ -2112,9 +2110,9 @@ function AdminDashboard() {
       {activeTab === 'pricing' && (
         <div className="max-w-2xl space-y-6">
           <div className="card p-7">
-            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Цены за скачивание (тиры)</h2>
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Download prices (tiers)</h2>
             <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
-              Ассет без override следует своему тиру. Меняешь тир — все «follows default» подтягиваются автоматически.
+              An asset without an override follows its tier. Change the tier — every “follows default” updates automatically.
             </p>
             <div className="space-y-3">
               {['standard', 'premium', 'exclusive'].map(t => (
@@ -2135,9 +2133,9 @@ function AdminDashboard() {
             </div>
           </div>
           <div className="card p-7">
-            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Кредиты по тарифам (в месяц)</h2>
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Plan credits (per month)</h2>
             <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
-              Начисления при подписке и месячном сбросе. Долларовые цены живут в LemonSqueezy — здесь только кредиты.
+              Grants on subscription and at the monthly reset. Dollar prices live in LemonSqueezy — only credits here.
             </p>
             <div className="space-y-3">
               {['plan_free', 'plan_personal', 'plan_pro'].map(t => (
@@ -2158,9 +2156,9 @@ function AdminDashboard() {
             </div>
           </div>
           <div className="card p-7">
-            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Генерация (Studio)</h2>
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Generation (Studio)</h2>
             <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
-              Одна валюта со скачиваниями. Себестоимость $0.02–0.12 за картинку — маржа заложена в цену.
+              One currency with downloads. Cost price $0.02–0.12 per image — the margin is built into the price.
             </p>
             <div className="space-y-3">
               {['gen_base', 'gen_4k', 'gen_video'].map(t => (
@@ -2181,27 +2179,27 @@ function AdminDashboard() {
             </div>
           </div>
           <div className="card p-7">
-            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Пачки докупа (Top-up)</h2>
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Top-up packs</h2>
             <p className="text-xs mb-2" style={{ color: 'var(--fg-muted)' }}>
-              Разовый докуп без подписки; купленные кредиты не сгорают. База $0.10/кредит — дешевле = бонус на витрине.
+              One-time top-up, no subscription; purchased credits never expire. Base $0.10/credit — cheaper shows a bonus.
             </p>
             <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
-              «LS buy link» — ссылка Buy этого продукта из LemonSqueezy. Пока ссылки нет, пачка на витрине неактивна.
+              «LS buy link» — the product's Buy link from LemonSqueezy. Without a link the pack stays inactive on the storefront.
             </p>
-            {topupMsg && <p className="text-xs mb-3" style={{ color: topupMsg.startsWith('Сохранено') ? '#7EE7C7' : '#e06060' }}>{topupMsg}</p>}
+            {topupMsg && <p className="text-xs mb-3" style={{ color: topupMsg.startsWith('Saved') ? '#7EE7C7' : '#e06060' }}>{topupMsg}</p>}
             <div className="space-y-2 mb-4">
               {topupPacks.map((tp, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <input
                     type="number" min={1} value={tp.credits}
                     onChange={e => setTopupPacks(prev => prev.map((x, k) => k === i ? { ...x, credits: Number(e.target.value) } : x))}
-                    className="input-field text-sm text-right" style={{ width: 84, padding: '7px 10px' }} title="Кредитов в пачке"
+                    className="input-field text-sm text-right" style={{ width: 84, padding: '7px 10px' }} title="Credits in the pack"
                   />
-                  <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>кр. за $</span>
+                  <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>cr. for $</span>
                   <input
                     type="number" min={0.5} step={0.5} value={tp.usd}
                     onChange={e => setTopupPacks(prev => prev.map((x, k) => k === i ? { ...x, usd: Number(e.target.value) } : x))}
-                    className="input-field text-sm text-right" style={{ width: 74, padding: '7px 10px' }} title="Цена в долларах"
+                    className="input-field text-sm text-right" style={{ width: 74, padding: '7px 10px' }} title="Price in dollars"
                   />
                   <input
                     value={tp.ls_url ?? ''} placeholder="LS buy link"
@@ -2218,7 +2216,7 @@ function AdminDashboard() {
                   <button
                     onClick={() => setTopupPacks(prev => prev.filter((_, k) => k !== i))}
                     className="text-xs font-bold" style={{ color: '#e06060', background: 'none', border: 'none', cursor: 'pointer' }}
-                    title="Удалить пачку"
+                    title="Remove the pack"
                   >
                     ×
                   </button>
@@ -2230,17 +2228,17 @@ function AdminDashboard() {
                 onClick={() => setTopupPacks(prev => prev.length >= 8 ? prev : [...prev, { credits: 100, usd: 10, ls_url: '' }])}
                 className="btn-secondary text-xs px-4 py-2 font-bold"
               >
-                + Пачка
+                + Pack
               </button>
               <button onClick={saveTopupPacks} disabled={topupBusy} className="btn-primary text-xs px-4 py-2 font-bold">
-                {topupBusy ? '…' : 'Сохранить пачки'}
+                {topupBusy ? '…' : 'Save packs'}
               </button>
             </div>
           </div>
           <div className="card p-7">
-            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Кредиты и возвраты</h2>
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Credits & refunds</h2>
             <p className="text-xs mb-4" style={{ color: 'var(--fg-muted)' }}>
-              Пополнение любого аккаунта по email (себя и тестовых). Возврат = кредиты назад + ассет уходит из владения; эксклюзив возвращается в каталог. Юзеры сами возвращать не могут.
+              Top up any account by email (yourself and test accounts). Refund = credits back + the asset leaves ownership; exclusives return to the catalog. Users can't refund themselves.
             </p>
             {ccToast && <p className="text-xs mb-3" style={{ color: '#7EE7C7' }}>{ccToast}</p>}
             <div className="flex items-center gap-2 mb-6">
@@ -2249,15 +2247,15 @@ function AdminDashboard() {
               <button onClick={addCredits} disabled={ccBusy} className="btn-primary text-xs px-4 py-2 font-bold">{ccBusy ? '…' : 'Add credits'}</button>
             </div>
             <div className="flex items-center gap-2 mb-3">
-              <input value={refEmail} onChange={e => setRefEmail(e.target.value)} placeholder="email юзера для возврата" className="input-field text-sm" style={{ flex: 1, padding: '8px 10px' }} onKeyDown={e => { if (e.key === 'Enter') loadRefunds() }} />
-              <button onClick={loadRefunds} className="btn-secondary text-xs px-4 py-2 font-bold">Показать покупки</button>
+              <input value={refEmail} onChange={e => setRefEmail(e.target.value)} placeholder="user email for the refund" className="input-field text-sm" style={{ flex: 1, padding: '8px 10px' }} onKeyDown={e => { if (e.key === 'Enter') loadRefunds() }} />
+              <button onClick={loadRefunds} className="btn-secondary text-xs px-4 py-2 font-bold">Show purchases</button>
             </div>
             {refRows && (
               refRows.length === 0 ? (
-                <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Покупок нет.</p>
+                <p className="text-xs" style={{ color: 'var(--fg-subtle)' }}>No purchases.</p>
               ) : (
                 <div className="space-y-2">
-                  {refCredits !== null && <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>Баланс: {refCredits} кредитов</p>}
+                  {refCredits !== null && <p className="text-xs" style={{ color: 'var(--fg-muted)' }}>Balance: {refCredits} credits</p>}
                   {refRows.map(r => (
                     <div key={r.assetId} className="flex items-center justify-between gap-3 text-xs rounded-lg px-3 py-2" style={{ backgroundColor: 'var(--bg-subtle)' }}>
                       <span className="truncate" style={{ color: 'var(--fg)' }}>{r.title}{r.exclusive ? ' · EXCLUSIVE' : ''}</span>
@@ -2276,7 +2274,7 @@ function AdminDashboard() {
             disabled={priceBusy}
             className="btn-primary px-8 py-2.5 text-sm font-bold"
           >
-            {priceBusy ? 'Сохраняю…' : 'Сохранить цены'}
+            {priceBusy ? 'Saving…' : 'Save prices'}
           </button>
         </div>
       )}
@@ -2297,10 +2295,10 @@ function AdminDashboard() {
             }}
             onClick={e => e.stopPropagation()}
           >
-            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Цена ассета</h2>
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Asset price</h2>
             <p className="text-xs mb-5 truncate" style={{ color: 'var(--fg-muted)' }}>{priceTarget.title}</p>
 
-            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>Тир</label>
+            <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>Tier</label>
             <select value={pTier} onChange={e => setPTier(e.target.value)} className="input-field w-full text-sm mb-4" style={{ padding: '9px 12px' }}>
               <option value="standard">Standard ({priceRows['standard'] ?? 5}⚡)</option>
               <option value="premium">Premium ({priceRows['premium'] ?? 20}⚡)</option>
@@ -2308,20 +2306,20 @@ function AdminDashboard() {
             </select>
 
             <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>
-              Credit cost — override <span style={{ color: 'var(--fg-subtle)' }}>(пусто = follows default)</span>
+              Credit cost — override <span style={{ color: 'var(--fg-subtle)' }}>(empty = follows default)</span>
             </label>
-            <input type="number" min={0} value={pOverride} onChange={e => setPOverride(e.target.value)} placeholder={`по тиру: ${priceRows[pTier] ?? '—'}⚡`} className="input-field w-full text-sm mb-4" style={{ padding: '9px 12px' }} />
+            <input type="number" min={0} value={pOverride} onChange={e => setPOverride(e.target.value)} placeholder={`by tier: ${priceRows[pTier] ?? '—'}⚡`} className="input-field w-full text-sm mb-4" style={{ padding: '9px 12px' }} />
 
             <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--fg-muted)' }}>
-              Exclusive buyout — override <span style={{ color: 'var(--fg-subtle)' }}>(пусто = {priceRows['exclusive'] ?? 50}⚡)</span>
+              Exclusive buyout — override <span style={{ color: 'var(--fg-subtle)' }}>(empty = {priceRows['exclusive'] ?? 50}⚡)</span>
             </label>
-            <input type="number" min={0} value={pExclusive} onChange={e => setPExclusive(e.target.value)} placeholder={`по умолчанию: ${priceRows['exclusive'] ?? 50}⚡`} className="input-field w-full text-sm mb-5" style={{ padding: '9px 12px' }} />
+            <input type="number" min={0} value={pExclusive} onChange={e => setPExclusive(e.target.value)} placeholder={`default: ${priceRows['exclusive'] ?? 50}⚡`} className="input-field w-full text-sm mb-5" style={{ padding: '9px 12px' }} />
 
             <div className="flex gap-3">
               <button onClick={savePriceEditor} disabled={pBusy} className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white" style={{ background: 'linear-gradient(135deg, #9765E0, #534FA5)', opacity: pBusy ? 0.5 : 1 }}>
-                {pBusy ? 'Сохраняю…' : 'Сохранить'}
+                {pBusy ? 'Saving…' : 'Save'}
               </button>
-              <button onClick={() => { setPOverride(''); setPExclusive('') }} disabled={pBusy} className="px-4 py-2.5 rounded-xl text-sm font-medium" style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }} title="Очистить override — цена следует тиру">
+              <button onClick={() => { setPOverride(''); setPExclusive('') }} disabled={pBusy} className="px-4 py-2.5 rounded-xl text-sm font-medium" style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }} title="Clear the override — price follows the tier">
                 Use default
               </button>
             </div>
@@ -2338,14 +2336,14 @@ function AdminDashboard() {
           {/* Catalog display */}
           <div className="card p-6">
             <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
-              Отображение карточек в каталоге
+              Catalog card display
             </h3>
             <p className="text-xs mb-5" style={{ color: 'var(--fg-subtle)' }}>
-              Действует для всех посетителей сразу после сохранения.
+              Applies to every visitor right after saving.
             </p>
             <div className="grid md:grid-cols-2 gap-4 mb-5">
               <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--fg-muted)' }}>Картинка</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--fg-muted)' }}>Image</label>
                 <select
                   value={dispCfg.fit}
                   onChange={e => setDispCfg(c => ({ ...c, fit: e.target.value as CatalogConfig['fit'] }))}
@@ -2355,7 +2353,7 @@ function AdminDashboard() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--fg-muted)' }}>Форма карточки</label>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--fg-muted)' }}>Card shape</label>
                 <select
                   value={dispCfg.ratio}
                   onChange={e => setDispCfg(c => ({ ...c, ratio: e.target.value as CatalogConfig['ratio'] }))}
@@ -2368,11 +2366,11 @@ function AdminDashboard() {
             {/* Live preview — reacts instantly, BEFORE save */}
             <div className="mb-5">
               <label className="block text-xs font-medium mb-2" style={{ color: 'var(--fg-muted)' }}>
-                Предпросмотр (реальные ассеты из базы, меняется сразу)
+                Preview (real assets from the base, updates instantly)
               </label>
               <div className="flex flex-wrap gap-4">
                 {previewSamples.length === 0 && (
-                  <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Загружаю примеры…</span>
+                  <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>Loading samples…</span>
                 )}
                 {previewSamples.map(s => (
                   <div key={s.label} style={{ width: 220 }}>
@@ -2410,19 +2408,19 @@ function AdminDashboard() {
               >
                 {dispSaving ? 'Saving…' : 'Save'}
               </button>
-              {dispSaved && <span className="text-sm" style={{ color: '#00C264' }}>✓ Сохранено</span>}
-              <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>После Save обнови страницу каталога, чтобы увидеть результат.</span>
+              {dispSaved && <span className="text-sm" style={{ color: '#00C264' }}>✓ Saved</span>}
+              <span className="text-xs" style={{ color: 'var(--fg-subtle)' }}>After Save, refresh the catalog page to see the result.</span>
             </div>
           </div>
 
           {/* Backup */}
           <div className="card p-6" style={{ borderTop: '2px solid #00C2BA' }}>
             <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>
-              Резервная копия базы
+              Database backup
             </h3>
             <p className="text-xs mb-4" style={{ color: 'var(--fg-subtle)' }}>
-              Скачивает все ассеты (названия, теги, категории, ссылки) одним JSON-файлом.
-              Жми раз в неделю и после больших изменений — файл храни в Dropbox.
+              Downloads all assets (titles, tags, categories, links) as one JSON file.
+              Run it weekly and after big changes — keep the file in Dropbox.
             </p>
             <div className="flex items-center gap-3">
               <button
@@ -2431,9 +2429,9 @@ function AdminDashboard() {
                 className="px-5 py-2 rounded-lg text-sm font-semibold"
                 style={{ backgroundColor: 'rgba(0,194,186,0.12)', color: '#00C2BA', border: '1px solid rgba(0,194,186,0.4)', opacity: backupBusy ? 0.6 : 1 }}
               >
-                {backupBusy ? 'Готовлю…' : '⬇ Скачать бэкап'}
+                {backupBusy ? 'Preparing…' : '⬇ Download backup'}
               </button>
-              {backupMsg && <span className="text-xs" style={{ color: backupMsg.startsWith('Ошибка') ? '#e06060' : '#00C264' }}>{backupMsg}</span>}
+              {backupMsg && <span className="text-xs" style={{ color: backupMsg.startsWith('Error') ? '#e06060' : '#00C264' }}>{backupMsg}</span>}
             </div>
           </div>
 
@@ -2452,7 +2450,7 @@ function AdminDashboard() {
                 className="input-field text-sm"
                 style={{ minWidth: 260 }}
               >
-                <option value="">— выбери раздел —</option>
+                <option value="">— pick a section —</option>
                 {catList.map(c => (
                   <option key={c.category} value={c.category}>{c.category} ({c.count})</option>
                 ))}
@@ -2471,7 +2469,7 @@ function AdminDashboard() {
                 {delBusy ? 'Deleting…' : 'Delete section'}
               </button>
             </div>
-            {delMsg && <p className="text-sm mt-4" style={{ color: delMsg.startsWith('Ошибка') ? '#e06060' : '#00C264' }}>{delMsg}</p>}
+            {delMsg && <p className="text-sm mt-4" style={{ color: delMsg.startsWith('Error') ? '#e06060' : '#00C264' }}>{delMsg}</p>}
           </div>
         </div>
       )}
