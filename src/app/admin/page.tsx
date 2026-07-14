@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import AdminGate, { adminHeaders, toggleViewAsClient } from '@/components/AdminGate'
 import { CatalogConfig, DEFAULT_CATALOG_CONFIG, FIT_OPTIONS, RATIO_OPTIONS } from '@/lib/catalogConfig'
@@ -602,7 +603,7 @@ function HomepageFeaturedEditor() {
 
       {/* ── Manual frame positioner (#82) — the avatar cropper, 3:4 frame.
            Saves only numbers { x, y, z }; the wall re-creates the exact view in CSS. */}
-      {heroCrop && (
+      {heroCrop && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(8,5,15,0.85)', backdropFilter: 'blur(6px)' }}>
           <div className="rounded-2xl p-6" style={{ backgroundColor: '#120D1D', border: '1px solid var(--border)', width: 320 }}>
             <p className="text-sm font-bold mb-1" style={{ color: 'var(--fg)' }}>Frame the tile</p>
@@ -657,7 +658,8 @@ function HomepageFeaturedEditor() {
               <button onClick={() => setHeroCrop(null)} className="px-4 py-2.5 rounded-xl text-sm font-bold" style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>Cancel</button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <div className="flex items-center gap-3">
