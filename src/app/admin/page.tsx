@@ -2444,10 +2444,10 @@ function AdminDashboard() {
           {/* Danger zone */}
           <div className="card p-6" style={{ border: '1px solid rgba(220,60,60,0.35)' }}>
             <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: '#e06060' }}>
-              Danger zone — удалить раздел целиком
+              Danger zone — delete an entire section
             </h3>
             <p className="text-xs mb-5" style={{ color: 'var(--fg-subtle)' }}>
-              Удаляет ВСЕ ассеты раздела вместе с файлами в Storage. Отменить нельзя.
+              Deletes ALL assets of the section together with their Storage files. Cannot be undone.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <select
