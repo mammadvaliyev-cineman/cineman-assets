@@ -409,6 +409,10 @@ export default function CatalogPage() {
       const cat = p.get('category')
       if (cat && CATEGORIES.some(c => c.id === cat)) setActiveCat(cat)
       if (p.get('free') === '1') setActiveFree(true)
+      // hero search deep-link (DEV_homepage_search): same engine as the
+      // in-catalog search — title / category / tags
+      const q = p.get('q')
+      if (q) setSearch(q.slice(0, 80))
     } catch { /* noop */ }
   }, [])
   const [storeTick, setStoreTick]     = useState(0)
