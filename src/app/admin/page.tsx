@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import AdminGate, { adminHeaders, toggleViewAsClient } from '@/components/AdminGate'
 import { CatalogConfig, DEFAULT_CATALOG_CONFIG, FIT_OPTIONS, RATIO_OPTIONS } from '@/lib/catalogConfig'
 import { CATEGORIES, STYLES, MOODS, LIGHTING, Category, makeSubcategory } from '@/config/categories'
+import { TileView, type HeroTile } from '@/components/HeroWall'
 
 // ── Types ───────────────────────────────────────────────────
 type AssetRow = {
@@ -265,7 +266,11 @@ function HomepageFeaturedEditor() {
   const SECTION_CATS = CATEGORIES.filter(c => c.id !== 'Prop').map(c => c.id)
   const [tiles, setTiles] = useState<Tile[]>([])
   const [catCovers, setCatCovers] = useState<Record<string, string>>({})
-  const [heroFrames, setHeroFrames] = useState<string[]>([])
+  const [heroTiles, setHeroTiles] = useState<(HeroTile | null)[]>([])
+  // manual crop positioner for a wall tile — same mechanics as the avatar
+  const [heroCrop, setHeroCrop] = useState<{ idx: number; src: string; x: number; y: number; z: number } | null>(null)
+  const heroDragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
+  const heroFileRef = useRef<HTMLInputElement>(null)
   const [weekIds, setWeekIds] = useState<string[]>([])
   const [trendingText, setTrendingText] = useState('')
   const [weekPrev, setWeekPrev] = useState<Record<string, string>>({})
@@ -296,7 +301,9 @@ function HomepageFeaturedEditor() {
         const f = (j?.config?.featured ?? []) as Tile[]
         setTiles([0, 1, 2, 3].map(i => f[i] ?? { title: '', cat: 'People', cover: '' }))
         setCatCovers(j?.config?.catCovers ?? {})
-        setHeroFrames(j?.config?.heroFrames ?? [])
+        const savedTiles = (j?.config?.heroTiles ?? []) as HeroTile[]
+        const legacy = ((j?.config?.heroFrames ?? []) as string[]).map(u => ({ src: u, x: 0, y: 0, z: 1 }))
+        setHeroTiles(savedTiles.length ? savedTiles : legacy)
         const ids = (j?.config?.newWeekIds ?? []) as string[]
         setTrendingText(((j?.config?.trending ?? []) as string[]).join(', '))
         setWeekIds(ids)
@@ -340,7 +347,12 @@ function HomepageFeaturedEditor() {
     if (!picker) return
     if (picker.kind === 'featured') upd(Number(picker.key), { cover: render(a.file_url, 1024), promo: false, href: '', hideTitle: false })
     if (picker.kind === 'cat') setCatCovers(prev => ({ ...prev, [String(picker.key)]: render(a.file_url, 480) }))
-    if (picker.kind === 'hero') setHeroFrames(prev => { const n = [...prev]; n[Number(picker.key)] = render(a.file_url, 1024); return n.slice(0, 6) })
+    if (picker.kind === 'hero') {
+      // #82: after picking — frame it by hand (drag / zoom), like the avatar
+      setPicker(null)
+      setHeroCrop({ idx: Number(picker.key), src: render(a.file_url, 1024), x: 0, y: 0, z: 1 })
+      return
+    }
     if (picker.kind === 'week') {
       setWeekIds(prev => { const n = [...prev]; n[Number(picker.key)] = a.id; return n.slice(0, 12) })
       setWeekPrev(prev => ({ ...prev, [a.id]: render(a.file_url, 240) }))
@@ -361,7 +373,28 @@ function HomepageFeaturedEditor() {
   }
   async function randomAllHero() {
     setRandBusy('hero')
-    try { setHeroFrames((await randomOf('Location', 6)).map(a => render(a.file_url, 1024))) } finally { setRandBusy('') }
+    try {
+      setHeroTiles((await randomOf('Location', 9)).map(a => ({ src: render(a.file_url, 1024), x: 0, y: 0, z: 1 })))
+    } finally { setRandBusy('') }
+  }
+
+  // Upload your own image for a wall tile → same manual crop step
+  async function onUploadHero(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const idx = picker?.kind === 'hero' ? Number(picker.key) : heroTiles.findIndex(t => !t)
+    if (!file) return
+    setMsg('Uploading the image…')
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const r = await fetch('/api/admin/upload-cover', { method: 'POST', headers: await adminHeaders(), body: fd })
+      const j = await r.json()
+      if (j.ok) {
+        setPicker(null)
+        setHeroCrop({ idx: idx >= 0 ? idx : 0, src: j.url, x: 0, y: 0, z: 1 })
+        setMsg('')
+      } else setMsg(j.error || 'Upload failed')
+    } catch { setMsg('Upload failed') }
+    if (heroFileRef.current) heroFileRef.current.value = ''
   }
   async function randomAllWeek() {
     setRandBusy('week')
@@ -403,10 +436,10 @@ function HomepageFeaturedEditor() {
       if (dup) { setMsg(`Duplicate category on the showcase: ${labelFor(dup)} — pick different ones`); setBusy(false); return }
       const r = await fetch('/api/admin/homepage-config', {
         method: 'POST', headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
-        body: JSON.stringify({ config: { featured, catCovers, heroFrames: heroFrames.filter(Boolean), newWeekIds: weekIds.filter(Boolean), trending: trendingText.split(',').map(t => t.trim()).filter(Boolean) } }),
+        body: JSON.stringify({ config: { featured, catCovers, heroTiles: heroTiles.filter(Boolean), heroFrames: (heroTiles.filter(Boolean) as HeroTile[]).map(t => t.src), newWeekIds: weekIds.filter(Boolean), trending: trendingText.split(',').map(t => t.trim()).filter(Boolean) } }),
       })
       const j = await r.json()
-      setMsg(j.ok ? `Saved: showcase ${featured.length}, categories ${Object.keys(catCovers).length}, hero ${heroFrames.filter(Boolean).length}, new-this-week ${weekIds.filter(Boolean).length}. Homepage updated.` : (j.error || 'Error'))
+      setMsg(j.ok ? `Saved: showcase ${featured.length}, categories ${Object.keys(catCovers).length}, hero ${heroTiles.filter(Boolean).length}, new-this-week ${weekIds.filter(Boolean).length}. Homepage updated.` : (j.error || 'Error'))
     } catch { setMsg('Error — try again') }
     setBusy(false)
   }
@@ -477,13 +510,45 @@ function HomepageFeaturedEditor() {
         ))}
       </div>
 
-      {/* ── Hero showreel (locations) ── */}
-      <div className="flex items-center gap-3 mb-2">
-        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>Hero-carousel (locations)</p>
+      {/* ── Hero wall (#82): pick from the base → frame by hand ── */}
+      <div className="flex items-center gap-3 mb-1">
+        <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: 'var(--fg-subtle)', margin: 0 }}>Hero wall — 9 tiles</p>
         {randBtn('Shuffle all', randomAllHero, 'hero')}
+        <button onClick={() => heroFileRef.current?.click()} className="text-[11px] font-semibold px-2 py-1 rounded-lg" style={{ backgroundColor: 'rgba(229,169,75,0.1)', border: '1px solid rgba(229,169,75,0.4)', color: '#E5A94B', cursor: 'pointer' }}>
+          Upload image
+        </button>
       </div>
+      <p className="text-[10.5px] mb-2" style={{ color: 'var(--fg-subtle)' }}>
+        Click a slot → pick an asset → frame it by hand (drag / zoom), exactly like the profile photo. ✎ re-crops, × clears.
+      </p>
+      <input ref={heroFileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onUploadHero} style={{ display: 'none' }} />
       <div className="flex flex-wrap gap-2 mb-5">
-        {[0, 1, 2, 3, 4, 5].map(i => slotBtn(heroFrames[i], () => openPicker('hero', i), 88, 50))}
+        {Array.from({ length: 9 }, (_, i) => {
+          const t = heroTiles[i]
+          return (
+            <div key={i} style={{ position: 'relative', width: 72 }}>
+              {t ? (
+                <>
+                  <button onClick={() => openPicker('hero', i)} title="Replace" style={{ display: 'block', width: '100%', padding: 0, border: 'none', background: 'none', cursor: 'pointer' }}>
+                    <TileView tile={t} radius={8} />
+                  </button>
+                  <button
+                    onClick={() => setHeroCrop({ idx: i, src: t.src, x: t.x * 240, y: t.y * 320, z: t.z })}
+                    title="Re-crop"
+                    style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 6, backgroundColor: 'rgba(10,8,16,0.72)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontSize: 10, cursor: 'pointer', lineHeight: 1 }}
+                  >✎</button>
+                  <button
+                    onClick={() => setHeroTiles(prev => prev.map((x, k) => k === i ? null : x))}
+                    title="Clear"
+                    style={{ position: 'absolute', top: 4, left: 4, width: 20, height: 20, borderRadius: 6, backgroundColor: 'rgba(10,8,16,0.72)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontSize: 10, cursor: 'pointer', lineHeight: 1 }}
+                  >×</button>
+                </>
+              ) : (
+                <button onClick={() => openPicker('hero', i)} title="Pick" style={{ width: '100%', aspectRatio: '3 / 4', borderRadius: 8, overflow: 'hidden', border: '1px dashed var(--border)', backgroundColor: '#17151E', cursor: 'pointer', color: 'var(--fg-subtle)', fontSize: 16 }}>+</button>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       {/* ── New this week ── */}
@@ -513,6 +578,11 @@ function HomepageFeaturedEditor() {
             <button onClick={() => openPicker(picker.kind, picker.key)} disabled={pickerBusy} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'rgba(151,101,224,0.12)', border: '1px solid rgba(151,101,224,0.4)', color: '#CE95FB', cursor: 'pointer' }}>
               {pickerBusy ? '…' : 'More options'}
             </button>
+            {picker.kind === 'hero' && (
+              <button onClick={() => heroFileRef.current?.click()} className="text-[11px] font-semibold px-2.5 py-1 rounded-lg" style={{ backgroundColor: 'rgba(229,169,75,0.1)', border: '1px solid rgba(229,169,75,0.4)', color: '#E5A94B', cursor: 'pointer' }}>
+                Upload your own
+              </button>
+            )}
             <button onClick={() => setPicker(null)} className="text-[11px] ml-auto" style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>Close</button>
           </div>
           {pickerBusy && pickerAssets.length === 0 ? (
@@ -527,6 +597,66 @@ function HomepageFeaturedEditor() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Manual frame positioner (#82) — the avatar cropper, 3:4 frame.
+           Saves only numbers { x, y, z }; the wall re-creates the exact view in CSS. */}
+      {heroCrop && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(8,5,15,0.85)', backdropFilter: 'blur(6px)' }}>
+          <div className="rounded-2xl p-6" style={{ backgroundColor: '#120D1D', border: '1px solid var(--border)', width: 320 }}>
+            <p className="text-sm font-bold mb-1" style={{ color: 'var(--fg)' }}>Frame the tile</p>
+            <p className="text-[11px] mb-4" style={{ color: 'var(--fg-muted)' }}>Drag to aim (a face, the best part of a location), zoom to fit. Leave as-is to keep the whole frame.</p>
+            <div
+              style={{ width: 240, height: 320, borderRadius: 12, overflow: 'hidden', margin: '0 auto', position: 'relative', backgroundColor: 'black', border: '2px solid color-mix(in srgb, var(--accent) 50%, transparent)', cursor: 'grab', touchAction: 'none' }}
+              onPointerDown={e => {
+                (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+                heroDragRef.current = { startX: e.clientX, startY: e.clientY, baseX: heroCrop.x, baseY: heroCrop.y }
+              }}
+              onPointerMove={e => {
+                if (!heroDragRef.current) return
+                const d = heroDragRef.current
+                setHeroCrop(c => c ? { ...c, x: d.baseX + (e.clientX - d.startX), y: d.baseY + (e.clientY - d.startY) } : c)
+              }}
+              onPointerUp={() => { heroDragRef.current = null }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={heroCrop.src}
+                alt=""
+                draggable={false}
+                style={{
+                  position: 'absolute',
+                  left: `calc(50% + ${heroCrop.x}px)`, top: `calc(50% + ${heroCrop.y}px)`,
+                  transform: `translate(-50%, -50%) scale(${heroCrop.z})`,
+                  minWidth: '100%', minHeight: '100%', objectFit: 'cover',
+                  userSelect: 'none', pointerEvents: 'none',
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-2 mt-4">
+              <span className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>Zoom</span>
+              <input type="range" min={1} max={3} step={0.01} value={heroCrop.z} onChange={e => setHeroCrop(c => c ? { ...c, z: Number(e.target.value) } : c)} style={{ flex: 1, accentColor: 'var(--accent)' }} />
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => {
+                  const c = heroCrop
+                  setHeroTiles(prev => {
+                    const n = [...prev]
+                    while (n.length <= c.idx) n.push(null)
+                    n[c.idx] = { src: c.src, x: c.x / 240, y: c.y / 320, z: c.z }
+                    return n.slice(0, 9)
+                  })
+                  setHeroCrop(null)
+                }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold btn-primary"
+              >
+                Save frame
+              </button>
+              <button onClick={() => setHeroCrop(null)} className="px-4 py-2.5 rounded-xl text-sm font-bold" style={{ border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 
