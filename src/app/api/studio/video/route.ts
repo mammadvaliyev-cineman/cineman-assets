@@ -34,7 +34,7 @@ const MODELS: Record<string, string> = {
 const MODEL_MULT: Record<string, number> = { 'seedance-2': 1, 'seedance-2-fast': 0.6, 'kling-3': 1.2 }
 function computeCost(base: number, model: string, settings: { duration?: unknown; resolution?: unknown }): number {
   const dur = [5, 10, 15].includes(Number(settings.duration)) ? Number(settings.duration) : 5
-  const resMult = String(settings.resolution) === '1080p' ? 1.5 : 1
+  const resMult = String(settings.resolution) === '1080p' ? 1.5 : String(settings.resolution) === '480p' ? 0.7 : 1
   return Math.max(1, Math.round(base * (MODEL_MULT[model] ?? 1) * (dur / 5) * resMult))
 }
 
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     const input: Record<string, unknown> = {
       prompt,
       generate_audio: !!settings.audio,
-      resolution: ['720p', '1080p'].includes(String(settings.resolution)) ? String(settings.resolution) : '720p',
+      resolution: ['480p', '720p', '1080p'].includes(String(settings.resolution)) ? String(settings.resolution) : '720p',
       aspect_ratio: ['16:9', '9:16', '1:1', '4:3'].includes(String(settings.aspect)) ? String(settings.aspect) : '16:9',
       // Kling caps at 10s — clamp so a stale draft can't send 15
       duration: Math.min(
@@ -173,6 +173,13 @@ export async function GET(req: NextRequest) {
     const key = `gen/${gen.id}.mp4`
     if (r2Configured()) await r2Put(key, buf, 'video/mp4')
     await admin.from('generations').update({ r2_key: key, state: 'done' }).eq('id', gen.id)
+    // bell: the render is ready
+    await admin.from('user_events').insert({
+      user_id: gate.userId,
+      title: 'Your video is ready',
+      body: (gen.prompt ? String(gen.prompt).slice(0, 80) : 'Open Studio to watch it.'),
+      href: '/studio',
+    }).then(() => {}, () => {})
 
     // OWNERSHIP: the generation belongs to its creator — it also lands in
     // the Library as a private owned asset (free re-downloads forever)
