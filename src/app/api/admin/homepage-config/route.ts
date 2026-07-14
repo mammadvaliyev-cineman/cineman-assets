@@ -38,10 +38,11 @@ export async function GET() {
         catCovers: saved.catCovers && typeof saved.catCovers === 'object' ? saved.catCovers : {},
         heroFrames: Array.isArray(saved.heroFrames) ? saved.heroFrames : [],
         newWeekIds: Array.isArray(saved.newWeekIds) ? saved.newWeekIds : [],
+        trending: Array.isArray(saved.trending) ? saved.trending : [],
       },
     })
   } catch {
-    return NextResponse.json({ config: { featured: [], catCovers: {}, heroFrames: [], newWeekIds: [] } })
+    return NextResponse.json({ config: { featured: [], catCovers: {}, heroFrames: [], newWeekIds: [], trending: [] } })
   }
 }
 
@@ -72,8 +73,11 @@ export async function POST(req: NextRequest) {
       .slice(0, 6).map((u: unknown) => str(u, 500)).filter(Boolean)
     const newWeekIds: string[] = (Array.isArray(config?.newWeekIds) ? config.newWeekIds : [])
       .slice(0, 12).map((u: unknown) => str(u, 60)).filter(Boolean)
+    // hero-search trending chips (DEV_homepage_search §2)
+    const trending: string[] = (Array.isArray(config?.trending) ? config.trending : [])
+      .slice(0, 12).map((u: unknown) => str(u, 24).trim()).filter(Boolean)
 
-    const body = JSON.stringify({ featured, catCovers, heroFrames, newWeekIds })
+    const body = JSON.stringify({ featured, catCovers, heroFrames, newWeekIds, trending })
     const admin = supabaseAdmin()
     const { data } = await admin.from('assets').select('id').eq('type', ROW.type).eq('title', ROW.title).limit(1)
     if (data?.length) {
@@ -87,7 +91,7 @@ export async function POST(req: NextRequest) {
       if (error) throw error
     }
     revalidatePath('/')
-    return NextResponse.json({ ok: true, config: { featured, catCovers, heroFrames, newWeekIds } })
+    return NextResponse.json({ ok: true, config: { featured, catCovers, heroFrames, newWeekIds, trending } })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Save failed'
     return NextResponse.json({ error: msg }, { status: 500 })
