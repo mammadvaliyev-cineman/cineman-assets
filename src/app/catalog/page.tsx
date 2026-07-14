@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { Asset } from '@/lib/mock-data'
 import { CATEGORIES } from '@/config/categories'
@@ -116,9 +117,37 @@ function FilterPopover({
   const [open, setOpen] = useState(false)
   const [hi, setHi] = useState(-1)
   const rootRef = useRef<HTMLDivElement>(null)
+  // PORTAL + viewport-aware placement (owner's bug): the menu renders on
+  // the top layer so no overflow parent can clip it, and it flips to the
+  // trigger's RIGHT edge (or above) when it would leave the viewport.
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return }
+    const place = () => {
+      const r = rootRef.current?.getBoundingClientRect()
+      if (!r) return
+      const mw = menuRef.current?.offsetWidth ?? 220
+      const mh = menuRef.current?.offsetHeight ?? 280
+      let left = r.left
+      if (left + mw > window.innerWidth - 8) left = Math.max(8, r.right - mw)
+      let top = r.bottom + 6
+      if (top + mh > window.innerHeight - 8) top = Math.max(8, r.top - mh - 6)
+      setPos({ top, left })
+    }
+    place()
+    // re-measure once the menu has real dimensions
+    requestAnimationFrame(place)
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true) }
+  }, [open])
   useEffect(() => {
     if (!open) return
-    const onDoc = (e: MouseEvent) => { if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false) }
+    const onDoc = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (rootRef.current && !rootRef.current.contains(t) && menuRef.current && !menuRef.current.contains(t)) setOpen(false)
+    }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
     document.addEventListener('mousedown', onDoc)
     document.addEventListener('keydown', onKey)
@@ -172,11 +201,16 @@ function FilterPopover({
           <span style={{ position: 'absolute', right: 9, pointerEvents: 'none', color: 'var(--fg-subtle)' }}><ChevronDown /></span>
         )}
       </button>
-      {open && (
+      {open && createPortal(
         <div
+          ref={menuRef}
           role="listbox"
           style={{
-            position: 'absolute', top: 'calc(100% + 6px)', left: 0, minWidth: 200, zIndex: 60,
+            position: 'fixed',
+            top: pos?.top ?? -9999,
+            left: pos?.left ?? -9999,
+            visibility: pos ? 'visible' : 'hidden',
+            minWidth: 200, maxWidth: 300, zIndex: 70,
             backgroundColor: '#17151E', border: '1px solid rgba(255,255,255,0.08)',
             borderRadius: 12, padding: 6, boxShadow: '0 18px 48px rgba(0,0,0,0.55)',
           }}
@@ -205,7 +239,8 @@ function FilterPopover({
               {value === o.value && <span style={{ display: 'flex', color: 'var(--accent-soft)' }}><LineIcon d={CHECK_D} size={13} /></span>}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
