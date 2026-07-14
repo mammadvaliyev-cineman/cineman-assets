@@ -267,6 +267,7 @@ function HomepageFeaturedEditor() {
   const [catCovers, setCatCovers] = useState<Record<string, string>>({})
   const [heroFrames, setHeroFrames] = useState<string[]>([])
   const [weekIds, setWeekIds] = useState<string[]>([])
+  const [trendingText, setTrendingText] = useState('')
   const [weekPrev, setWeekPrev] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
@@ -297,6 +298,7 @@ function HomepageFeaturedEditor() {
         setCatCovers(j?.config?.catCovers ?? {})
         setHeroFrames(j?.config?.heroFrames ?? [])
         const ids = (j?.config?.newWeekIds ?? []) as string[]
+        setTrendingText(((j?.config?.trending ?? []) as string[]).join(', '))
         setWeekIds(ids)
         if (ids.length) {
           const { data } = await supabase.from('assets').select('id,file_url').in('id', ids)
@@ -397,7 +399,7 @@ function HomepageFeaturedEditor() {
       const featured = tiles.filter(t => t.cover.trim()).map(t => ({ ...t, title: t.title.trim() || labelFor(t.cat) }))
       const r = await fetch('/api/admin/homepage-config', {
         method: 'POST', headers: { 'content-type': 'application/json', ...(await adminHeaders()) },
-        body: JSON.stringify({ config: { featured, catCovers, heroFrames: heroFrames.filter(Boolean), newWeekIds: weekIds.filter(Boolean) } }),
+        body: JSON.stringify({ config: { featured, catCovers, heroFrames: heroFrames.filter(Boolean), newWeekIds: weekIds.filter(Boolean), trending: trendingText.split(',').map(t => t.trim()).filter(Boolean) } }),
       })
       const j = await r.json()
       setMsg(j.ok ? `Сохранено: витрина ${featured.length}, категории ${Object.keys(catCovers).length}, hero ${heroFrames.filter(Boolean).length}, new-this-week ${weekIds.filter(Boolean).length}. Главная обновлена.` : (j.error || 'Ошибка'))
@@ -488,6 +490,16 @@ function HomepageFeaturedEditor() {
       <div className="flex flex-wrap gap-2 mb-5">
         {Array.from({ length: 12 }, (_, i) => slotBtn(weekIds[i] ? weekPrev[weekIds[i]] : undefined, () => openPicker('week', i), 66, 42))}
       </div>
+
+      {/* ── Trending chips for the hero search (DEV_homepage_search §2) ── */}
+      <p className="text-[11px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Trending-чипы под поиском (через запятую)</p>
+      <input
+        value={trendingText}
+        onChange={e => setTrendingText(e.target.value)}
+        placeholder="Sci-fi, Cyberpunk, Portraits, Zombies, Locations, Vehicles, Creatures"
+        className="input-field w-full text-sm mb-5"
+        style={{ padding: '8px 11px' }}
+      />
 
       {/* ── Universal picker ── */}
       {picker && (
