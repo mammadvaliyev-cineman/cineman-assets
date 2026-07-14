@@ -119,6 +119,21 @@ export async function POST(req: NextRequest) {
         ).then(() => {}, () => {})
         await admin.from('downloads').insert({ user_id: userId, asset_id: assetId, cost }).then(() => {}, () => {})
         admin.rpc('bump_download_count', { p_asset: assetId }).then(() => {}, () => {})
+        // bell: low-credits nudge when the balance dips under 10
+        // (throttled — at most one such event per 24h)
+        if (typeof remaining === 'number' && remaining >= 0 && remaining < 10) {
+          const dayAgo = new Date(Date.now() - 864e5).toISOString()
+          const { data: recent } = await admin.from('user_events').select('id')
+            .eq('user_id', userId).eq('title', 'Running low on credits').gte('created_at', dayAgo).limit(1)
+          if (!recent?.length) {
+            await admin.from('user_events').insert({
+              user_id: userId,
+              title: 'Running low on credits',
+              body: `Balance: ${remaining}. Top up any time — purchased credits never expire.`,
+              href: '/pricing',
+            }).then(() => {}, () => {})
+          }
+        }
         return NextResponse.json({ url: servedUrl(data), credits: remaining, cost })
       }
       // invalid/expired token → fall through as anonymous
