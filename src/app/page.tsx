@@ -2,6 +2,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { CATEGORIES } from "@/config/categories";
 import HomeShelf, { ShelfItem } from "@/components/HomeShelf";
+import PoweredBy from "@/components/PoweredBy";
 import Reveal from "@/components/Reveal";
 import Tilt from "@/components/Tilt";
 import HeroShowreel from "@/components/HeroShowreel";
@@ -348,6 +349,9 @@ export default async function HomePage() {
           ))}
         </div>
       </section></Reveal>
+
+      {/* ── POWERED BY + MODEL MATCH (DEV_homepage_powered_by) ── */}
+      <Reveal><PoweredBy /></Reveal>
 
       {/* ── EVERYTHING YOU NEED (kept) ───────────────────────── */}
       <Reveal><section className="px-6 max-w-7xl mx-auto" style={{ marginBottom: 64 }}>
