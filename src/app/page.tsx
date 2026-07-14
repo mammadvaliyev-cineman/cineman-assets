@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { CATEGORIES } from "@/config/categories";
 import HomeShelf, { ShelfItem } from "@/components/HomeShelf";
 import PoweredBy from "@/components/PoweredBy";
+import HeroSearch from "@/components/HeroSearch";
 import Reveal from "@/components/Reveal";
 import Tilt from "@/components/Tilt";
 import HeroShowreel from "@/components/HeroShowreel";
@@ -124,6 +125,7 @@ export default async function HomePage() {
   let catCoversCfg: Record<string, string> = {};
   let heroFramesCfg: string[] = [];
   let newWeekIdsCfg: string[] = [];
+  let trendingCfg: string[] = ["Sci-fi", "Cyberpunk", "Portraits", "Zombies", "Locations", "Vehicles", "Creatures"];
 
   try {
     const catIds = CATEGORIES.filter(c => c.id !== "Prop").map(c => c.id);
@@ -151,6 +153,7 @@ export default async function HomePage() {
       if (saved.catCovers && typeof saved.catCovers === "object") catCoversCfg = saved.catCovers;
       if (Array.isArray(saved.heroFrames)) heroFramesCfg = saved.heroFrames.filter(Boolean);
       if (Array.isArray(saved.newWeekIds)) newWeekIdsCfg = saved.newWeekIds.filter(Boolean);
+      if (Array.isArray(saved.trending) && saved.trending.length > 0) trendingCfg = saved.trending.filter(Boolean);
     } catch { /* fall back below */ }
     // hand-picked «New this week» (§5): fetch by ids, keep the saved order
     if (newWeekIdsCfg.length) {
@@ -214,6 +217,11 @@ export default async function HomePage() {
             <div className="flex flex-wrap gap-4">
               <Link href="/studio" className="btn-primary text-base cine-sheen">Try Studio →</Link>
               <Link href="/catalog" className="btn-secondary text-base">Browse catalog</Link>
+            </div>
+
+            {/* STOCK-STYLE HERO SEARCH (DEV_homepage_search) */}
+            <div className="mt-8">
+              <HeroSearch trending={trendingCfg} />
             </div>
             <div className="mt-10 flex gap-10">
               {[
