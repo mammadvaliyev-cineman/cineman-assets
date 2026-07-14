@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
       popular: Boolean(p.popular),
       ls_url: String(p.ls_url ?? '').slice(0, 500),
     })).filter(p => p.credits > 0 && p.usd > 0)
-    if (clean.length === 0) return NextResponse.json({ error: 'Нужна хотя бы одна пачка' }, { status: 400 })
+    if (clean.length === 0) return NextResponse.json({ error: 'At least one pack is required' }, { status: 400 })
 
     const admin = supabaseAdmin()
     const payload = JSON.stringify({ packs: clean })
