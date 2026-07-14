@@ -308,3 +308,8 @@ html[data-theme='yellow'] {
   --accent-deep:   #8A5F10;
   --on-accent:     #3A2A05; /* dark, readable text on yellow fills */
 }
+
+/* ── HERO WALL DRIFT (#82): columns float slowly; content is doubled,
+   so -50% loops seamlessly. Off for reduced motion. */
+@keyframes cineWallDrift { from { transform: translateY(0) } to { transform: translateY(-50%) } }
+@media (prefers-reduced-motion: reduce) { .cine-drift { animation: none !important } }

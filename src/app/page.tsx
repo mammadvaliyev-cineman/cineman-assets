@@ -6,7 +6,7 @@ import PoweredBy from "@/components/PoweredBy";
 import HeroSearch from "@/components/HeroSearch";
 import Reveal from "@/components/Reveal";
 import Tilt from "@/components/Tilt";
-import HeroShowreel from "@/components/HeroShowreel";
+import HeroWall, { type HeroTile } from "@/components/HeroWall";
 
 // Signature moment (DEV_flair_motion §4): the hero headline reveals
 // letter by letter, once, on load. The ONLY branded flourish.
@@ -124,6 +124,7 @@ export default async function HomePage() {
   // owner-curated section imagery (DEV_batch_60 §5) — empty = automatic
   let catCoversCfg: Record<string, string> = {};
   let heroFramesCfg: string[] = [];
+  let heroTilesCfg: HeroTile[] = [];
   let newWeekIdsCfg: string[] = [];
   let heroFrames0: string | null = null;
   let trendingCfg: string[] = ["Sci-fi", "Cyberpunk", "Portraits", "Zombies", "Locations", "Vehicles", "Creatures"];
@@ -153,7 +154,18 @@ export default async function HomePage() {
       if (Array.isArray(saved.featured)) featured = saved.featured;
       if (saved.catCovers && typeof saved.catCovers === "object") catCoversCfg = saved.catCovers;
       if (Array.isArray(saved.heroFrames)) heroFramesCfg = saved.heroFrames.filter(Boolean);
-      heroFrames0 = heroFramesCfg[0] ?? null;
+      // hand-framed wall tiles (#82) — fall back to legacy plain frames
+      if (Array.isArray(saved.heroTiles)) {
+        heroTilesCfg = saved.heroTiles
+          .filter((t: { src?: unknown }) => t && typeof t.src === "string" && t.src)
+          .map((t: { src: string; x?: number; y?: number; z?: number }) => ({
+            src: t.src, x: Number(t.x) || 0, y: Number(t.y) || 0, z: Number(t.z) || 1,
+          }));
+      }
+      if (!heroTilesCfg.length && heroFramesCfg.length) {
+        heroTilesCfg = heroFramesCfg.map(u => ({ src: u, x: 0, y: 0, z: 1 }));
+      }
+      heroFrames0 = heroTilesCfg[0]?.src ?? heroFramesCfg[0] ?? null;
       if (Array.isArray(saved.newWeekIds)) newWeekIdsCfg = saved.newWeekIds.filter(Boolean);
       if (Array.isArray(saved.trending) && saved.trending.length > 0) trendingCfg = saved.trending.filter(Boolean);
     } catch { /* fall back below */ }
@@ -239,10 +251,10 @@ export default async function HomePage() {
           {/* Right: living showreel — ken-burns crossfade over cinematic
               location frames (single images, safe to cover-crop) */}
           <div className="fade-in-up hidden md:block" style={{ animationDelay: "0.12s" }}>
-            <HeroShowreel
-              frames={heroFramesCfg.length >= 2
-                ? heroFramesCfg.map(u => ({ src: u, alt: "Cineman location" }))
-                : collage.slice(0, 6).map(a => ({ src: coverSrc(a, true), alt: a.title }))}
+            <HeroWall
+              tiles={heroTilesCfg.length >= 3
+                ? heroTilesCfg
+                : collage.slice(0, 9).map(a => ({ src: coverSrc(a, true), x: 0, y: 0, z: 1 }))}
             />
           </div>
         </div>
