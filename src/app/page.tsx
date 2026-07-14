@@ -125,6 +125,7 @@ export default async function HomePage() {
   let catCoversCfg: Record<string, string> = {};
   let heroFramesCfg: string[] = [];
   let newWeekIdsCfg: string[] = [];
+  let heroFrames0: string | null = null;
   let trendingCfg: string[] = ["Sci-fi", "Cyberpunk", "Portraits", "Zombies", "Locations", "Vehicles", "Creatures"];
 
   try {
@@ -152,6 +153,7 @@ export default async function HomePage() {
       if (Array.isArray(saved.featured)) featured = saved.featured;
       if (saved.catCovers && typeof saved.catCovers === "object") catCoversCfg = saved.catCovers;
       if (Array.isArray(saved.heroFrames)) heroFramesCfg = saved.heroFrames.filter(Boolean);
+      heroFrames0 = heroFramesCfg[0] ?? null;
       if (Array.isArray(saved.newWeekIds)) newWeekIdsCfg = saved.newWeekIds.filter(Boolean);
       if (Array.isArray(saved.trending) && saved.trending.length > 0) trendingCfg = saved.trending.filter(Boolean);
     } catch { /* fall back below */ }
@@ -222,19 +224,17 @@ export default async function HomePage() {
             {/* STOCK-STYLE HERO SEARCH (DEV_homepage_search) */}
             <div className="mt-8">
               <HeroSearch trending={trendingCfg} />
+              <p className="flex items-center gap-1.5 text-xs mt-2" style={{ color: "#2DD4C4" }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>
+                Includes free assets — try before you spend a credit.
+              </p>
             </div>
-            <div className="mt-10 flex gap-10">
-              {[
-                ["Huge", "cinematic asset library"],
-                ["7 steps", "idea → video"],
-                ["1", "AI director"],
-              ].map(([val, label]) => (
-                <div key={label}>
-                  <div className="text-2xl font-bold" style={{ color: "var(--accent)" }}>{val}</div>
-                  <div className="text-xs mt-0.5" style={{ color: "var(--fg-muted)" }}>{label}</div>
-                </div>
-              ))}
-            </div>
+            {/* marketing line instead of the stats row (owner's copy §A1) */}
+            <p className="mt-10 text-[15px] leading-relaxed max-w-lg" style={{ color: "var(--fg-muted)" }}>
+              A massive library of ready-made cinematic assets for AI creators — cast,
+              locations, props and more. Find anything in seconds and spend your time
+              creating, not building. <span style={{ color: "#2DD4C4", fontWeight: 600 }}>Free assets included.</span>
+            </p>
           </div>
           {/* Right: living showreel — ken-burns crossfade over cinematic
               location frames (single images, safe to cover-crop) */}
@@ -332,6 +332,36 @@ export default async function HomePage() {
       <HomeShelf title="New this week" seeAllHref="/catalog" items={toShelf(newest)} />
       <HomeShelf title="Most downloaded" seeAllHref="/catalog" items={toShelf(popular)} />
       <HomeShelf title="Free picks" badge="Free" accent="#2DD4C4" seeAllHref="/catalog?free=1" items={toShelf(freePicks)} />
+
+      {/* ── STUDIO PROMO (owner's copy §A2): the bridge from finding
+          assets to directing with them ── */}
+      <Reveal><section className="px-6 max-w-7xl mx-auto" style={{ marginBottom: 64 }}>
+        <div
+          className="relative overflow-hidden rounded-2xl px-8 py-14 md:px-16 text-center"
+          style={{ backgroundColor: "#120D1D", border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)" }}
+        >
+          {/* cinematic backdrop: dimmed location frame + accent glow */}
+          {heroFrames0 && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img src={heroFrames0} alt="" className="absolute inset-0 w-full h-full" style={{ objectFit: "cover", opacity: 0.16, filter: "saturate(1.15)" }} />
+          )}
+          <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 70% 90% at 50% 110%, color-mix(in srgb, var(--accent) 24%, transparent) 0%, transparent 70%)" }} />
+          <div className="relative">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4" style={{ color: "var(--fg)" }}>
+              Don&apos;t just find assets — direct with them.
+            </h2>
+            <p className="text-base max-w-2xl mx-auto mb-8" style={{ color: "var(--fg-muted)" }}>
+              Bring ready-made characters and locations into Cineman Studio — or upload
+              your own — describe your scene, and get a cinematic video back. Consistent
+              cast, real direction, done in minutes.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4">
+              <Link href="/studio" className="btn-primary text-base cine-sheen">Create in Studio →</Link>
+              <Link href="/catalog" className="btn-secondary text-base">Browse catalog</Link>
+            </div>
+          </div>
+        </div>
+      </section></Reveal>
 
       {/* ── HOW IT WORKS — after the showcase (owner's order) ── */}
       <Reveal><section className="px-6 max-w-5xl mx-auto" style={{ marginBottom: 64 }}>
