@@ -275,7 +275,7 @@ export default function PricingPage() {
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Top up</h2>
           <p className="text-sm" style={{ color: 'var(--fg-muted)' }}>
-            Разовый докуп кредитов — без подписки. Купленные кредиты <strong style={{ color: 'var(--fg)' }}>не сгорают</strong>.
+            One-time credit top-up — no subscription. Purchased credits <strong style={{ color: 'var(--fg)' }}>never expire</strong>.
           </p>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
@@ -305,14 +305,14 @@ export default function PricingPage() {
               <span className="block text-base font-semibold mt-1" style={{ color: 'var(--accent-soft)' }}>${tp.usd}</span>
               {tp.usd < tp.credits * 0.1 && (
                 <span className="block text-[11px] mt-0.5" style={{ color: '#2DD4C4' }}>
-                  +{Math.round((1 - tp.usd / (tp.credits * 0.1)) * 100)}% бонус
+                  +{Math.round((1 - tp.usd / (tp.credits * 0.1)) * 100)}% bonus
                 </span>
               )}
             </button>
           ))}
         </div>
         <p className="text-center text-xs mt-4" style={{ color: 'var(--fg-subtle)' }}>
-          Оплата картой через LemonSqueezy. Кредиты начисляются автоматически сразу после оплаты.
+          Card payment via LemonSqueezy. Credits are added automatically right after the payment.
         </p>
       </div>
 
