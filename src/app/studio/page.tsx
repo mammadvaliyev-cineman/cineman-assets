@@ -52,9 +52,9 @@ const PRESETS: Record<string, { label: string; hint: string; lighting: string; m
 // one compact button — not tiles. Meta drives which options show and
 // the LIVE price multiplier (mirrored by the API route — same math).
 const MODELS_UI: Record<string, { label: string; tag: string; meta: string; durations: number[]; resolutions: string[]; audio: boolean; mult: number; beta?: boolean }> = {
-  'seedance-2':      { label: 'Seedance 2.0',      tag: 'Native 4K · fast',  meta: 'up to 1080p · 15s · audio', durations: [5, 10, 15], resolutions: ['720p', '1080p'], audio: true, mult: 1 },
+  'seedance-2':      { label: 'Seedance 2.0',      tag: 'Native 4K · fast',  meta: 'up to 1080p · 15s · audio', durations: [5, 10, 15], resolutions: ['480p', '720p', '1080p'], audio: true, mult: 1 },
   'kling-3':         { label: 'Kling 3.0',         tag: 'Cinematic · audio', meta: 'up to 1080p · 10s', durations: [5, 10],     resolutions: ['720p', '1080p'], audio: true, mult: 1.2, beta: true },
-  'seedance-2-fast': { label: 'Seedance 2.0 Fast', tag: 'Draft · cheap',     meta: 'up to 720p · 15s · audio',  durations: [5, 10, 15], resolutions: ['720p'],          audio: true, mult: 0.6 },
+  'seedance-2-fast': { label: 'Seedance 2.0 Fast', tag: 'Draft · cheap',     meta: 'up to 720p · 15s · audio',  durations: [5, 10, 15], resolutions: ['480p', '720p'], audio: true, mult: 0.6 },
 }
 const CAMERA_MOVES = ['none', 'static shot', 'slow pan', 'dolly in', 'handheld', 'orbit'] as const
 
@@ -185,7 +185,7 @@ export default function StudioPage() {
         if (d.model && MODELS_UI[d.model]) setModel(d.model)
         if ([5, 10, 15].includes(Number(d.duration))) setDuration(Number(d.duration))
         if (['16:9', '9:16', '1:1'].includes(d.aspect)) setAspect(d.aspect)
-        if (['720p', '1080p'].includes(d.resolution)) setResolution(d.resolution)
+        if (['480p', '720p', '1080p'].includes(d.resolution)) setResolution(d.resolution)
         if (d.preset && PRESETS[d.preset as keyof typeof PRESETS]) setPreset(d.preset)
         if (typeof d.audio === 'boolean') setAudio(d.audio)
         if (typeof d.camera === 'string') setCamera(d.camera)
@@ -421,7 +421,7 @@ export default function StudioPage() {
 
   // LIVE COST (§6) — mirrors the API's computeCost exactly
   const modelUi = MODELS_UI[model] ?? MODELS_UI['seedance-2']
-  const genCost = Math.max(1, Math.round(price * modelUi.mult * (duration / 5) * (resolution === '1080p' ? 1.5 : 1)))
+  const genCost = Math.max(1, Math.round(price * modelUi.mult * (duration / 5) * (resolution === '1080p' ? 1.5 : resolution === '480p' ? 0.7 : 1)))
 
   const inputStyle: React.CSSProperties = { padding: '7px 9px', fontSize: 12 }
 
@@ -857,7 +857,7 @@ export default function StudioPage() {
                         if (st.model && MODELS_UI[st.model]) setModel(st.model)
                         if (st.aspect && ['16:9', '9:16', '1:1'].includes(st.aspect)) setAspect(st.aspect)
                         if (st.duration && [5, 10, 15].includes(Number(st.duration))) setDuration(Number(st.duration))
-                        if (st.resolution && ['720p', '1080p'].includes(st.resolution)) setResolution(st.resolution)
+                        if (st.resolution && ['480p', '720p', '1080p'].includes(st.resolution)) setResolution(st.resolution)
                       }
                       say('References & settings loaded — direct the next shot')
                     }}
