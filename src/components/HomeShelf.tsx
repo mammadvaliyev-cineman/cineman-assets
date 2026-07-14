@@ -125,10 +125,14 @@ export default function HomeShelf({
     if (!el) return
     const io = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { el.classList.add('cine-in'); io.disconnect() } },
-      { rootMargin: '0px 0px -40px 0px' },
+      // generous margin: shelves fade in BEFORE they reach the viewport,
+      // so there is never a blank void between sections (owner's polish §3)
+      { rootMargin: '0px 0px 30% 0px' },
     )
     io.observe(el)
-    return () => io.disconnect()
+    // failsafe: if the observer never fires (background tab, cache), show anyway
+    const t = setTimeout(() => el.classList.add('cine-in'), 1500)
+    return () => { io.disconnect(); clearTimeout(t) }
   }, [])
   if (!items.length) return null
   return (

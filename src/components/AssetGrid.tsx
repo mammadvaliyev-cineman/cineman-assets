@@ -1586,9 +1586,9 @@ export default function AssetGrid({
             <button onClick={() => !moveBusy && setMoveTarget(null)} className="absolute top-4 right-4" style={{ color: 'var(--fg-subtle)' }}>
               <CloseIcon />
             </button>
-            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Перенести в раздел</h2>
+            <h2 className="text-lg font-bold mb-1" style={{ color: 'var(--fg)' }}>Move to a section</h2>
             <p className="text-xs mb-4 truncate" style={{ color: 'var(--fg-muted)' }}>
-              {moveTarget.title} <span style={{ color: 'var(--fg-subtle)' }}>· сейчас: {String(moveTarget.type)} / {moveTarget.category}</span>
+              {moveTarget.title} <span style={{ color: 'var(--fg-subtle)' }}>· now: {String(moveTarget.type)} / {moveTarget.category}</span>
             </p>
             <select
               value={moveTo}
@@ -1596,7 +1596,7 @@ export default function AssetGrid({
               className="input-field w-full text-sm mb-4"
               style={{ padding: '10px 12px' }}
             >
-              <option value="">— выбери раздел —</option>
+              <option value="">— pick a section —</option>
               {moveOptions
                 .filter(o => !(o.type === String(moveTarget.type) && o.category === moveTarget.category))
                 .map(o => (
@@ -1610,7 +1610,7 @@ export default function AssetGrid({
                 className="flex-1 py-2.5 rounded-xl font-bold text-sm text-white"
                 style={{ background: 'linear-gradient(135deg, var(--accent), var(--accent-strong))', opacity: !moveTo || moveBusy ? 0.5 : 1 }}
               >
-                {moveBusy ? 'Переношу…' : 'Перенести'}
+                {moveBusy ? 'Moving…' : 'Move'}
               </button>
               <button
                 onClick={() => setMoveTarget(null)}
@@ -1618,7 +1618,7 @@ export default function AssetGrid({
                 className="px-5 py-2.5 rounded-xl text-sm font-medium"
                 style={{ color: 'var(--fg-muted)', border: '1px solid var(--border)' }}
               >
-                Отмена
+                Cancel
               </button>
             </div>
           </div>

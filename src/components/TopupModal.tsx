@@ -14,8 +14,7 @@ import { CreditGem } from '@/components/AssetGrid'
 //   the user id + credits in checkout custom data; the webhook
 //   credits topup_credits automatically after payment.
 // • While the tab is open we poll the balance every 4s — the
-//   moment it grows, the success screen shows «Начислено N.
-//   Баланс: M» and the navbar chip updates via the credits event.
+//   moment it grows, the success screen shows “+N credited. Balance: M” and the navbar chip updates via the credits event.
 // • Top-up credits NEVER expire (monthly reset only clears the
 //   subscription pool — see spend_credits in the DB).
 // Opened from: the balance chip, «Buy credits» buttons, and the
@@ -120,25 +119,25 @@ export default function TopupModal({ onClose }: { onClose: () => void }) {
         {phase === 'success' ? (
           <div className="text-center py-4">
             <div className="mb-4 flex justify-center"><CreditGem size={48} /></div>
-            <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Начислено {granted} кредитов</h2>
+            <h2 className="text-2xl font-bold mb-2" style={{ color: 'var(--fg)' }}>{granted} credits added</h2>
             <p className="text-base mb-6 inline-flex items-center gap-1.5" style={{ color: 'var(--fg-muted)' }}>
-              Баланс: <strong style={{ color: 'var(--accent-soft)' }}>{balance}</strong> <CreditGem size={15} />
+              Balance: <strong style={{ color: 'var(--accent-soft)' }}>{balance}</strong> <CreditGem size={15} />
             </p>
-            <button onClick={onClose} className="btn-primary w-full py-3 text-sm font-bold">Отлично</button>
+            <button onClick={onClose} className="btn-primary w-full py-3 text-sm font-bold">Great</button>
           </div>
         ) : phase === 'waiting' ? (
           <div className="text-center py-6">
             <div className="mb-4 flex justify-center"><CreditGem size={44} /></div>
-            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Ждём оплату…</h2>
+            <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--fg)' }}>Waiting for the payment…</h2>
             <p className="text-sm mb-6" style={{ color: 'var(--fg-muted)' }}>
-              Заверши оплату во вкладке LemonSqueezy — кредиты начислятся сюда автоматически, ничего обновлять не нужно.
+              Finish the payment in the LemonSqueezy tab — credits land here automatically, no refresh needed.
             </p>
             <button
               onClick={() => { if (pollRef.current) clearInterval(pollRef.current); setPhase('pick') }}
               className="text-xs font-semibold"
               style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}
             >
-              ← Выбрать другую пачку
+              ← Pick another pack
             </button>
           </div>
         ) : (
@@ -148,16 +147,16 @@ export default function TopupModal({ onClose }: { onClose: () => void }) {
               <h2 className="text-xl font-bold" style={{ color: 'var(--fg)' }}>Buy credits</h2>
             </div>
             <p className="text-xs mb-5" style={{ color: 'var(--fg-muted)' }}>
-              Разовый докуп — без подписки. Купленные кредиты <strong style={{ color: 'var(--fg)' }}>не сгорают</strong> в конце месяца.
+              One-time top-up — no subscription. Purchased credits <strong style={{ color: 'var(--fg)' }}>never expire</strong> at the end of the month.
             </p>
 
             {!user ? (
               <div className="text-center py-4">
-                <p className="text-sm mb-4" style={{ color: 'var(--fg-muted)' }}>Войди в аккаунт, чтобы докупить кредиты.</p>
+                <p className="text-sm mb-4" style={{ color: 'var(--fg-muted)' }}>Sign in to top up your credits.</p>
                 <a href="/account" className="btn-primary inline-block px-8 py-2.5 text-sm font-bold">Sign in</a>
               </div>
             ) : packs === null ? (
-              <p className="text-sm py-6 text-center" style={{ color: 'var(--fg-subtle)' }}>Загружаю пачки…</p>
+              <p className="text-sm py-6 text-center" style={{ color: 'var(--fg-subtle)' }}>Loading packs…</p>
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-3 mb-4">
@@ -193,7 +192,7 @@ export default function TopupModal({ onClose }: { onClose: () => void }) {
                         </span>
                         <span className="block text-sm font-semibold mt-0.5" style={{ color: 'var(--accent-soft)' }}>${p.usd}</span>
                         {bonus > 0 && (
-                          <span className="block text-[11px] mt-0.5" style={{ color: '#2DD4C4' }}>+{bonus}% бонус</span>
+                          <span className="block text-[11px] mt-0.5" style={{ color: '#2DD4C4' }}>+{bonus}% bonus</span>
                         )}
                       </button>
                     )
@@ -201,11 +200,11 @@ export default function TopupModal({ onClose }: { onClose: () => void }) {
                 </div>
                 {!anyLink && (
                   <p className="text-[11px] mb-2" style={{ color: '#E5A94B' }}>
-                    Оплата подключается — пачки станут кликабельными, как только владелец добавит платёжные ссылки.
+                    Payments are being connected — packs go live as soon as the payment links are added.
                   </p>
                 )}
                 <p className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>
-                  Оплата картой в защищённом окне LemonSqueezy. Кредиты начислятся автоматически после оплаты.
+                  Card payment in a secure LemonSqueezy window. Credits are added automatically after the payment.
                 </p>
               </>
             )}

@@ -11,10 +11,12 @@ export default function Reveal({ children, className = '' }: { children: React.R
     if (!el) return
     const io = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { el.classList.add('cine-in'); io.disconnect() } },
-      { rootMargin: '0px 0px -40px 0px' },
+      // generous margin + failsafe — sections never leave a blank void
+      { rootMargin: '0px 0px 30% 0px' },
     )
     io.observe(el)
-    return () => io.disconnect()
+    const t = setTimeout(() => el.classList.add('cine-in'), 1500)
+    return () => { io.disconnect(); clearTimeout(t) }
   }, [])
   return <div ref={ref} className={`cine-reveal ${className}`}>{children}</div>
 }

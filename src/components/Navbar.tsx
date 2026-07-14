@@ -183,7 +183,6 @@ export default function Navbar() {
             { href: '/catalog', label: 'AI Assets' },
             { href: '/pricing', label: 'Pricing' },
             ...(isAdmin ? [
-              { href: '/engine', label: 'Engine' },
               { href: '/admin', label: 'Admin' },
             ] : []),
           ].map(({ href, label }) => (
@@ -202,16 +201,15 @@ export default function Navbar() {
 
         {/* Right controls */}
         <div className="flex items-center gap-3">
-          {/* Theme A/B switch (§7 rework): compare Purple vs Yellow accent */}
+          {/* Theme A/B switch — ADMIN-ONLY, quiet icon (owner's polish §1) */}
           {isRealAdminEmail(user?.email) && (
             <button
               onClick={toggleAccentTheme}
-              title="Сменить акцент бренда (Purple ↔ Yellow)"
-              className="hidden md:inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
-              style={{ backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', color: 'var(--fg-muted)', cursor: 'pointer' }}
+              title={`Brand accent: ${accentTheme} — click to switch`}
+              className="hidden md:inline-flex items-center justify-center"
+              style={{ width: 22, height: 22, borderRadius: 999, background: 'none', border: '1px solid var(--border)', cursor: 'pointer', padding: 0 }}
             >
               <span style={{ width: 10, height: 10, borderRadius: 999, backgroundColor: accentTheme === 'purple' ? '#9765E0' : '#EEB63C', display: 'inline-block' }} />
-              {accentTheme === 'purple' ? 'Purple' : 'Yellow'}
             </button>
           )}
           {/* The «View as client» toggle lives in Admin → Dashboard (owner's
@@ -220,7 +218,7 @@ export default function Navbar() {
           {isRealAdminEmail(user?.email) && isViewingAsClient() && (
             <button
               onClick={toggleViewAsClient}
-              title="Вернуться в админ-вид"
+              title="Back to the admin view"
               className="inline-flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-full"
               style={{
                 backgroundColor: 'rgba(229,169,75,0.15)',
@@ -236,7 +234,7 @@ export default function Navbar() {
             <>
               <button
                 onClick={() => setTopupOpen(true)}
-                title="Ваши кредиты — клик, чтобы докупить"
+                title="Your credits — click to top up"
                 className="flex items-center gap-1 text-sm font-bold px-3 py-1.5 rounded-full"
                 style={{
                   backgroundColor: 'color-mix(in srgb, var(--accent) 14%, transparent)', color: 'var(--accent-soft)',
@@ -287,9 +285,13 @@ export default function Navbar() {
               Sign in
             </Link>
           )}
-          <Link href="/pricing" className="btn-primary text-sm px-4 py-2">
-            Get Started
-          </Link>
+          {/* Get Started — GUESTS only; signed-in users already have
+              balance + Buy credits + avatar (owner's polish §1) */}
+          {!user && (
+            <Link href="/pricing" className="btn-primary text-sm px-4 py-2">
+              Get Started
+            </Link>
+          )}
 
           <button
             className="md:hidden p-2 rounded-lg"
