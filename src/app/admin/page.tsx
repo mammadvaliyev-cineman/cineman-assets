@@ -616,6 +616,28 @@ function ProviderBalances() {
 }
 
 function AdminDashboard() {
+  // ── Announcements (owner's spec): publish to every user's bell ──
+  const [annTitle, setAnnTitle] = useState('')
+  const [annBody, setAnnBody] = useState('')
+  const [annHref, setAnnHref] = useState('')
+  const [annBusy, setAnnBusy] = useState(false)
+  const [annMsg, setAnnMsg] = useState('')
+  const sendAnnouncement = async () => {
+    if (!annTitle.trim()) { setAnnMsg('Title is required'); return }
+    setAnnBusy(true); setAnnMsg('')
+    try {
+      const r = await fetch('/api/admin/announce', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await adminHeaders()) },
+        body: JSON.stringify({ title: annTitle, body: annBody, href: annHref }),
+      })
+      const j = await r.json()
+      if (r.ok && j.ok) { setAnnMsg('Sent — it is in every user\'s bell now'); setAnnTitle(''); setAnnBody(''); setAnnHref('') }
+      else setAnnMsg(j.error || 'Failed')
+    } catch { setAnnMsg('Network error') }
+    setAnnBusy(false)
+  }
+
   const [activeTab, setActiveTab] = useState<'overview' | 'assets' | 'batch' | 'categories' | 'pricing' | 'settings' | 'engine'>('overview')
   const [stats, setStats] = useState<Stats>({ total: 0, byType: {}, byPlan: {} })
   const [assets, setAssets] = useState<AssetRow[]>([])
@@ -1436,6 +1458,21 @@ function AdminDashboard() {
         <div>
           {/* Provider balances — Kie.ai credits + Gemini billing link */}
           <ProviderBalances />
+
+          {/* ── Announcement to all users (owner's spec) ── */}
+          <div className="card p-6 mb-6">
+            <h3 className="font-semibold mb-1 text-sm uppercase tracking-wider" style={{ color: 'var(--fg-muted)' }}>Announcement — lands in every user&apos;s bell</h3>
+            <p className="text-xs mb-4" style={{ color: 'var(--fg-subtle)' }}>News, promos, new collections. Title + text + optional link.</p>
+            {annMsg && <p className="text-xs mb-3" style={{ color: annMsg.startsWith('Sent') ? '#7EE7C7' : '#e06060' }}>{annMsg}</p>}
+            <div className="flex flex-col gap-2">
+              <input value={annTitle} onChange={e => setAnnTitle(e.target.value)} placeholder="Title" className="input-field text-sm" style={{ padding: '8px 11px' }} />
+              <textarea value={annBody} onChange={e => setAnnBody(e.target.value)} placeholder="Text (optional)" rows={2} className="input-field text-sm" style={{ padding: '8px 11px', resize: 'vertical' }} />
+              <div className="flex gap-2">
+                <input value={annHref} onChange={e => setAnnHref(e.target.value)} placeholder="Link (optional, e.g. /catalog?category=Zombie)" className="input-field text-sm" style={{ flex: 1, padding: '8px 11px' }} />
+                <button onClick={sendAnnouncement} disabled={annBusy} className="btn-primary text-xs px-5 py-2 font-bold">{annBusy ? '…' : 'Send'}</button>
+              </div>
+            </div>
+          </div>
 
           {/* Stat cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
