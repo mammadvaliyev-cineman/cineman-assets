@@ -23,6 +23,19 @@ export const maxDuration = 60
 const MODELS: Record<string, string> = {
   'seedance-2': 'bytedance/seedance-2',
   'seedance-2-fast': 'bytedance/seedance-2-fast',
+  // Kling 3.0 via kie.ai — the exact market slug is env-tunable so the
+  // owner can correct it without a deploy; failures refund credits
+  'kling-3': process.env.KIE_KLING_MODEL || 'kwaivgi/kling-v3',
+}
+
+// Cost formula (DEV_studio_panel §6): base = pricing_defaults.gen_video,
+// scaled by model / duration / resolution. The Studio UI mirrors this
+// EXACTLY so the user sees the true price before generating.
+const MODEL_MULT: Record<string, number> = { 'seedance-2': 1, 'seedance-2-fast': 0.6, 'kling-3': 1.2 }
+function computeCost(base: number, model: string, settings: { duration?: unknown; resolution?: unknown }): number {
+  const dur = [5, 10, 15].includes(Number(settings.duration)) ? Number(settings.duration) : 5
+  const resMult = String(settings.resolution) === '1080p' ? 1.5 : 1
+  return Math.max(1, Math.round(base * (MODEL_MULT[model] ?? 1) * (dur / 5) * resMult))
 }
 
 async function priceOf(admin: ReturnType<typeof supabaseAdmin>): Promise<number> {
@@ -46,7 +59,7 @@ export async function POST(req: NextRequest) {
     const uploads = body.uploads || {}
 
     const admin = supabaseAdmin()
-    const cost = await priceOf(admin)
+    const cost = computeCost(await priceOf(admin), model, settings)
     const adminFree = isAdminEmail(gate.email)
     let remaining: number | null = null
     if (!adminFree) {
@@ -68,8 +81,13 @@ export async function POST(req: NextRequest) {
       generate_audio: !!settings.audio,
       resolution: ['720p', '1080p'].includes(String(settings.resolution)) ? String(settings.resolution) : '720p',
       aspect_ratio: ['16:9', '9:16', '1:1', '4:3'].includes(String(settings.aspect)) ? String(settings.aspect) : '16:9',
-      duration: [5, 10, 15].includes(Number(settings.duration)) ? Number(settings.duration) : 5,
+      // Kling caps at 10s — clamp so a stale draft can't send 15
+      duration: Math.min(
+        model === 'kling-3' ? 10 : 15,
+        [5, 10, 15].includes(Number(settings.duration)) ? Number(settings.duration) : 5,
+      ),
     }
+    if (Number.isFinite(Number(settings.seed)) && String(settings.seed).trim() !== '') input.seed = Math.abs(Math.round(Number(settings.seed)))
     if (refImages.length) input.reference_image_urls = refImages
     if (uploads.video) input.reference_video_urls = [String(uploads.video)]
     if (uploads.audio) input.reference_audio_urls = [String(uploads.audio)]
