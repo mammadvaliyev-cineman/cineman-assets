@@ -7,6 +7,8 @@ import { useAuth } from '@/components/AuthProvider'
 import { isAdminEmail, isRealAdminEmail, isViewingAsClient, toggleViewAsClient } from '@/components/AdminGate'
 import { CreditGem } from '@/components/AssetGrid'
 import TopupModal from '@/components/TopupModal'
+import ProfileMenu from '@/components/ProfileMenu'
+import NotificationsBell from '@/components/NotificationsBell'
 import { supabase } from '@/lib/supabase'
 
 // ── Cineman Logo Icon ─────────────────────────────────────────
@@ -63,6 +65,8 @@ export default function Navbar() {
   const [credits, setCredits] = useState<number | null>(null)
   // profile avatar (profiles.avatar_url) replaces the letter badge
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [plan, setPlan] = useState('free')
+  const [displayName, setDisplayName] = useState('')
   const [pulse, setPulse] = useState(false)
   const creditsRef = useRef<number | null>(null)
   creditsRef.current = credits
@@ -87,8 +91,8 @@ export default function Navbar() {
   useEffect(() => {
     if (!user) { setCredits(null); return }
     const load = async () => {
-      const { data } = await supabase.from('profiles').select('credits, topup_credits, avatar_url').eq('id', user.id).single()
-      if (data) { setCredits(Number(data.credits ?? 0) + Number(data.topup_credits ?? 0)); setAvatarUrl(data.avatar_url ?? null) }
+      const { data } = await supabase.from('profiles').select('credits, topup_credits, avatar_url, plan, display_name').eq('id', user.id).single()
+      if (data) { setCredits(Number(data.credits ?? 0) + Number(data.topup_credits ?? 0)); setAvatarUrl(data.avatar_url ?? null); setPlan(String(data.plan ?? 'free')); setDisplayName(String(data.display_name ?? '')) }
     }
     load()
     const onChange = (e: Event) => {
@@ -258,24 +262,18 @@ export default function Navbar() {
             </>
           )}
           {user ? (
-            <Link href="/profile" title="Profile" className="flex items-center">
-              {(avatarUrl || user.user_metadata?.avatar_url || user.user_metadata?.picture) ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={avatarUrl || user.user_metadata.avatar_url || user.user_metadata.picture}
-                  alt=""
-                  className="rounded-full transition-transform hover:scale-105"
-                  style={{ width: 34, height: 34, border: '2px solid color-mix(in srgb, var(--accent) 60%, transparent)', objectFit: 'cover' }}
-                />
-              ) : (
-                <span
-                  className="rounded-full flex items-center justify-center text-sm font-bold"
-                  style={{ width: 34, height: 34, background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)' }}
-                >
-                  {String(user.email || '?').charAt(0).toUpperCase()}
-                </span>
-              )}
-            </Link>
+            <>
+              {/* Notifications bell — left of the avatar (owner's spec) */}
+              <NotificationsBell />
+              <ProfileMenu
+                avatarUrl={avatarUrl}
+                credits={credits}
+                plan={plan}
+                displayName={displayName}
+                isAdmin={isAdmin}
+                onTopup={() => setTopupOpen(true)}
+              />
+            </>
           ) : (
             <Link
               href="/account"

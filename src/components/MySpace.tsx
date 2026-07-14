@@ -219,6 +219,10 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
     )
   }
 
+  // Studio outputs (video generations) are NOT purchases — they get
+  // their own section with real video previews
+  const isGeneration = (a: Row) => String(a.type) === 'Video' || String(a.category) === 'Generated'
+
   const assetCard = (a: Row, actions: React.ReactNode, bookmark?: boolean) => (
     <div key={a.id} className="card flex flex-col" style={{ width: 240 }}>
       <div className="relative overflow-hidden" style={{ aspectRatio: '16/10', backgroundColor: 'var(--bg-subtle)' }}>
@@ -243,7 +247,7 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
         <p className="text-[11px]" style={{ color: 'var(--fg-muted)' }}>
           {a.type} · {a.category}
           {a.bought_at ? ` · ${new Date(a.bought_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
-          {isAdmin && a.dl_count ? ` · downloaded ×${a.dl_count}` : ''}
+          {isAdmin && a.dl_count && a.dl_count > 1 ? ` · ×${a.dl_count}` : ''}
         </p>
         {actions}
       </div>
@@ -258,8 +262,9 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
         purchased.length === 0 ? (
           <p className="text-sm py-10" style={{ color: 'var(--fg-muted)' }}>Nothing here yet — your first download will appear here, owned forever.</p>
         ) : (
+          <>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-            {purchased.map(a => assetCard(a, (
+            {purchased.filter(a => !isGeneration(a)).map(a => assetCard(a, (
               <>
                 <button
                   onClick={() => download(a)}
@@ -275,6 +280,34 @@ export default function MySpace({ view, onSavedChanged }: { view: 'downloads' | 
               </>
             )))}
           </div>
+
+          {/* ── MY GENERATIONS (owner's bug §4): Studio outputs live in
+              their own section — proper video previews, not broken imgs ── */}
+          {purchased.some(isGeneration) && (
+            <>
+              <h2 className="text-lg font-bold mt-10 mb-4" style={{ color: 'var(--fg)' }}>My Generations</h2>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                {purchased.filter(isGeneration).map(a => (
+                  <div key={a.id} className="card flex flex-col" style={{ width: 300 }}>
+                    <div className="relative overflow-hidden" style={{ aspectRatio: '16/9', backgroundColor: 'black' }}>
+                      <video src={a.file_url} preload="metadata" muted playsInline controls className="w-full h-full" style={{ objectFit: 'cover', display: 'block' }} />
+                    </div>
+                    <div className="p-3 flex flex-col gap-2">
+                      <p className="text-xs font-semibold truncate" style={{ color: 'var(--fg)' }}>{sentenceCase(a.title)}</p>
+                      <p className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>
+                        Studio render{a.bought_at ? ` · ${new Date(a.bought_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : ''}
+                      </p>
+                      <div className="flex gap-2">
+                        <a href={a.file_url} download className="flex-1 flex items-center justify-center py-2 rounded-lg text-xs font-bold" style={{ background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', textDecoration: 'none' }}>Download</a>
+                        <button onClick={() => hideFromLibrary(a)} className="text-[11px]" style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          </>
         )
       ) : activeCol ? (
         <div>

@@ -50,6 +50,9 @@ export default function TopupModal({ onClose }: { onClose: () => void }) {
   const [phase, setPhase] = useState<'pick' | 'waiting' | 'success'>('pick')
   const [granted, setGranted] = useState(0)
   const [balance, setBalance] = useState<number | null>(null)
+  // packs with no payment link yet stay selectable — picking one shows
+  // a clear status instead of a dead button (owner's bug §5)
+  const [pickedIdx, setPickedIdx] = useState<number | null>(null)
   const baselineRef = useRef<number | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -166,17 +169,17 @@ export default function TopupModal({ onClose }: { onClose: () => void }) {
                     return (
                       <button
                         key={i}
-                        onClick={() => ready && buy(p)}
-                        disabled={!ready}
+                        onClick={() => (ready ? buy(p) : setPickedIdx(i))}
                         className="relative rounded-xl p-4 text-left transition-all"
                         style={{
                           backgroundColor: 'var(--bg-subtle)',
-                          border: p.popular
-                            ? '1.5px solid color-mix(in srgb, var(--accent) 65%, transparent)'
-                            : '1px solid var(--border)',
-                          boxShadow: p.popular ? '0 0 24px color-mix(in srgb, var(--accent) 15%, transparent)' : undefined,
-                          cursor: ready ? 'pointer' : 'not-allowed',
-                          opacity: ready ? 1 : 0.55,
+                          border: pickedIdx === i
+                            ? '1.5px solid var(--accent)'
+                            : p.popular
+                              ? '1.5px solid color-mix(in srgb, var(--accent) 65%, transparent)'
+                              : '1px solid var(--border)',
+                          boxShadow: p.popular || pickedIdx === i ? '0 0 24px color-mix(in srgb, var(--accent) 15%, transparent)' : undefined,
+                          cursor: 'pointer',
                         }}
                       >
                         {p.popular && (
@@ -194,13 +197,16 @@ export default function TopupModal({ onClose }: { onClose: () => void }) {
                         {bonus > 0 && (
                           <span className="block text-[11px] mt-0.5" style={{ color: '#2DD4C4' }}>+{bonus}% bonus</span>
                         )}
+                        {pickedIdx === i && !ready && (
+                          <span className="block text-[10.5px] mt-1 font-semibold" style={{ color: 'var(--accent-soft)' }}>Payments connecting…</span>
+                        )}
                       </button>
                     )
                   })}
                 </div>
                 {!anyLink && (
                   <p className="text-[11px] mb-2" style={{ color: '#E5A94B' }}>
-                    Payments are being connected — packs go live as soon as the payment links are added.
+                    Payments connecting — pick a pack now, checkout goes live very soon.
                   </p>
                 )}
                 <p className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>
