@@ -375,7 +375,21 @@ function HomepageFeaturedEditor() {
   async function randomAllHero() {
     setRandBusy('hero')
     try {
-      setHeroTiles((await randomOf('Location', 9)).map(a => ({ src: render(a.file_url, 1024), x: 0, y: 0, z: 1 })))
+      // #83: default wall = category MIX — people, locations, creatures
+      // and one cartoon-styled pick, interleaved so neighbours differ
+      const [ppl, loc, cre] = await Promise.all([randomOf('People', 3), randomOf('Location', 3), randomOf('Creature', 2)])
+      let last: PickAsset[] = []
+      try {
+        const { data } = await baseQ().contains('tags', ['style:cartoon']).limit(24)
+        last = (((data ?? []) as PickAsset[])).sort(() => Math.random() - 0.5).slice(0, 1)
+      } catch { /* tags filter unavailable — fall through */ }
+      if (!last.length) last = await randomOf('Animal', 1)
+      const groups = [ppl, loc, cre, last].map(g => [...g])
+      const order: PickAsset[] = []
+      while (groups.some(g => g.length)) for (const g of groups) { const a = g.shift(); if (a) order.push(a) }
+      const seen = new Set<string>()
+      setHeroTiles(order.filter(a => { if (seen.has(a.id)) return false; seen.add(a.id); return true })
+        .slice(0, 9).map(a => ({ src: render(a.file_url, 1024), x: 0, y: 0, z: 1 })))
     } finally { setRandBusy('') }
   }
 
