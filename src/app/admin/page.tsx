@@ -703,7 +703,7 @@ function HomepageFeaturedEditor() {
                   left: `calc(50% + ${heroCrop.x}px)`, top: `calc(50% + ${heroCrop.y}px)`,
                   transform: 'translate(-50%, -50%)',
                   width: cropDims ? 240 * Math.max(1, (cropDims.w / cropDims.h) * (4 / 3)) * heroCrop.z : 240,
-                  height: 'auto',
+                  height: 'auto', maxWidth: 'none',
                   visibility: cropDims ? 'visible' : 'hidden',
                   userSelect: 'none', pointerEvents: 'none',
                 }}
