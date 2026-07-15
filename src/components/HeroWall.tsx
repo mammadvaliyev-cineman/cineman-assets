@@ -50,7 +50,7 @@ export function TileView({ tile, radius = 12 }: { tile: HeroTile; radius?: numbe
           top: `calc(50% + ${(tile.y * 100).toFixed(3)}%)`,
           transform: 'translate(-50%, -50%)',
           width: ratio ? `${(Math.max(1, ratio * (4 / 3)) * tile.z * 100).toFixed(2)}%` : '100%',
-          height: 'auto',
+          height: 'auto', maxWidth: 'none',
           visibility: ratio ? 'visible' : 'hidden',
           userSelect: 'none', pointerEvents: 'none',
         }}
