@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import { CreditGem } from '@/components/AssetGrid'
+import { ENGINE_CATS, MASTER_PRESET } from '@/lib/engine'
 
 // ─────────────────────────────────────────────────────────────
 // CINEMAN STUDIO — clean one-screen generator (Higgsfield/Seedance
@@ -52,12 +53,26 @@ const PRESETS: Record<string, { label: string; hint: string; lighting: string; m
 // ── DIRECTOR'S CONSOLE (DEV_studio_panel §1): expandable model MENU,
 // one compact button — not tiles. Meta drives which options show and
 // the LIVE price multiplier (mirrored by the API route — same math).
-const MODELS_UI: Record<string, { label: string; tag: string; meta: string; durations: number[]; resolutions: string[]; audio: boolean; mult: number; beta?: boolean }> = {
-  'seedance-2':      { label: 'Seedance 2.0',      tag: 'Native 4K · fast',  meta: 'up to 1080p · 15s · audio', durations: [5, 10, 15], resolutions: ['480p', '720p', '1080p'], audio: true, mult: 1 },
-  'kling-3':         { label: 'Kling 3.0',         tag: 'Cinematic · audio', meta: 'up to 1080p · 10s', durations: [5, 10],     resolutions: ['720p', '1080p'], audio: true, mult: 1.2, beta: true },
-  'seedance-2-fast': { label: 'Seedance 2.0 Fast', tag: 'Draft · cheap',     meta: 'up to 720p · 15s · audio',  durations: [5, 10, 15], resolutions: ['480p', '720p'], audio: true, mult: 0.6 },
+const MODELS_UI: Record<string, { label: string; tag: string; meta: string; durations: number[]; resolutions: string[]; audio: boolean; mult: number; beta?: boolean; frames?: boolean }> = {
+  'seedance-2':      { label: 'Seedance 2.0',      tag: 'Native 4K · fast',  meta: 'up to 1080p · 15s · audio', durations: [5, 10, 15], resolutions: ['480p', '720p', '1080p'], audio: true, mult: 1, frames: true },
+  'kling-3':         { label: 'Kling 3.0',         tag: 'Cinematic · audio', meta: 'up to 1080p · 10s', durations: [5, 10],     resolutions: ['720p', '1080p'], audio: true, mult: 1.2, beta: true, frames: true },
+  'seedance-2-fast': { label: 'Seedance 2.0 Fast', tag: 'Draft · cheap',     meta: 'up to 720p · 15s · audio',  durations: [5, 10, 15], resolutions: ['480p', '720p'], audio: true, mult: 0.6, frames: true },
 }
-const CAMERA_MOVES = ['none', 'static shot', 'slow pan', 'dolly in', 'handheld', 'orbit'] as const
+
+// ── CURATED ENGINE CONTROLS (#86): only these categories surface in
+// Studio Advanced, grouped so it reads like a camera department card,
+// not a wall of buttons. The rest keeps working via Engine settings.
+const ADV_GROUPS: [string, string[]][] = [
+  ['Framing', ['shottype', 'angle', 'lens']],
+  ['Motion', ['camera']],
+  ['Look', ['light', 'time', 'colorgrade', 'genre']],
+]
+const AUDIO_CATS = ['delivery', 'music']
+const CAT_LABELS: Record<string, string> = {
+  shottype: 'Shot size', angle: 'Camera angle', lens: 'Lens', camera: 'Camera movement',
+  light: 'Lighting', time: 'Time of day', colorgrade: 'Color grading', genre: 'Genre / Mood',
+  delivery: 'Voice delivery', music: 'Music',
+}
 
 const MENTION_TABS = [
   { id: 'Cast', types: ['People', 'Character'] },
@@ -98,6 +113,13 @@ export default function StudioPage() {
   const [modelOpen, setModelOpen] = useState(false)
   const [advOpen, setAdvOpen] = useState(false)
   const [camera, setCamera] = useState<string>('none')
+  // curated engine picks: category id → option label ('' = Auto)
+  const [engineSel, setEngineSel] = useState<Record<string, string>>({})
+  const [masterOn, setMasterOn] = useState(true)
+  // first / last frame anchors (#86) — optional image-to-video inputs
+  const [frames, setFrames] = useState<{ first?: string; last?: string }>({})
+  const [framePick, setFramePick] = useState<'first' | 'last' | null>(null)
+  const frameFileRef = useRef<HTMLInputElement>(null)
   const [negative, setNegative] = useState('')
   const [consistency, setConsistency] = useState(70)
   const [seed, setSeed] = useState('')
@@ -183,6 +205,9 @@ export default function StudioPage() {
         if (typeof d.prompt === 'string') setPrompt(d.prompt)
         if (Array.isArray(d.refs)) setRefs(d.refs)
         if (d.uploads && typeof d.uploads === 'object') setUploads(d.uploads)
+        if (d.frames && typeof d.frames === 'object') setFrames(d.frames)
+        if (d.engineSel && typeof d.engineSel === 'object') setEngineSel(d.engineSel)
+        if (typeof d.masterOn === 'boolean') setMasterOn(d.masterOn)
         if (d.model && MODELS_UI[d.model]) setModel(d.model)
         if ([5, 10, 15].includes(Number(d.duration))) setDuration(Number(d.duration))
         if (['16:9', '9:16', '1:1'].includes(d.aspect)) setAspect(d.aspect)
@@ -206,10 +231,10 @@ export default function StudioPage() {
   useEffect(() => {
     if (!draftLoaded.current) return
     const t = setTimeout(() => {
-      try { localStorage.setItem('cineman_studio_draft', JSON.stringify({ prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, negative, consistency, seed })) } catch { /* noop */ }
+      try { localStorage.setItem('cineman_studio_draft', JSON.stringify({ prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, negative, consistency, seed, engineSel, masterOn, frames })) } catch { /* noop */ }
     }, 400)
     return () => clearTimeout(t)
-  }, [prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, negative, consistency, seed])
+  }, [prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, negative, consistency, seed, engineSel, masterOn, frames])
 
   const loadHistory = useCallback(async () => {
     if (!user) return
@@ -294,6 +319,15 @@ export default function StudioPage() {
   }
 
   function pickAsset(a: { id: string; title: string; file_url: string; type: string }) {
+    // frame mode (#86): the pick fills First/Last Frame, not the references
+    if (framePick) {
+      const slot = framePick
+      setFrames(prev => ({ ...prev, [slot]: refSheet(a.file_url) }))
+      setFramePick(null)
+      setPickOpen(false)
+      say(slot === 'first' ? 'First frame set' : 'Last frame set')
+      return
+    }
     setRefs(prev => {
       if (prev.some(r => r.id === a.id)) return prev
       const handle = uniqueHandle(autoHandle(a.title), prev)
@@ -338,6 +372,26 @@ export default function StudioPage() {
     } finally { setUploading(false); if (fileRef.current) fileRef.current.value = '' }
   }
 
+  // upload an image straight into a First/Last Frame slot (#86)
+  async function onUploadFrame(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    const target = framePick
+    if (!file || !user || !target) return
+    if (!file.type.startsWith('image')) { say('Image files only'); return }
+    if (file.size > 25 * 1024 * 1024) { say('Max 25 MB'); return }
+    setUploading(true)
+    try {
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+      const path = `genrefs/${user.id}-frame-${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('assets').upload(path, file, { contentType: file.type })
+      if (error) { say('Upload failed'); return }
+      setFrames(prev => ({ ...prev, [target]: supabase.storage.from('assets').getPublicUrl(path).data.publicUrl }))
+      setFramePick(null)
+      setPickOpen(false)
+      say(target === 'first' ? 'First frame set' : 'Last frame set')
+    } finally { setUploading(false); if (frameFileRef.current) frameFileRef.current.value = '' }
+  }
+
   // ── generate ────────────────────────────────────────────────
   async function generate(overrides?: { prompt?: string; settings?: Gen['settings']; refs?: RefAsset[] }) {
     if (!user) { say('Sign in to generate'); return }
@@ -356,20 +410,28 @@ export default function StudioPage() {
         Lighting: pr.lighting,
         Mood: pr.mood,
       }
-      const settings = overrides?.settings ?? { model, duration, aspect, resolution, audio, preset, camera, negative, consistency, seed }
+      const settings = overrides?.settings ?? { model, duration, aspect, resolution, audio, preset, camera, negative, consistency, seed, engine: engineSel, master: masterOn }
       let fullPrompt = p
       if (!overrides?.prompt) {
         const parts = [p]
-        if (camera && camera !== 'none') parts.push(`camera: ${camera}`)
-        parts.push(`${pr.lighting}, ${pr.mood}`)
+        // curated engine picks (#86) — each selected option contributes
+        // its full curated prompt block
+        for (const [cid, lbl] of Object.entries(engineSel)) {
+          if (!lbl) continue
+          const it = ENGINE_CATS[cid]?.items.find(i => i[0] === lbl)
+          if (it) parts.push(it[1])
+        }
+        // the old Style preset only fills in when Lighting/Genre are on Auto
+        if (!engineSel.light && !engineSel.genre) parts.push(`${pr.lighting}, ${pr.mood}`)
         if (consistency >= 60 && useRefs.length) parts.push('strictly preserve the exact appearance of the referenced characters and locations')
         fullPrompt = parts.join('. ') + '.'
         if (negative.trim()) fullPrompt += ` Avoid: ${negative.trim()}.`
+        if (masterOn) fullPrompt += ' ' + MASTER_PRESET
       }
       const res = await fetch('/api/studio/video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ prompt: fullPrompt, structured, settings, refs: useRefs, uploads }),
+        body: JSON.stringify({ prompt: fullPrompt, structured, settings, refs: useRefs, uploads, frames: modelUi.frames ? frames : {} }),
       })
       const json = await res.json()
       if (res.status === 402 && json.code === 'credits') { say(`Not enough credits (${json.cost} needed)`); window.dispatchEvent(new Event('cineman-open-topup')); return }
@@ -422,6 +484,8 @@ export default function StudioPage() {
 
   // LIVE COST (§6) — mirrors the API's computeCost exactly
   const modelUi = MODELS_UI[model] ?? MODELS_UI['seedance-2']
+  // audio categories are contextual: only when the scene has dialogue
+  const hasDialogue = /["«»\u201C\u201D]|\b(dialogue|dialog|says?|speaks?|talks?|shouts?|whispers?|conversation)\b/i.test(prompt)
   const genCost = Math.max(1, Math.round(price * modelUi.mult * (duration / 5) * (resolution === '1080p' ? 1.5 : resolution === '480p' ? 0.7 : 1)))
 
   const inputStyle: React.CSSProperties = { padding: '7px 9px', fontSize: 12 }
@@ -509,6 +573,44 @@ export default function StudioPage() {
               )}
             </div>
 
+            {/* FIRST / LAST FRAME (#86): optional start & end anchors.
+                Empty = prompt-only · first = image-to-video · both = interpolation.
+                Hidden for models without start/end frame support. */}
+            {modelUi.frames && (
+              <div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['first', 'last'] as const).map(k => (
+                    <div key={k}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>
+                        {k === 'first' ? 'First frame' : 'Last frame'}
+                      </p>
+                      {frames[k] ? (
+                        <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: '1px solid color-mix(in srgb, var(--accent) 45%, transparent)', backgroundColor: '#17151E' }}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={frames[k]} alt="" style={{ width: '100%', aspectRatio: '16/9', objectFit: 'cover', display: 'block' }} />
+                          <button
+                            onClick={() => setFrames(prev => { const n = { ...prev }; delete n[k]; return n })}
+                            title="Remove"
+                            style={{ position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: 5, backgroundColor: 'rgba(8,5,15,0.75)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontSize: 10, cursor: 'pointer', lineHeight: 1 }}
+                          >×</button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => { setFramePick(k); setPickSource('library'); setPickQuery(''); setPickOpen(true) }}
+                          title="Upload a file or pick from your library"
+                          style={{ width: '100%', aspectRatio: '16/9', borderRadius: 10, border: '1px dashed var(--border)', color: 'var(--fg-subtle)', background: 'none', cursor: 'pointer', fontSize: 18, fontWeight: 700 }}
+                        >+</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: 'var(--fg-subtle)', margin: '4px 0 0' }}>
+                  Optional. First = image-to-video · first + last = interpolate between the frames.
+                </p>
+                <input ref={frameFileRef} type="file" accept="image/*" onChange={onUploadFrame} style={{ display: 'none' }} />
+              </div>
+            )}
+
             {/* Upload */}
             <div>
               <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" onChange={onUpload} style={{ display: 'none' }} />
@@ -563,7 +665,7 @@ export default function StudioPage() {
                 <div
                   className="fixed inset-0 z-50 flex items-center justify-center p-4"
                   style={{ backgroundColor: 'rgba(8,5,15,0.78)', backdropFilter: 'blur(6px)' }}
-                  onClick={() => { setPickOpen(false); setHoverRow(null) }}
+                  onClick={() => { setPickOpen(false); setHoverRow(null); setFramePick(null) }}
                 >
                 <div
                   onClick={e => e.stopPropagation()}
@@ -583,8 +685,14 @@ export default function StudioPage() {
                         {lbl}
                       </button>
                     ))}
+                    {framePick && (
+                      <button onClick={() => frameFileRef.current?.click()} disabled={uploading} className="text-[11px] font-bold px-2.5 py-1 rounded-md"
+                        style={{ backgroundColor: 'rgba(229,169,75,0.1)', border: '1px solid rgba(229,169,75,0.4)', color: '#E5A94B', cursor: 'pointer' }}>
+                        {uploading ? 'Uploading…' : `Upload file → ${framePick} frame`}
+                      </button>
+                    )}
                     <div className="flex-1" />
-                    <button onClick={() => { setPickOpen(false); setHoverRow(null) }} style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>×</button>
+                    <button onClick={() => { setPickOpen(false); setHoverRow(null); setFramePick(null) }} style={{ color: 'var(--fg-subtle)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>×</button>
                   </div>
                   <div className="flex gap-1 mb-2">
                     {MENTION_TABS.map(t => (
@@ -799,19 +907,52 @@ export default function StudioPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Camera</p>
-                      <select value={camera} onChange={e => setCamera(e.target.value)} className="input-field w-full" style={inputStyle}>
-                        {CAMERA_MOVES.map(c => <option key={c} value={c}>{c === 'none' ? 'Auto' : c}</option>)}
-                      </select>
+                  {/* CURATED ENGINE CONTROLS (#86): 8 categories, 3 groups —
+                      compact dropdowns. The remaining Engine categories stay
+                      under the hood (Engine settings), not here. */}
+                  {ADV_GROUPS.map(([g, ids]) => (
+                    <div key={g}>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--accent-soft)' }}>{g}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {ids.map(cid => ENGINE_CATS[cid] ? (
+                          <div key={cid}>
+                            <p className="text-[9.5px] mb-0.5" style={{ color: 'var(--fg-subtle)', margin: '0 0 2px' }}>{CAT_LABELS[cid]}</p>
+                            <select value={engineSel[cid] ?? ''} onChange={e => setEngineSel(prev => ({ ...prev, [cid]: e.target.value }))} className="input-field w-full" style={inputStyle}>
+                              <option value="">Auto</option>
+                              {ENGINE_CATS[cid].items.map(it => <option key={it[0]} value={it[0]}>{it[0]}</option>)}
+                            </select>
+                          </div>
+                        ) : null)}
+                      </div>
                     </div>
+                  ))}
+                  {/* audio direction — only for audio models AND a scene with dialogue */}
+                  {modelUi.audio && hasDialogue && (
                     <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Style</p>
-                      <select value={preset} onChange={e => setPreset(e.target.value as keyof typeof PRESETS)} className="input-field w-full" style={inputStyle}>
-                        {(Object.keys(PRESETS) as (keyof typeof PRESETS)[]).map(k => <option key={k} value={k}>{PRESETS[k].label}</option>)}
-                      </select>
+                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--accent-soft)' }}>Audio · dialogue detected</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {AUDIO_CATS.map(cid => ENGINE_CATS[cid] ? (
+                          <div key={cid}>
+                            <p className="text-[9.5px] mb-0.5" style={{ color: 'var(--fg-subtle)', margin: '0 0 2px' }}>{CAT_LABELS[cid]}</p>
+                            <select value={engineSel[cid] ?? ''} onChange={e => setEngineSel(prev => ({ ...prev, [cid]: e.target.value }))} className="input-field w-full" style={inputStyle}>
+                              <option value="">Auto</option>
+                              {ENGINE_CATS[cid].items.map(it => <option key={it[0]} value={it[0]}>{it[0]}</option>)}
+                            </select>
+                          </div>
+                        ) : null)}
+                      </div>
                     </div>
+                  )}
+                  {/* Master preset — the 8K IMAX cinematic block */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--fg-muted)' }}>Master preset · 8K IMAX</span>
+                    <button onClick={() => setMasterOn(v => !v)} role="switch" aria-checked={masterOn}
+                      style={{
+                        width: 38, height: 21, borderRadius: 999, position: 'relative', border: 'none', cursor: 'pointer',
+                        backgroundColor: masterOn ? 'var(--accent)' : 'var(--bg-subtle)', transition: 'background .15s',
+                      }}>
+                      <span style={{ position: 'absolute', top: 2.5, left: masterOn ? 19 : 3, width: 16, height: 16, borderRadius: '50%', backgroundColor: 'white', transition: 'left .15s' }} />
+                    </button>
                   </div>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Negative prompt</p>
