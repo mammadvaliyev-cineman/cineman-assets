@@ -120,9 +120,6 @@ export default function StudioPage() {
   const [frames, setFrames] = useState<{ first?: string; last?: string }>({})
   const [framePick, setFramePick] = useState<'first' | 'last' | null>(null)
   const frameFileRef = useRef<HTMLInputElement>(null)
-  const [negative, setNegative] = useState('')
-  const [consistency, setConsistency] = useState(70)
-  const [seed, setSeed] = useState('')
   const [castTab, setCastTab] = useState<'Cast' | 'Locations' | 'Props'>('Cast')
   const [balance, setBalance] = useState<number | null>(null)
   const [duration, setDuration] = useState(5)
@@ -215,9 +212,6 @@ export default function StudioPage() {
         if (d.preset && PRESETS[d.preset as keyof typeof PRESETS]) setPreset(d.preset)
         if (typeof d.audio === 'boolean') setAudio(d.audio)
         if (typeof d.camera === 'string') setCamera(d.camera)
-        if (typeof d.negative === 'string') setNegative(d.negative)
-        if (Number.isFinite(Number(d.consistency))) setConsistency(Number(d.consistency))
-        if (typeof d.seed === 'string') setSeed(d.seed)
       }
     } catch { /* noop */ }
     // MODEL MATCH deep-link (?model=…) — overrides the saved draft
@@ -231,10 +225,10 @@ export default function StudioPage() {
   useEffect(() => {
     if (!draftLoaded.current) return
     const t = setTimeout(() => {
-      try { localStorage.setItem('cineman_studio_draft', JSON.stringify({ prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, negative, consistency, seed, engineSel, masterOn, frames })) } catch { /* noop */ }
+      try { localStorage.setItem('cineman_studio_draft', JSON.stringify({ prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, engineSel, masterOn, frames })) } catch { /* noop */ }
     }, 400)
     return () => clearTimeout(t)
-  }, [prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, negative, consistency, seed, engineSel, masterOn, frames])
+  }, [prompt, refs, uploads, model, duration, aspect, resolution, preset, audio, camera, engineSel, masterOn, frames])
 
   const loadHistory = useCallback(async () => {
     if (!user) return
@@ -410,7 +404,7 @@ export default function StudioPage() {
         Lighting: pr.lighting,
         Mood: pr.mood,
       }
-      const settings = overrides?.settings ?? { model, duration, aspect, resolution, audio, preset, camera, negative, consistency, seed, engine: engineSel, master: masterOn }
+      const settings = overrides?.settings ?? { model, duration, aspect, resolution, audio, preset, camera, engine: engineSel, master: masterOn }
       let fullPrompt = p
       if (!overrides?.prompt) {
         const parts = [p]
@@ -423,9 +417,8 @@ export default function StudioPage() {
         }
         // the old Style preset only fills in when Lighting/Genre are on Auto
         if (!engineSel.light && !engineSel.genre) parts.push(`${pr.lighting}, ${pr.mood}`)
-        if (consistency >= 60 && useRefs.length) parts.push('strictly preserve the exact appearance of the referenced characters and locations')
+        if (useRefs.length) parts.push('strictly preserve the exact appearance of the referenced characters and locations')
         fullPrompt = parts.join('. ') + '.'
-        if (negative.trim()) fullPrompt += ` Avoid: ${negative.trim()}.`
         if (masterOn) fullPrompt += ' ' + MASTER_PRESET
       }
       const res = await fetch('/api/studio/video', {
@@ -860,18 +853,26 @@ export default function StudioPage() {
             </div>
             )}
 
-            {/* SHOT SETTINGS (§5): quick aspect + collapsible Advanced */}
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Aspect</p>
-              <div className="flex gap-1.5">
-                {['16:9', '9:16', '1:1'].map(a => (
-                  <button key={a} onClick={() => setAspect(a)} className="flex-1 text-xs font-bold py-1.5 rounded-lg"
-                    style={aspect === a
-                      ? { background: 'linear-gradient(135deg,var(--accent),var(--accent-strong))', color: 'var(--on-accent)', border: 'none', cursor: 'pointer' }
-                      : { border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
-                    {a}
-                  </button>
-                ))}
+            {/* SHOT SETTINGS (#87): Aspect · Duration · Resolution — one row
+                of dropdowns in the MAIN controls, not buried in Advanced */}
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Aspect</p>
+                <select value={aspect} onChange={e => setAspect(e.target.value)} className="input-field w-full" style={inputStyle}>
+                  {['16:9', '9:16', '1:1'].map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Duration</p>
+                <select value={duration} onChange={e => setDuration(Number(e.target.value))} className="input-field w-full" style={inputStyle}>
+                  {modelUi.durations.map(d => <option key={d} value={d}>{d}s</option>)}
+                </select>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Resolution</p>
+                <select value={resolution} onChange={e => setResolution(e.target.value)} className="input-field w-full" style={inputStyle}>
+                  {modelUi.resolutions.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
               </div>
             </div>
 
@@ -883,30 +884,6 @@ export default function StudioPage() {
               </button>
               {advOpen && (
                 <div className="px-3 pb-3 flex flex-col gap-2.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Duration</p>
-                      <div className="flex gap-1">
-                        {modelUi.durations.map(d => (
-                          <button key={d} onClick={() => setDuration(d)} className="flex-1 text-[11px] font-bold py-1 rounded-md"
-                            style={duration === d ? { backgroundColor: 'color-mix(in srgb, var(--accent) 25%, transparent)', color: 'var(--accent-soft)', border: 'none', cursor: 'pointer' } : { border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
-                            {d}s
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Resolution</p>
-                      <div className="flex gap-1">
-                        {modelUi.resolutions.map(r => (
-                          <button key={r} onClick={() => setResolution(r)} className="flex-1 text-[11px] font-bold py-1 rounded-md"
-                            style={resolution === r ? { backgroundColor: 'color-mix(in srgb, var(--accent) 25%, transparent)', color: 'var(--accent-soft)', border: 'none', cursor: 'pointer' } : { border: '1px solid var(--border)', color: 'var(--fg-muted)', background: 'none', cursor: 'pointer' }}>
-                            {r}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
                   {/* CURATED ENGINE CONTROLS (#86): 8 categories, 3 groups —
                       compact dropdowns. The remaining Engine categories stay
                       under the hood (Engine settings), not here. */}
@@ -953,20 +930,6 @@ export default function StudioPage() {
                       }}>
                       <span style={{ position: 'absolute', top: 2.5, left: masterOn ? 19 : 3, width: 16, height: 16, borderRadius: '50%', backgroundColor: 'white', transition: 'left .15s' }} />
                     </button>
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Negative prompt</p>
-                    <input value={negative} onChange={e => setNegative(e.target.value)} placeholder="what to avoid…" className="input-field w-full" style={inputStyle} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>
-                      Consistency · {consistency >= 60 ? 'strict' : consistency >= 30 ? 'balanced' : 'loose'}
-                    </p>
-                    <input type="range" min={0} max={100} value={consistency} onChange={e => setConsistency(Number(e.target.value))} className="cine-range w-full" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--fg-subtle)' }}>Seed (blank = random)</p>
-                    <input value={seed} onChange={e => setSeed(e.target.value.replace(/[^0-9]/g, ''))} placeholder="random" className="input-field w-full" style={inputStyle} />
                   </div>
                 </div>
               )}
