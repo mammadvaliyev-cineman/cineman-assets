@@ -120,6 +120,8 @@ export default async function HomePage() {
   let popular: Row[] = [];
   let freePicks: Row[] = [];
   let collageRows: Row[] = [];
+  let wallPeople: Row[] = [];
+  let wallCreatures: Row[] = [];
   let featured: { title: string; cat: string; cover: string; promo?: boolean; href?: string; hideTitle?: boolean }[] = [];
   // owner-curated section imagery (DEV_batch_60 §5) — empty = automatic
   let catCoversCfg: Record<string, string> = {};
@@ -131,13 +133,16 @@ export default async function HomePage() {
 
   try {
     const catIds = CATEGORIES.filter(c => c.id !== "Prop").map(c => c.id);
-    const [newestQ, popularQ, freeQ, cfgQ, collageQ, ...perCat] = await Promise.all([
+    const [newestQ, popularQ, freeQ, cfgQ, collageQ, wallPeopleQ, wallCreatureQ, ...perCat] = await Promise.all([
       base().order("created_at", { ascending: false }).limit(24),
       base().order("download_count", { ascending: false }).limit(24),
       base().eq("is_free", true).order("created_at", { ascending: false }).limit(12),
       supabase.from("assets").select("description").eq("type", "Config").eq("title", "homepage-config").limit(1),
-      // hero showreel: LOCATIONS only — single cinematic frames
+      // hero wall pool: a category MIX (owner's #83) — people, locations,
+      // creatures — so the default wall is varied out of the box
       base().eq("type", "Location").order("created_at", { ascending: false }).limit(6),
+      base().eq("type", "People").order("created_at", { ascending: false }).limit(4),
+      base().eq("type", "Creature").order("created_at", { ascending: false }).limit(3),
       ...catIds.map(id => base().eq("type", id).order("created_at", { ascending: false }).limit(1)),
     ]);
     newest = breakGreyWalls((newestQ.data ?? []) as Row[]).slice(0, 12);
@@ -146,6 +151,8 @@ export default async function HomePage() {
     popular = breakGreyWalls(popular).slice(0, 12);
     freePicks = (freeQ.data ?? []) as Row[];
     collageRows = (collageQ.data ?? []) as Row[];
+    wallPeople = (wallPeopleQ.data ?? []) as Row[];
+    wallCreatures = (wallCreatureQ.data ?? []) as Row[];
     catIds.forEach((id, i) => {
       covers[id] = ((perCat[i]?.data ?? []) as Row[])[0] ?? null;
     });
@@ -251,11 +258,25 @@ export default async function HomePage() {
           {/* Right: living showreel — ken-burns crossfade over cinematic
               location frames (single images, safe to cover-crop) */}
           <div className="fade-in-up hidden md:block" style={{ animationDelay: "0.12s" }}>
-            <HeroWall
-              tiles={heroTilesCfg.length >= 3
-                ? heroTilesCfg
-                : collage.slice(0, 9).map(a => ({ src: coverSrc(a, true), x: 0, y: 0, z: 1 }))}
-            />
+            {(() => {
+              // #83: the wall never repeats a tile — owner's frames first,
+              // then top up to 9 with different assets from a category mix
+              // (people / locations / creatures interleaved)
+              const norm = (u: string) => u.split("?")[0].replace("/render/image/public/", "/object/public/");
+              const used = new Set(heroTilesCfg.map(t => norm(t.src)));
+              const pool: Row[] = [];
+              const groups = [wallPeople, collage, wallCreatures].map(g => [...g]);
+              while (groups.some(g => g.length)) for (const g of groups) { const a = g.shift(); if (a) pool.push(a); }
+              const wall = [...heroTilesCfg];
+              for (const a of pool) {
+                if (wall.length >= 9) break;
+                const src = coverSrc(a, true);
+                if (used.has(norm(src))) continue;
+                used.add(norm(src));
+                wall.push({ src, x: 0, y: 0, z: 1 });
+              }
+              return <HeroWall tiles={wall} />;
+            })()}
           </div>
         </div>
       </section>
