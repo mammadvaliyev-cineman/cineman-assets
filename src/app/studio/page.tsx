@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/components/AuthProvider'
 import { CreditGem } from '@/components/AssetGrid'
@@ -59,7 +60,7 @@ const MODELS_UI: Record<string, { label: string; tag: string; meta: string; dura
 const CAMERA_MOVES = ['none', 'static shot', 'slow pan', 'dolly in', 'handheld', 'orbit'] as const
 
 const MENTION_TABS = [
-  { id: 'Characters', types: ['People', 'Character'] },
+  { id: 'Cast', types: ['People', 'Character'] },
   { id: 'Locations', types: ['Location'] },
   { id: 'Props', types: ['Prop', 'Vehicle'] },
 ] as const
@@ -100,7 +101,7 @@ export default function StudioPage() {
   const [negative, setNegative] = useState('')
   const [consistency, setConsistency] = useState(70)
   const [seed, setSeed] = useState('')
-  const [castTab, setCastTab] = useState<'Cast' | 'Locations'>('Cast')
+  const [castTab, setCastTab] = useState<'Cast' | 'Locations' | 'Props'>('Cast')
   const [balance, setBalance] = useState<number | null>(null)
   const [duration, setDuration] = useState(5)
   const [aspect, setAspect] = useState('16:9')
@@ -114,7 +115,7 @@ export default function StudioPage() {
 
   // ── mention picker ──────────────────────────────────────────
   const [pickOpen, setPickOpen] = useState(false)
-  const [pickTab, setPickTab] = useState<(typeof MENTION_TABS)[number]['id']>('Characters')
+  const [pickTab, setPickTab] = useState<(typeof MENTION_TABS)[number]['id']>('Cast')
   const [pickQuery, setPickQuery] = useState('')
   type PickRow = { id: string; title: string; type: string; file_url: string; mine: boolean; owned: boolean; isFree: boolean; cost: number }
   const [pickRows, setPickRows] = useState<PickRow[]>([])
@@ -556,15 +557,24 @@ export default function StudioPage() {
                 className="input-field w-full text-sm"
                 style={{ padding: '10px 12px', resize: 'vertical' }}
               />
-              {pickOpen && (
+              {/* SPACIOUS PICKER (#84 §2): centered modal in a portal — room
+                  for the grid, search and preview; never overlaps the panel */}
+              {pickOpen && createPortal(
                 <div
+                  className="fixed inset-0 z-50 flex items-center justify-center p-4"
+                  style={{ backgroundColor: 'rgba(8,5,15,0.78)', backdropFilter: 'blur(6px)' }}
+                  onClick={() => { setPickOpen(false); setHoverRow(null) }}
+                >
+                <div
+                  onClick={e => e.stopPropagation()}
                   onMouseLeave={() => setHoverRow(null)}
                   style={{
-                    position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30,
-                    backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 12,
-                    boxShadow: '0 14px 40px rgba(0,0,0,0.65)', padding: 8,
+                    width: 'min(960px, 94vw)', maxHeight: '82vh', display: 'flex', gap: 14,
+                    backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 16,
+                    boxShadow: '0 24px 70px rgba(0,0,0,0.7)', padding: 14,
                   }}
                 >
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                   {/* source: My library (default) | Browse catalog */}
                   <div className="flex gap-1 mb-1.5">
                     {([['library', 'My library'], ['catalog', 'Browse catalog']] as const).map(([k, lbl]) => (
@@ -591,14 +601,14 @@ export default function StudioPage() {
                     className="input-field w-full text-xs mb-2"
                     style={{ padding: '6px 9px' }}
                   />
-                  <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+                  <div style={{ overflowY: 'auto', flex: 1, minHeight: 220 }}>
                     {pickRows.length === 0 && (
                       <p className="text-[11px] px-2 py-3" style={{ color: 'var(--fg-subtle)' }}>
                         {pickSource === 'library' ? 'Your library is empty here — switch to Browse catalog.' : 'Nothing found'}
                       </p>
                     )}
-                    {/* HORIZONTAL 16:9 tiles, full sheet, 2 per row (§3a) */}
-                    <div className="grid grid-cols-2 gap-1.5">
+                    {/* HORIZONTAL 16:9 tiles — three per row in the wide modal */}
+                    <div className="grid grid-cols-3 gap-2">
                       {pickRows.map(a => (
                         <div
                           key={a.id}
@@ -630,13 +640,15 @@ export default function StudioPage() {
                     </div>
                   </div>
 
-                  {/* HOVER PREVIEW (§3a): the full turnaround, big, beside
-                      the picker — inspect the face before committing */}
-                  {hoverRow && (
+                  </div>
+
+                  {/* PREVIEW PANE (#84 §2): fixed right column inside the modal —
+                      the full turnaround, big, never overflowing the layout */}
+                  <div style={{ width: 300, flexShrink: 0 }}>
+                  {hoverRow ? (
                     <div style={{
-                      position: 'absolute', left: '103%', top: 0, width: 400, zIndex: 41,
-                      backgroundColor: '#120D1D', border: '1px solid var(--border)', borderRadius: 12,
-                      boxShadow: '0 14px 40px rgba(0,0,0,0.7)', padding: 10,
+                      backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border)', borderRadius: 12,
+                      padding: 10,
                     }}>
                       <div style={{ aspectRatio: '16/9', backgroundColor: '#17151E', borderRadius: 8, overflow: 'hidden' }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -656,8 +668,15 @@ export default function StudioPage() {
                         </button>
                       )}
                     </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center rounded-xl" style={{ border: '1px dashed var(--border)', minHeight: 220 }}>
+                      <p className="text-[11px] px-4 text-center" style={{ color: 'var(--fg-subtle)' }}>Hover a tile to preview the full sheet</p>
+                    </div>
                   )}
+                  </div>
                 </div>
+                </div>,
+                document.body
               )}
             </div>
 
@@ -665,7 +684,7 @@ export default function StudioPage() {
                 are turnaround sheets, squares would crop them */}
             <div>
               <div className="flex gap-1 mb-2">
-                {(['Cast', 'Locations'] as const).map(t => (
+                {(['Cast', 'Locations', 'Props'] as const).map(t => (
                   <button key={t} onClick={() => setCastTab(t)} className="text-[11px] font-bold px-2.5 py-1 rounded-md"
                     style={castTab === t ? { backgroundColor: 'color-mix(in srgb, var(--accent) 18%, transparent)', color: 'var(--accent-soft)', border: 'none', cursor: 'pointer' } : { color: 'var(--fg-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
                     {t}
@@ -673,7 +692,7 @@ export default function StudioPage() {
                 ))}
               </div>
               <div className="grid grid-cols-2 gap-1.5">
-                {refs.filter(r => castTab === 'Cast' ? ['People', 'Character'].includes(r.kind) : r.kind === 'Location').map(r => (
+                {refs.filter(r => castTab === 'Cast' ? ['People', 'Character'].includes(r.kind) : castTab === 'Locations' ? r.kind === 'Location' : ['Prop', 'Vehicle'].includes(r.kind)).map(r => (
                   <div key={r.id} className="rounded-lg overflow-hidden" style={{ border: '1px solid var(--border)', backgroundColor: 'var(--bg-subtle)', position: 'relative' }}>
                     <div style={{ aspectRatio: '16/9', backgroundColor: '#17151E' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -709,10 +728,10 @@ export default function StudioPage() {
                   </div>
                 ))}
                 <button
-                  onClick={() => { setPickTab(castTab === 'Cast' ? 'Characters' : 'Locations'); setPickSource('library'); setPickQuery(''); setPickOpen(true) }}
+                  onClick={() => { setPickTab(castTab); setPickSource('library'); setPickQuery(''); setPickOpen(true) }}
                   className="rounded-lg flex items-center justify-center"
                   style={{ aspectRatio: '16/9', border: '1px dashed var(--border)', color: 'var(--fg-subtle)', background: 'none', cursor: 'pointer', fontSize: 20, fontWeight: 700 }}
-                  title={castTab === 'Cast' ? 'Add a character' : 'Add a location'}
+                  title={castTab === 'Cast' ? 'Add a cast member' : castTab === 'Locations' ? 'Add a location' : 'Add a prop'}
                 >
                   +
                 </button>
