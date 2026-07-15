@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 // ─────────────────────────────────────────────────────────────
 // HERO WALL (owner's brief #82): a living wall of hand-framed
 // tiles on the first screen. Columns drift vertically — slow,
@@ -24,6 +26,10 @@ export const TILE_ASPECT = '3 / 4' // portrait — faces and locations both read
 // fractions, so the framing is identical at any tile size as long
 // as the aspect matches the crop editor (it does — 3:4 everywhere).
 export function TileView({ tile, radius = 12 }: { tile: HeroTile; radius?: number }) {
+  // measured aspect → explicit COVER sizing in % of the frame (#85):
+  // width = max(1, ratio · 4/3) · zoom — both axes always fill the 3:4
+  // frame, so no black bars at any zoom or position
+  const [ratio, setRatio] = useState<number | null>(null)
   return (
     <div
       style={{
@@ -37,12 +43,15 @@ export function TileView({ tile, radius = 12 }: { tile: HeroTile; radius?: numbe
         src={tile.src}
         alt=""
         draggable={false}
+        onLoad={e => { const im = e.currentTarget; if (im.naturalWidth && im.naturalHeight) setRatio(im.naturalWidth / im.naturalHeight) }}
         style={{
           position: 'absolute',
           left: `calc(50% + ${(tile.x * 100).toFixed(3)}%)`,
           top: `calc(50% + ${(tile.y * 100).toFixed(3)}%)`,
-          transform: `translate(-50%, -50%) scale(${tile.z})`,
-          minWidth: '100%', minHeight: '100%', objectFit: 'cover',
+          transform: 'translate(-50%, -50%)',
+          width: ratio ? `${(Math.max(1, ratio * (4 / 3)) * tile.z * 100).toFixed(2)}%` : '100%',
+          height: 'auto',
+          visibility: ratio ? 'visible' : 'hidden',
           userSelect: 'none', pointerEvents: 'none',
         }}
       />
