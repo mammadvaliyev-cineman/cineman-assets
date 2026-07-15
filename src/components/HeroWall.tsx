@@ -61,8 +61,14 @@ const DRIFT = [
 export default function HeroWall({ tiles }: { tiles: HeroTile[] }) {
   if (!tiles.length) return null
 
-  // fill up to 9 by repeating, then deal round-robin into columns
-  const filled: HeroTile[] = Array.from({ length: Math.max(9, tiles.length) }, (_, i) => tiles[i % tiles.length])
+  // distinct tiles only (owner's #83: no visible repeats) — the page
+  // tops the set up to 9 different assets, we just guard against dupes
+  const seen = new Set<string>()
+  const norm = (u: string) => u.split('?')[0].replace('/render/image/public/', '/object/public/')
+  let filled = tiles.filter(t => { const k = norm(t.src); if (seen.has(k)) return false; seen.add(k); return true })
+  // safety net for a nearly-empty config: a too-short column would leave
+  // gaps in the seamless loop, so only then we allow repetition
+  while (filled.length > 0 && filled.length < 6) filled = [...filled, filled[filled.length % tiles.length] ?? filled[0]]
   const cols: HeroTile[][] = Array.from({ length: COLS }, () => [])
   filled.forEach((t, i) => cols[i % COLS].push(t))
 
