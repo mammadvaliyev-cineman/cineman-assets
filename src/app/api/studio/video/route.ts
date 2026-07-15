@@ -57,6 +57,9 @@ export async function POST(req: NextRequest) {
     const model = MODELS[String(settings.model)] ? String(settings.model) : 'seedance-2'
     const refs: { id?: string; title?: string; image?: string }[] = Array.isArray(body.refs) ? body.refs.slice(0, 6) : []
     const uploads = body.uploads || {}
+    // First/Last frame anchors (#86): first = image-to-video start,
+    // last = end frame (interpolation when both are present)
+    const frames = (body.frames && typeof body.frames === 'object') ? body.frames as { first?: unknown; last?: unknown } : {}
 
     const admin = supabaseAdmin()
     const cost = computeCost(await priceOf(admin), model, settings)
@@ -89,6 +92,8 @@ export async function POST(req: NextRequest) {
     }
     if (Number.isFinite(Number(settings.seed)) && String(settings.seed).trim() !== '') input.seed = Math.abs(Math.round(Number(settings.seed)))
     if (refImages.length) input.reference_image_urls = refImages
+    if (frames.first) input.image_url = String(frames.first)
+    if (frames.last) input.end_image_url = String(frames.last)
     if (uploads.video) input.reference_video_urls = [String(uploads.video)]
     if (uploads.audio) input.reference_audio_urls = [String(uploads.audio)]
 
