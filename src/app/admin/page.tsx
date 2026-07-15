@@ -271,6 +271,17 @@ function HomepageFeaturedEditor() {
   // manual crop positioner for a wall tile — same mechanics as the avatar
   const [heroCrop, setHeroCrop] = useState<{ idx: number; src: string; x: number; y: number; z: number } | null>(null)
   const heroDragRef = useRef<{ startX: number; startY: number; baseX: number; baseY: number } | null>(null)
+  const [cropDims, setCropDims] = useState<{ w: number; h: number } | null>(null)
+  // COVER geometry (#85): the image always fills the 240×320 frame; drag
+  // is clamped to the picture edges — black bars are impossible
+  const heroClamp = (x: number, y: number, z: number) => {
+    if (!cropDims) return { x, y }
+    const r = cropDims.w / cropDims.h
+    const dispW = 240 * Math.max(1, r * (4 / 3)) * z
+    const dispH = dispW / r
+    const mx = Math.max(0, (dispW - 240) / 2), my = Math.max(0, (dispH - 320) / 2)
+    return { x: Math.min(mx, Math.max(-mx, x)), y: Math.min(my, Math.max(-my, y)) }
+  }
   const heroFileRef = useRef<HTMLInputElement>(null)
   const [weekIds, setWeekIds] = useState<string[]>([])
   const [trendingText, setTrendingText] = useState('')
@@ -351,6 +362,7 @@ function HomepageFeaturedEditor() {
     if (picker.kind === 'hero') {
       // #82: after picking — frame it by hand (drag / zoom), like the avatar
       setPicker(null)
+      setCropDims(null)
       setHeroCrop({ idx: Number(picker.key), src: render(a.file_url, 1024), x: 0, y: 0, z: 1 })
       return
     }
@@ -393,6 +405,21 @@ function HomepageFeaturedEditor() {
     } finally { setRandBusy('') }
   }
 
+  // Per-tile shuffle (#85 §1): re-rolls ONE tile, the rest stay put
+  async function shuffleOne(i: number) {
+    setRandBusy(`hero${i}`)
+    try {
+      const cats = ['People', 'Location', 'Creature']
+      const [a] = await randomOf(cats[Math.floor(Math.random() * cats.length)], 1)
+      if (a) setHeroTiles(prev => {
+        const n = [...prev]
+        while (n.length <= i) n.push(null)
+        n[i] = { src: render(a.file_url, 1024), x: 0, y: 0, z: 1 }
+        return n.slice(0, 9)
+      })
+    } finally { setRandBusy('') }
+  }
+
   // Upload your own image for a wall tile → same manual crop step
   async function onUploadHero(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -405,6 +432,7 @@ function HomepageFeaturedEditor() {
       const j = await r.json()
       if (j.ok) {
         setPicker(null)
+        setCropDims(null)
         setHeroCrop({ idx: idx >= 0 ? idx : 0, src: j.url, x: 0, y: 0, z: 1 })
         setMsg('')
       } else setMsg(j.error || 'Upload failed')
@@ -548,7 +576,7 @@ function HomepageFeaturedEditor() {
                     <TileView tile={t} radius={8} />
                   </button>
                   <button
-                    onClick={() => setHeroCrop({ idx: i, src: t.src, x: t.x * 240, y: t.y * 320, z: t.z })}
+                    onClick={() => { setCropDims(null); setHeroCrop({ idx: i, src: t.src, x: t.x * 240, y: t.y * 320, z: t.z }) }}
                     title="Re-crop"
                     style={{ position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 6, backgroundColor: 'rgba(10,8,16,0.72)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontSize: 10, cursor: 'pointer', lineHeight: 1 }}
                   >✎</button>
@@ -557,9 +585,21 @@ function HomepageFeaturedEditor() {
                     title="Clear"
                     style={{ position: 'absolute', top: 4, left: 4, width: 20, height: 20, borderRadius: 6, backgroundColor: 'rgba(10,8,16,0.72)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontSize: 10, cursor: 'pointer', lineHeight: 1 }}
                   >×</button>
+                  <button
+                    onClick={() => shuffleOne(i)}
+                    title="Shuffle this tile"
+                    style={{ position: 'absolute', bottom: 4, right: 4, width: 20, height: 20, borderRadius: 6, backgroundColor: 'rgba(10,8,16,0.72)', border: '1px solid rgba(255,255,255,0.25)', color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: 1 }}
+                  >{randBusy === `hero${i}` ? '…' : '⟳'}</button>
                 </>
               ) : (
-                <button onClick={() => openPicker('hero', i)} title="Pick" style={{ width: '100%', aspectRatio: '3 / 4', borderRadius: 8, overflow: 'hidden', border: '1px dashed var(--border)', backgroundColor: '#17151E', cursor: 'pointer', color: 'var(--fg-subtle)', fontSize: 16 }}>+</button>
+                <>
+                  <button onClick={() => openPicker('hero', i)} title="Pick" style={{ width: '100%', aspectRatio: '3 / 4', borderRadius: 8, overflow: 'hidden', border: '1px dashed var(--border)', backgroundColor: '#17151E', cursor: 'pointer', color: 'var(--fg-subtle)', fontSize: 16 }}>+</button>
+                  <button
+                    onClick={() => shuffleOne(i)}
+                    title="Shuffle this tile"
+                    style={{ position: 'absolute', bottom: 4, right: 4, width: 20, height: 20, borderRadius: 6, backgroundColor: 'rgba(10,8,16,0.72)', border: '1px solid rgba(255,255,255,0.25)', color: 'var(--fg-subtle)', fontSize: 11, cursor: 'pointer', lineHeight: 1 }}
+                  >{randBusy === `hero${i}` ? '…' : '⟳'}</button>
+                </>
               )}
             </div>
           )
@@ -631,7 +671,11 @@ function HomepageFeaturedEditor() {
               onPointerMove={e => {
                 if (!heroDragRef.current) return
                 const d = heroDragRef.current
-                setHeroCrop(c => c ? { ...c, x: d.baseX + (e.clientX - d.startX), y: d.baseY + (e.clientY - d.startY) } : c)
+                setHeroCrop(c => {
+                  if (!c) return c
+                  const p = heroClamp(d.baseX + (e.clientX - d.startX), d.baseY + (e.clientY - d.startY), c.z)
+                  return { ...c, x: p.x, y: p.y }
+                })
               }}
               onPointerUp={() => { heroDragRef.current = null }}
             >
@@ -640,18 +684,34 @@ function HomepageFeaturedEditor() {
                 src={heroCrop.src}
                 alt=""
                 draggable={false}
+                onLoad={e => {
+                  const im = e.currentTarget
+                  if (!im.naturalWidth || !im.naturalHeight) return
+                  const d = { w: im.naturalWidth, h: im.naturalHeight }
+                  setCropDims(d)
+                  // clamp a restored frame into the new bounds right away
+                  setHeroCrop(c => {
+                    if (!c) return c
+                    const r = d.w / d.h
+                    const dispW = 240 * Math.max(1, r * (4 / 3)) * c.z
+                    const mx = Math.max(0, (dispW - 240) / 2), my = Math.max(0, (dispW / r - 320) / 2)
+                    return { ...c, x: Math.min(mx, Math.max(-mx, c.x)), y: Math.min(my, Math.max(-my, c.y)) }
+                  })
+                }}
                 style={{
                   position: 'absolute',
                   left: `calc(50% + ${heroCrop.x}px)`, top: `calc(50% + ${heroCrop.y}px)`,
-                  transform: `translate(-50%, -50%) scale(${heroCrop.z})`,
-                  minWidth: '100%', minHeight: '100%', objectFit: 'cover',
+                  transform: 'translate(-50%, -50%)',
+                  width: cropDims ? 240 * Math.max(1, (cropDims.w / cropDims.h) * (4 / 3)) * heroCrop.z : 240,
+                  height: 'auto',
+                  visibility: cropDims ? 'visible' : 'hidden',
                   userSelect: 'none', pointerEvents: 'none',
                 }}
               />
             </div>
             <div className="flex items-center gap-2 mt-4">
               <span className="text-[11px]" style={{ color: 'var(--fg-subtle)' }}>Zoom</span>
-              <input type="range" min={1} max={3} step={0.01} value={heroCrop.z} onChange={e => setHeroCrop(c => c ? { ...c, z: Number(e.target.value) } : c)} style={{ flex: 1, accentColor: 'var(--accent)' }} />
+              <input type="range" min={1} max={3} step={0.01} value={heroCrop.z} onChange={e => setHeroCrop(c => { if (!c) return c; const z = Number(e.target.value); const p = heroClamp(c.x, c.y, z); return { ...c, z, x: p.x, y: p.y } })} style={{ flex: 1, accentColor: 'var(--accent)' }} />
             </div>
             <div className="flex gap-2 mt-4">
               <button
