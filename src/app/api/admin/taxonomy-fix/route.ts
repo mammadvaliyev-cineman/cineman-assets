@@ -75,7 +75,7 @@ function classify(r: Row): { type: string; category: string; addTag?: string } |
   const { text, tokens } = textOf(r)
   const has = (t: string) => tokens.has(t)
   const anyTok = (list: string[]) => list.some(has)
-  const fishSuffix = [...tokens].some(t => t.length > 4 && t.endsWith('fish'))
+  const fishSuffix = Array.from(tokens).some(t => t.length > 4 && t.endsWith('fish'))
 
   // 1 ── zombie / infected / undead
   if (anyTok(['zombie', 'zombies', 'infected', 'undead'])) {
@@ -156,7 +156,8 @@ async function buildPlan() {
     const base = decodeURIComponent(String(r.file_url).split('/').pop() || '')
       .split('?')[0].replace(/^\d+-/, '').replace(/\.(jpg|jpeg|png|webp)$/i, '')
       .replace(/-\d+(-\d+)?$/, '')
-    ;(groups[base] = groups[base] || []).push(r.id)
+    if (!groups[base]) groups[base] = []
+    groups[base].push(r.id)
   }
   const possibleDupes = Object.entries(groups).filter(([b, ids]) => ids.length > 1 && !b.startsWith('animal-character')).map(([b, ids]) => `${b} ×${ids.length}`)
 
