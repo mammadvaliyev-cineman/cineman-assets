@@ -37,7 +37,8 @@ const MULTI: [string, string][] = [
   ['gila monster', 'Reptiles'], ['giant tortoise', 'Reptiles'], ['tree frog', 'Reptiles'],
   ['killer whale', 'Fish & Sea'], ['blue whale', 'Fish & Sea'], ['leafy seadragon', 'Fish & Sea'],
   ['highland cow', 'Pets'], ['jacob sheep', 'Pets'],
-  ['african wild dog', 'Predators'], ['feral dog', 'Predators'],
+  ['african wild dog', 'Predators'], ['feral dog', 'Predators'], ['fennec fox', 'Predators'],
+  ['cock of the rock', 'Birds'],
   ['red panda', 'Wild Mammals'], ['giant panda', 'Wild Mammals'],
   ['naked molerat', 'Wild Mammals'], ['patagonian mara', 'Wild Mammals'],
   ['king vulture', 'Birds'], ['eagle owl', 'Birds'], ['ground hornbill', 'Birds'],
@@ -47,7 +48,7 @@ const MULTI: [string, string][] = [
 
 const TOKENS: Record<string, string[]> = {
   'Pets': ['dog', 'puppy', 'hound', 'collie', 'retriever', 'terrier', 'pointer', 'setter', 'spaniel', 'mastiff', 'sheepdog', 'shiba', 'basenji', 'borzoi', 'saluki', 'samoyed', 'weimaraner', 'dane', 'deerhound', 'greyhound', 'ridgeback', 'affenpinscher', 'azawakh', 'otterhound', 'pharaoh', 'spinone', 'wirehaired', 'dalmatian', 'corgi', 'poodle', 'bulldog', 'pug', 'beagle', 'husky', 'malamute', 'akita', 'chihuahua', 'doberman', 'rottweiler', 'schnauzer', 'cat', 'kitten', 'shorthair', 'sphynx', 'abyssinian', 'bengal', 'ragdoll', 'siamese', 'persian', 'rabbit', 'bunny', 'ferret', 'hamster', 'guinea', 'horse', 'pony', 'donkey', 'goat', 'sheep', 'lamb', 'cow', 'calf', 'bull', 'ox', 'llama', 'alpaca', 'pig', 'piglet', 'chicken', 'rooster', 'hen'],
-  'Predators': ['lion', 'lioness', 'tiger', 'leopard', 'jaguar', 'cheetah', 'panther', 'cougar', 'puma', 'lynx', 'ocelot', 'serval', 'caracal', 'genet', 'civet', 'fossa', 'dhole', 'wolf', 'coyote', 'jackal', 'bear', 'grizzly', 'badger', 'marten', 'wolverine', 'hyena', 'aardwolf', 'mongoose', 'crocodile', 'alligator', 'caiman'],
+  'Predators': ['lion', 'lioness', 'tiger', 'leopard', 'jaguar', 'cheetah', 'panther', 'cougar', 'puma', 'lynx', 'ocelot', 'serval', 'caracal', 'genet', 'civet', 'fossa', 'dhole', 'wolf', 'coyote', 'jackal', 'bear', 'grizzly', 'badger', 'marten', 'wolverine', 'hyena', 'aardwolf', 'mongoose', 'fox', 'crocodile', 'alligator', 'caiman'],
   'Wild Mammals': ['antelope', 'bongo', 'kudu', 'hartebeest', 'oryx', 'gemsbok', 'gerenuk', 'gazelle', 'springbok', 'wildebeest', 'ibex', 'deer', 'stag', 'elk', 'moose', 'reindeer', 'zebra', 'monkey', 'baboon', 'macaque', 'mandrill', 'tamarin', 'lemur', 'sifaka', 'orangutan', 'chimpanzee', 'chimp', 'gorilla', 'capuchin', 'gibbon', 'otter', 'wombat', 'kangaroo', 'wallaby', 'possum', 'opossum', 'koala', 'beaver', 'capybara', 'aardvark', 'pangolin', 'tapir', 'okapi', 'takin', 'gaur', 'buffalo', 'bison', 'yak', 'panda', 'colugo', 'mara', 'molerat', 'platypus', 'echidna', 'elephant', 'giraffe', 'hippo', 'hippopotamus', 'rhino', 'rhinoceros', 'camel', 'coati', 'hedgehog', 'sloth', 'armadillo', 'anteater', 'boar', 'warthog', 'hare', 'squirrel', 'chipmunk', 'raccoon', 'skunk', 'porcupine', 'mole', 'bat', 'meerkat', 'genets', 'civets'],
   'Birds': ['bird', 'owl', 'eagle', 'vulture', 'hornbill', 'heron', 'macaw', 'parrot', 'cockatoo', 'penguin', 'cassowary', 'ostrich', 'emu', 'flamingo', 'toucan', 'peacock', 'raven', 'crow', 'jay', 'pigeon', 'dove', 'grouse', 'secretarybird', 'roadrunner', 'potoo', 'kingfisher', 'crane', 'stork', 'swan', 'goose', 'duck', 'falcon', 'hawk', 'kestrel', 'kite', 'bateleur', 'hummingbird', 'woodpecker', 'sparrow', 'finch', 'cardinal', 'magpie', 'pelican', 'albatross', 'puffin', 'kiwi'],
   'Fish & Sea': ['shark', 'tuna', 'trevally', 'betta', 'seahorse', 'seadragon', 'cuttlefish', 'nautilus', 'octopus', 'squid', 'jelly', 'jellyfish', 'whale', 'orca', 'dolphin', 'porpoise', 'seal', 'walrus', 'manatee', 'dugong', 'axolotl', 'ray', 'stingray', 'eel', 'marlin', 'barracuda', 'grouper', 'salmon', 'trout', 'carp', 'koi', 'crab', 'lobster', 'shrimp', 'starfish', 'urchin', 'anemone', 'coral'],
@@ -62,59 +63,73 @@ const ANTHRO = ['anthropomorphic', 'dressed', 'cloak', 'cloaked', 'hooded', 'clo
 const CARTOON_HUMAN_WHO = ['boy', 'girl', 'kid', 'child', 'man', 'woman', 'teen']
 const CARTOON_MARK = ['character', 'cartoon', 'animated', 'stylized']
 
-function textOf(r: Row): { text: string; tokens: Set<string> } {
+function textOf(r: Row): { slugText: string; slugTokens: Set<string>; fullText: string; fullTokens: Set<string> } {
   const slug = decodeURIComponent(String(r.file_url).split('/').pop() || '')
     .split('?')[0].replace(/^\d+-/, '').replace(/\.(jpg|jpeg|png|webp)$/i, '')
-  const text = (slug + ' ' + (r.title || '')).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-  return { text, tokens: new Set(text.split(' ')) }
+  const slugText = slug.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const fullText = (slugText + ' ' + (r.title || '')).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  return { slugText, slugTokens: new Set(slugText.split(' ')), fullText, fullTokens: new Set(fullText.split(' ')) }
 }
 
 type Move = { id: string; from: string; to: string; name: string; addTag?: string }
 
-function classify(r: Row): { type: string; category: string; addTag?: string } | null {
-  const { text, tokens } = textOf(r)
-  const has = (t: string) => tokens.has(t)
-  const anyTok = (list: string[]) => list.some(has)
-  const fishSuffix = Array.from(tokens).some(t => t.length > 4 && t.endsWith('fish'))
-
-  // 1 ── zombie / infected / undead
-  if (anyTok(['zombie', 'zombies', 'infected', 'undead'])) {
-    return anyTok(HUMANISH)
-      ? { type: 'Zombie', category: 'Zombies' }
-      : { type: 'Creature', category: 'Monsters', addTag: 'zombie' }
-  }
-  // 2 ── anthropomorphic animal characters
-  if (anyTok(ANTHRO) || text.includes('animal character')) {
-    return { type: 'Character', category: 'Characters' }
-  }
-  // 3 ── cartoon humans
-  if (anyTok(CARTOON_HUMAN_WHO) && anyTok(CARTOON_MARK)) {
-    const cat = has('boy') || has('girl') || has('kid') || has('child') ? 'Kids' : has('woman') ? 'Women' : 'Men'
-    return { type: 'People', category: cat, addTag: 'style:cartoon' }
-  }
-  // 4 ── prehistoric humans vs palaeo-fauna
-  if (text.includes('prehistoric human') || has('neanderthal') || has('caveman')) {
-    return { type: 'People', category: 'Prehistoric' }
-  }
-  if (anyTok(DINO)) return { type: 'Creature', category: 'Dinosaurs' }
-  // 5 ── fantasy creatures keep their kingdom
-  if (anyTok(FANTASY)) {
-    const cat = has('alien') ? 'Aliens'
-      : (has('monster') || has('demon') || has('orc') || has('goblin') || has('ghoul') || has('wraith')) ? 'Monsters'
-      : 'Beasts'
-    return { type: 'Creature', category: cat }
-  }
-  // 6 ── real species by dictionary: multi-word first, then tokens
+function speciesLookup(text: string, tokens: Set<string>): { type: string; category: string } | null {
   for (const [phrase, cat] of MULTI) {
     if (text.includes(phrase)) {
       if (cat === '__creature__') return { type: 'Creature', category: 'Beasts' }
       return { type: 'Animal', category: cat }
     }
   }
-  if (fishSuffix) return { type: 'Animal', category: 'Fish & Sea' }
+  if (Array.from(tokens).some(t => t.length > 4 && t.endsWith('fish'))) return { type: 'Animal', category: 'Fish & Sea' }
   for (const [cat, words] of Object.entries(TOKENS)) {
-    if (anyTok(words)) return { type: 'Animal', category: cat }
+    if (words.some(w => tokens.has(w))) return { type: 'Animal', category: cat }
   }
+  return null
+}
+
+function classify(r: Row): { type: string; category: string; addTag?: string } | null {
+  // THE FILE NAME IS THE SOURCE OF TRUTH (owner's brief). Gemini titles
+  // only break ties: owner-flagged cases (anthro / cartoon humans) and
+  // files whose slug carries no species at all (hf-… batches).
+  const { slugText, slugTokens, fullText, fullTokens } = textOf(r)
+  const hasS = (t: string) => slugTokens.has(t)
+  const anyS = (list: string[]) => list.some(hasS)
+  const hasF = (t: string) => fullTokens.has(t)
+  const anyF = (list: string[]) => list.some(hasF)
+
+  // 1 ── zombie / infected / undead (slug is always explicit here)
+  if (anyS(['zombie', 'zombies', 'infected', 'undead'])) {
+    return anyS(HUMANISH) || anyF(HUMANISH)
+      ? { type: 'Zombie', category: 'Zombies' }
+      : { type: 'Creature', category: 'Monsters', addTag: 'zombie' }
+  }
+  // 2 ── anthropomorphic animal characters (slug OR title — owner's cases)
+  if (anyF(ANTHRO) || fullText.includes('animal character')) {
+    return { type: 'Character', category: 'Characters' }
+  }
+  // 3 ── cartoon humans (slug OR title)
+  if (anyF(CARTOON_HUMAN_WHO) && anyF(CARTOON_MARK)) {
+    const cat = hasF('boy') || hasF('girl') || hasF('kid') || hasF('child') ? 'Kids' : hasF('woman') ? 'Women' : 'Men'
+    return { type: 'People', category: cat, addTag: 'style:cartoon' }
+  }
+  // 4 ── prehistoric humans vs palaeo-fauna (slug)
+  if (slugText.includes('prehistoric human') || hasS('neanderthal') || hasS('caveman')) {
+    return { type: 'People', category: 'Prehistoric' }
+  }
+  if (anyS(DINO)) return { type: 'Creature', category: 'Dinosaurs' }
+  // 5 ── fantasy creatures keep their kingdom (slug ONLY — Gemini titles
+  //      love the word «alien» far too much)
+  if (anyS(FANTASY)) {
+    const cat = hasS('alien') ? 'Aliens'
+      : (hasS('monster') || hasS('demon') || hasS('orc') || hasS('goblin') || hasS('ghoul') || hasS('wraith')) ? 'Monsters'
+      : 'Beasts'
+    return { type: 'Creature', category: cat }
+  }
+  // 6 ── real species from the slug; title only when the slug is mute
+  const bySlug = speciesLookup(slugText, slugTokens)
+  if (bySlug) return bySlug
+  const byTitle = speciesLookup(fullText, fullTokens)
+  if (byTitle) return byTitle
   // 7 ── unknown: Animals go to Review (never guessed), others stay
   if (r.type === 'Animal') return { type: 'Animal', category: 'Review' }
   return null
