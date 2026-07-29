@@ -138,7 +138,12 @@ function classify(r: Row): { type: string; category: string; addTag?: string } |
   if (bySlug) return bySlug
   const byTitle = speciesLookup(fullText, fullTokens)
   if (byTitle) return byTitle
-  // 7 ── unknown: Animals go to Review (never guessed), others stay
+  // 7 ── survivors that shipped in the ZOMBIES folder but carry no
+  //      zombie word in the name: they are human — one Zombie category
+  if (r.type === 'Creature' && r.category === 'Zombies') {
+    return { type: 'Zombie', category: 'Zombies' }
+  }
+  // 8 ── unknown: Animals go to Review (never guessed), others stay
   if (r.type === 'Animal') return { type: 'Animal', category: 'Review' }
   return null
 }
