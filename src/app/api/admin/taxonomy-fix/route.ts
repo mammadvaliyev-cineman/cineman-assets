@@ -117,7 +117,15 @@ function classify(r: Row): { type: string; category: string; addTag?: string } |
     return { type: 'People', category: 'Prehistoric' }
   }
   if (anyS(DINO)) return { type: 'Creature', category: 'Dinosaurs' }
-  // 5 ── fantasy creatures keep their kingdom (slug ONLY — Gemini titles
+  // 5 ── EXACT multi-word species outrank fantasy tokens: a komodo
+  //      dragon is a reptile, a gila monster is a lizard
+  for (const [phrase, cat] of MULTI) {
+    if (slugText.includes(phrase)) {
+      if (cat === '__creature__') return { type: 'Creature', category: 'Beasts' }
+      return { type: 'Animal', category: cat }
+    }
+  }
+  // 6 ── fantasy creatures keep their kingdom (slug ONLY — Gemini titles
   //      love the word «alien» far too much)
   if (anyS(FANTASY)) {
     const cat = hasS('alien') ? 'Aliens'
