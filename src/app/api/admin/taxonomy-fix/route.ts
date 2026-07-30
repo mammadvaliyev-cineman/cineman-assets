@@ -205,6 +205,19 @@ async function buildPlan() {
       perTarget['Creature/Beasts'] = (perTarget['Creature/Beasts'] || 0) + 1
       continue
     }
+    // gender tag must agree with the NAME (the filter uses g:, users see the title)
+    const saysWoman = (ft.has('woman') || ft.has('female')) && !ft.has('man') && !ft.has('male')
+    const saysMan = (ft.has('man') || ft.has('male')) && !ft.has('woman') && !ft.has('female')
+    if (saysWoman && tags.includes('g:man')) {
+      moves.push({ id: r.id, from: `${r.type}/${r.category}`, to: `People/${r.category}`, name, retagDrop: ['g:man'], retagAdd: ['g:woman'] })
+      perTarget['People (gender fix)'] = (perTarget['People (gender fix)'] || 0) + 1
+      continue
+    }
+    if (saysMan && tags.includes('g:woman')) {
+      moves.push({ id: r.id, from: `${r.type}/${r.category}`, to: `People/${r.category}`, name, retagDrop: ['g:woman'], retagAdd: ['g:man'] })
+      perTarget['People (gender fix)'] = (perTarget['People (gender fix)'] || 0) + 1
+      continue
+    }
     const adultWord = (ft.has('man') || ft.has('woman')) && !ft.has('boy') && !ft.has('girl') && !ft.has('teenager')
     const kidTag = tags.includes('age:teen') || tags.includes('age:child')
     if (adultWord && kidTag) {
@@ -214,6 +227,54 @@ async function buildPlan() {
         retagDrop: ['age:teen', 'age:child'], retagAdd: ['age:young'],
       })
       perTarget[`People/${cat} (age fix)`] = (perTarget[`People/${cat} (age fix)`] || 0) + 1
+    }
+  }
+
+  // ── VEHICLE PASS (#90): sub-category from the vehicle word in the
+  // name — the spaceship batch shipped into Cars
+  const VEH: [string, string[]][] = [
+    ['Spacecraft', ['spaceship', 'spacecraft', 'starship', 'shuttle']],
+    ['Aircraft', ['aircraft', 'plane', 'airplane', 'jet', 'helicopter', 'chopper', 'glider']],
+    ['Boats', ['boat', 'ship', 'yacht', 'sailboat', 'vessel', 'submarine']],
+    ['Military', ['tank', 'apc', 'humvee', 'armored', 'armoured']],
+    ['Trucks', ['truck', 'lorry', 'pickup', 'silverado', 'hauler']],
+  ]
+  const { data: vehData } = await admin.from('assets')
+    .select('id,type,category,title,file_url,tags').eq('type', 'Vehicle').limit(900)
+  for (const r of (vehData || []) as Row[]) {
+    if (r.category === 'Futuristic') continue
+    const { fullTokens: ft } = textOf(r)
+    const name = decodeURIComponent(String(r.file_url).split('/').pop() || '').split('?')[0]
+    for (const [cat, words] of VEH) {
+      if (words.some(w => ft.has(w))) {
+        if ((r.category || '') !== cat) {
+          moves.push({ id: r.id, from: `${r.type}/${r.category}`, to: `Vehicle/${cat}`, name })
+          perTarget[`Vehicle/${cat}`] = (perTarget[`Vehicle/${cat}`] || 0) + 1
+        }
+        break
+      }
+    }
+  }
+
+  // ── ROBOT PASS (#90): mech / endoskeleton / android words win
+  const ROBOT: [string, string[]][] = [
+    ['Mech', ['mech', 'mecha']],
+    ['Endoskeleton', ['endoskeleton', 'skeletal']],
+    ['Android', ['android']],
+  ]
+  const { data: robData } = await admin.from('assets')
+    .select('id,type,category,title,file_url,tags').eq('type', 'Robot').limit(900)
+  for (const r of (robData || []) as Row[]) {
+    const { fullTokens: ft } = textOf(r)
+    const name = decodeURIComponent(String(r.file_url).split('/').pop() || '').split('?')[0]
+    for (const [cat, words] of ROBOT) {
+      if (words.some(w => ft.has(w))) {
+        if ((r.category || '') !== cat) {
+          moves.push({ id: r.id, from: `${r.type}/${r.category}`, to: `Robot/${cat}`, name })
+          perTarget[`Robot/${cat}`] = (perTarget[`Robot/${cat}`] || 0) + 1
+        }
+        break
+      }
     }
   }
 
