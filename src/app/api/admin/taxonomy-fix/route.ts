@@ -37,7 +37,7 @@ const MULTI: [string, string][] = [
   ['gila monster', 'Reptiles'], ['giant tortoise', 'Reptiles'], ['tree frog', 'Reptiles'],
   ['killer whale', 'Fish & Sea'], ['blue whale', 'Fish & Sea'], ['leafy seadragon', 'Fish & Sea'],
   ['highland cow', 'Pets'], ['jacob sheep', 'Pets'],
-  ['african wild dog', 'Predators'], ['feral dog', 'Predators'], ['fennec fox', 'Predators'],
+  ['african wild dog', 'Predators'], ['fennec fox', 'Predators'],
   ['cock of the rock', 'Birds'],
   ['red panda', 'Wild Mammals'], ['giant panda', 'Wild Mammals'],
   ['naked molerat', 'Wild Mammals'], ['patagonian mara', 'Wild Mammals'],
@@ -71,7 +71,7 @@ function textOf(r: Row): { slugText: string; slugTokens: Set<string>; fullText: 
   return { slugText, slugTokens: new Set(slugText.split(' ')), fullText, fullTokens: new Set(fullText.split(' ')) }
 }
 
-type Move = { id: string; from: string; to: string; name: string; addTag?: string }
+type Move = { id: string; from: string; to: string; name: string; addTag?: string; retagDrop?: string[]; retagAdd?: string[] }
 
 function speciesLookup(text: string, tokens: Set<string>): { type: string; category: string } | null {
   for (const [phrase, cat] of MULTI) {
@@ -97,8 +97,9 @@ function classify(r: Row): { type: string; category: string; addTag?: string } |
   const hasF = (t: string) => fullTokens.has(t)
   const anyF = (list: string[]) => list.some(hasF)
 
-  // 1 ── zombie / infected / undead (slug is always explicit here)
-  if (anyS(['zombie', 'zombies', 'infected', 'undead'])) {
+  // 1 ── zombie / infected / undead — the feral dogs are the owner's
+  //      infected pack, they live with the zombie creatures
+  if (anyS(['zombie', 'zombies', 'infected', 'undead']) || slugText.includes('feral dog')) {
     return anyS(HUMANISH) || anyF(HUMANISH)
       ? { type: 'Zombie', category: 'Zombies' }
       : { type: 'Creature', category: 'Monsters', addTag: 'zombie' }
@@ -178,6 +179,44 @@ async function buildPlan() {
     }
   }
 
+  // ── PEOPLE PASS (#89): the catalog's Kids filter matches age:child/teen
+  // tags — Gemini stamped them onto adults and even an elf. If the NAME
+  // says man/woman (and not boy/girl), the age tag becomes age:young;
+  // fantasy races (elf, fairy…) are not people at all → Creature/Beasts.
+  const FANTASY_RACE = ['elf', 'elves', 'fairy', 'goblin', 'orc', 'gnome', 'dwarfelf']
+  let pplRows: Row[] = []
+  for (let off = 0; off < 3000; off += 1000) {
+    const { data: chunk } = await admin.from('assets')
+      .select('id,type,category,title,file_url,tags')
+      .eq('type', 'People').range(off, off + 999)
+    const arr = (chunk || []) as Row[]
+    pplRows = pplRows.concat(arr)
+    if (arr.length < 1000) break
+  }
+  for (const r of pplRows) {
+    const { fullTokens: ft } = textOf(r)
+    const tags = r.tags || []
+    const name = decodeURIComponent(String(r.file_url).split('/').pop() || '').split('?')[0]
+    if (FANTASY_RACE.some(t => ft.has(t))) {
+      moves.push({
+        id: r.id, from: `${r.type}/${r.category}`, to: 'Creature/Beasts', name,
+        retagDrop: tags.filter(t => /^(g:|age:|eth:)/.test(t)),
+      })
+      perTarget['Creature/Beasts'] = (perTarget['Creature/Beasts'] || 0) + 1
+      continue
+    }
+    const adultWord = (ft.has('man') || ft.has('woman')) && !ft.has('boy') && !ft.has('girl') && !ft.has('teenager')
+    const kidTag = tags.includes('age:teen') || tags.includes('age:child')
+    if (adultWord && kidTag) {
+      const cat = r.category === 'Kids' ? (tags.includes('g:woman') || ft.has('woman') ? 'Women' : 'Men') : (r.category || 'Men')
+      moves.push({
+        id: r.id, from: `${r.type}/${r.category}`, to: `People/${cat}`, name,
+        retagDrop: ['age:teen', 'age:child'], retagAdd: ['age:young'],
+      })
+      perTarget[`People/${cat} (age fix)`] = (perTarget[`People/${cat} (age fix)`] || 0) + 1
+    }
+  }
+
   // possible duplicates: identical species slug (index stripped) appearing 2+ times
   const groups: Record<string, string[]> = {}
   for (const r of rows) {
@@ -215,10 +254,14 @@ export async function POST(req: NextRequest) {
       const [type, ...rest] = m.to.split('/')
       const category = rest.join('/')
       const patch: Record<string, unknown> = { type, category }
-      if (m.addTag) {
+      if (m.addTag || m.retagDrop || m.retagAdd) {
         const { data } = await admin.from('assets').select('tags').eq('id', m.id).single()
-        const tags: string[] = Array.isArray(data?.tags) ? data.tags : []
-        if (!tags.includes(m.addTag)) patch.tags = [...tags, m.addTag]
+        let tags: string[] = Array.isArray(data?.tags) ? data.tags : []
+        if (m.retagDrop) tags = tags.filter(t => !m.retagDrop!.includes(t))
+        for (const t of [...(m.retagAdd || []), ...(m.addTag ? [m.addTag] : [])]) {
+          if (!tags.includes(t)) tags = [...tags, t]
+        }
+        patch.tags = tags
       }
       const { error } = await admin.from('assets').update(patch).eq('id', m.id)
       if (!error) applied++
