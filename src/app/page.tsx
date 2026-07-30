@@ -248,12 +248,6 @@ export default async function HomePage() {
                 Includes free assets — try before you spend a credit.
               </p>
             </div>
-            {/* marketing line instead of the stats row (owner's copy §A1) */}
-            <p className="mt-10 text-[15px] leading-relaxed max-w-lg" style={{ color: "var(--fg-muted)" }}>
-              A massive library of ready-made cinematic assets for AI creators — cast,
-              locations, props and more. Find anything in seconds and spend your time
-              creating, not building. <span style={{ color: "#2DD4C4", fontWeight: 600 }}>Free assets included.</span>
-            </p>
           </div>
           {/* Right: living showreel — ken-burns crossfade over cinematic
               location frames (single images, safe to cover-crop) */}
