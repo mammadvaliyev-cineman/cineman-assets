@@ -310,6 +310,19 @@ export async function POST(req: NextRequest) {
   if (!gate.ok) return NextResponse.json({ error: gate.error }, { status: gate.status })
   try {
     const admin = supabaseAdmin()
+    // ── PERCEPTUAL-DUPE COLLAPSE (#96): the admin browser computes the
+    // hashes and sends the loser ids — we just hide them (reversible)
+    let hideBody: { hideIds?: unknown } = {}
+    try { hideBody = await req.json() } catch { /* empty body = full plan */ }
+    if (Array.isArray(hideBody.hideIds)) {
+      const ids = hideBody.hideIds.map(x => String(x)).slice(0, 300)
+      let hidden = 0
+      for (const id of ids) {
+        const { error } = await admin.from('assets').update({ is_public: false }).eq('id', id)
+        if (!error) hidden++
+      }
+      return NextResponse.json({ ok: true, hidden, requested: ids.length })
+    }
     const plan = await buildPlan()
     let applied = 0
     for (const m of plan.moves) {
