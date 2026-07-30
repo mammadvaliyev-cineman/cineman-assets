@@ -448,6 +448,9 @@ export default function CatalogPage() {
       // in-catalog search — title / category / tags
       const q = p.get('q')
       if (q) setSearch(q.slice(0, 80))
+      // «Similar» deep-link (#94): jump straight into a sub-category
+      const sub = p.get('sub')
+      if (sub) setActiveSubcat(sub.slice(0, 40))
     } catch { /* noop */ }
   }, [])
   const [storeTick, setStoreTick]     = useState(0)
@@ -544,7 +547,6 @@ export default function CatalogPage() {
     load()
   }, [sortBy])
 
-  const types = useMemo(() => ['All', ...Array.from(new Set(assets.map(a => a.type))).filter(Boolean).sort()], [assets])
   // Subcategories come from the ACTUAL loaded assets (not a hardcoded
   // config) so the filter values always match a.category exactly.
   const charSubcats = useMemo(() => ['All', ...Array.from(new Set(assets.filter(a => String(a.type) === 'Character').map(a => a.category).filter(Boolean))).sort()], [assets])
@@ -844,9 +846,8 @@ export default function CatalogPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
           {/* Chips */}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            {types.length > 2 && (
-              <FilterChip label="Asset Type" value={activeType} options={types} onChange={setActiveType} iconD={CAT_ICONS.grid} />
-            )}
+            {/* Asset Type chip removed (#93) — the sidebar Categories IS the
+                type selector; one concept, one control */}
             {/* FREE — a filter chip, not a sidebar section (DEV_batch_60 §3) */}
             {(assets.some(a => a.isFree) || activeFree) && (
               <button
