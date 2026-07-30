@@ -792,6 +792,29 @@ function AssetCard({
                 </div>
               )}
             </div>
+            {/* quick actions (#94): send to Studio · find similar */}
+            <div className="flex gap-1.5" style={{ marginTop: 6 }}>
+              <a
+                href={`/studio?ref=${encodeURIComponent(asset.id)}`}
+                onClick={e => e.stopPropagation()}
+                title="Use as a reference in Studio"
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.85)', textDecoration: 'none' }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                Studio
+              </a>
+              <a
+                href={`/catalog?category=${encodeURIComponent(asset.type)}${asset.category ? `&sub=${encodeURIComponent(asset.category)}` : ''}`}
+                onClick={e => e.stopPropagation()}
+                title="Show similar assets"
+                className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[11px] font-semibold"
+                style={{ backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: 'rgba(255,255,255,0.85)', textDecoration: 'none' }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                Similar
+              </a>
+            </div>
           </div>
         )}
       </div>
