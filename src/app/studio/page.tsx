@@ -219,6 +219,23 @@ export default function StudioPage() {
       const m = new URLSearchParams(window.location.search).get('model')
       if (m && MODELS_UI[m]) setModel(m)
     } catch { /* noop */ }
+    // «Use in Studio» deep-link (#94): free assets drop straight into the
+    // references; paid ones open the picker on that asset (buy in place)
+    try {
+      const refId = new URLSearchParams(window.location.search).get('ref')
+      if (refId) {
+        supabase.from('assets').select('id,title,file_url,type,is_free').eq('id', refId).single().then(({ data }) => {
+          if (!data) return
+          if (data.is_free) {
+            pickAsset({ id: String(data.id), title: String(data.title || 'Asset'), file_url: String(data.file_url), type: String(data.type || 'People') })
+          } else {
+            setPickSource('catalog')
+            setPickQuery(String(data.title || '').split(' ').slice(0, 3).join(' '))
+            setPickOpen(true)
+          }
+        })
+      }
+    } catch { /* noop */ }
     draftLoaded.current = true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
