@@ -188,7 +188,7 @@ async function buildPlan() {
   for (let off = 0; off < 3000; off += 1000) {
     const { data: chunk } = await admin.from('assets')
       .select('id,type,category,title,file_url,tags')
-      .eq('type', 'People').range(off, off + 999)
+      .eq('type', 'People').order('id').range(off, off + 999)
     const arr = (chunk || []) as Row[]
     pplRows = pplRows.concat(arr)
     if (arr.length < 1000) break
@@ -197,7 +197,8 @@ async function buildPlan() {
     const { fullTokens: ft } = textOf(r)
     const tags = r.tags || []
     const name = decodeURIComponent(String(r.file_url).split('/').pop() || '').split('?')[0]
-    if (FANTASY_RACE.some(t => ft.has(t))) {
+    // an elf COSTUME is a human in a costume — not a fantasy race
+    if (FANTASY_RACE.some(t => ft.has(t)) && !ft.has('costume') && !ft.has('cosplay')) {
       moves.push({
         id: r.id, from: `${r.type}/${r.category}`, to: 'Creature/Beasts', name,
         retagDrop: tags.filter(t => /^(g:|age:|eth:)/.test(t)),
