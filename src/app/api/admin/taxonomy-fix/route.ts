@@ -100,6 +100,10 @@ function classify(r: Row): { type: string; category: string; addTag?: string } |
   // 1 ── zombie / infected / undead — the feral dogs are the owner's
   //      infected pack, they live with the zombie creatures
   if (anyS(['zombie', 'zombies', 'infected', 'undead']) || slugText.includes('feral dog')) {
+    // owner's rule: zombie DOGS live inside Zombies, own sub-category
+    if (anyS(['dog', 'dogs', 'hound', 'canine']) || slugText.includes('feral dog')) {
+      return { type: 'Zombie', category: 'Zombie Dogs', addTag: 'zombie' }
+    }
     return anyS(HUMANISH) || anyF(HUMANISH)
       ? { type: 'Zombie', category: 'Zombies' }
       : { type: 'Creature', category: 'Monsters', addTag: 'zombie' }
