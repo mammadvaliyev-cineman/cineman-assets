@@ -52,7 +52,7 @@ export const CATEGORIES: Category[] = [
     label: 'Zombies',
     emoji: '',
     color: '#8CB43C',
-    subcategories: ['Zombies'].map(sub),
+    subcategories: ['Zombies', 'Zombie Dogs'].map(sub),
   },
   {
     id: 'Robot',
